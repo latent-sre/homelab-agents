@@ -167,7 +167,7 @@ def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
     # and blows up on the CLI's box-drawing output -- leaving stdout as None rather than failing
     # honestly, so the probe would report a crash as though it were a verdict.
     return subprocess.run(
-        cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=900, **kwargs
+        cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=600, **kwargs
     )
 
 

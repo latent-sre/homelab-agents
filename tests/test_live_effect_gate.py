@@ -296,6 +296,93 @@ class Roster(unittest.TestCase):
         self.assertIn("cannot bind", reason(out))
 
 
+class DiagnosticCommands(unittest.TestCase):
+    """Read verbs and their operands must not become live verbs or suppressed-mode denials."""
+
+    def test_diagnostics_do_not_acquire_live_authority_requirements(self) -> None:
+        for command in (
+            "mount", "mount -l", "mount --show-labels",
+            "docker inspect restart", "docker logs stop",
+            "docker --context restart inspect stop",
+            "docker -H tcp://host:2376 inspect restart",
+            "docker compose -f up -p restart logs stop",
+            "docker compose --file=up --project-name=restart ps",
+            "systemctl status restart", "systemctl --user show reboot",
+            "kubectl rollout status deployment/jellyfin",
+            "kubectl --context restart rollout history deployment/jellyfin",
+            "kubectl -n media rollout status deployment/jellyfin",
+            "terraform state list", "terraform state show resource.restart",
+            "terraform -chdir=infra state pull", "tofu state list",
+            "ssh nuc-01 'docker inspect restart'",
+        ):
+            for mode in ("default", "dontAsk", "auto", "bypassPermissions", None):
+                with self.subTest(command=command, mode=mode):
+                    self.assertEqual("none", decision(run_gate(bash_call(command, mode=mode))))
+
+    def test_neighboring_effects_keep_the_managed_gate(self) -> None:
+        for command in (
+            "mount -a", "mount /dev/sdb1 /mnt/backup", "mount -o remount,ro /srv",
+            "docker --context inspect restart jellyfin",
+            "docker compose -f logs -p ps up -d",
+            "kubectl rollout restart deployment/jellyfin",
+            "kubectl rollout undo deployment/jellyfin", "kubectl rollout pause deployment/jellyfin",
+            "terraform state rm resource.x", "terraform state mv resource.x resource.y",
+            "terraform state push snapshot.json", "terraform state replace-provider old new",
+            "tofu state rm resource.x", "terraform state future-command",
+            "docker inspect restart && docker restart jellyfin",
+            "mount; systemctl restart jellyfin",
+            "ssh nuc-01 'terraform state list; terraform apply'",
+            "kubectl --unknown-option value rollout restart deployment/jellyfin",
+        ):
+            for mode, expected in (("default", "ask"), ("dontAsk", "deny")):
+                with self.subTest(command=command, mode=mode):
+                    self.assertEqual(expected, decision(run_gate(bash_call(command, mode=mode))))
+
+    def test_unrecognized_option_arity_cannot_establish_a_diagnostic(self) -> None:
+        for command in (
+            "docker --unknown-option inspect restart jellyfin",
+            "kubectl --unknown-option rollout status restart",
+            "mount --all --show-labels",
+        ):
+            with self.subTest(command=command):
+                self.assertEqual("deny", decision(run_gate(bash_call(command, mode="dontAsk"))))
+
+    def test_option_operands_survive_normalization_before_diagnostic_recognition(self) -> None:
+        for command in (
+            "docker --config cfg=prod restart inspect",
+            "docker --config '>cfg' restart inspect",
+            "ssh nuc-01 \"docker --config cfg=prod restart inspect\"",
+            "ssh nuc-01 \"docker --config '>cfg' restart inspect\"",
+        ):
+            for mode, expected in (("default", "ask"), ("dontAsk", "deny"), (None, "deny")):
+                with self.subTest(command=command, mode=mode):
+                    self.assertEqual(expected, decision(run_gate(bash_call(command, mode=mode))))
+        for command in (
+            "docker --config cfg=prod inspect restart",
+            "MODE=inspect docker --config cfg=prod inspect restart",
+            "env MODE=inspect docker --config cfg=prod inspect restart",
+        ):
+            with self.subTest(command=command):
+                self.assertEqual("none", decision(run_gate(bash_call(command, mode="dontAsk"))))
+
+    def test_redirection_shaped_data_retains_conservative_classification(self) -> None:
+        # The existing splitter loses quoting around redirection-shaped operands. Until it can
+        # prove those positions, do not apply the new diagnostic shortcut to this spelling.
+        for command in ("docker --config '>cfg' inspect restart", "docker inspect restart 2>&1"):
+            with self.subTest(command=command):
+                self.assertEqual("deny", decision(run_gate(bash_call(command, mode="dontAsk"))))
+
+    def test_retaining_operands_does_not_shrink_existing_live_detection(self) -> None:
+        for command in (
+            "docker compose -f a=b.yml -f c=d.yml -f e=f.yml up -d",
+            "docker --config a=b --context c=d --host e=f restart inspect",
+            "ssh nuc-01 'docker compose -f a=b.yml -f c=d.yml -f e=f.yml up -d'",
+        ):
+            for mode, expected in (("default", "ask"), ("dontAsk", "deny"), (None, "deny")):
+                with self.subTest(command=command, mode=mode):
+                    self.assertEqual(expected, decision(run_gate(bash_call(command, mode=mode))))
+
+
 class GateBypassShapesFromReview(unittest.TestCase):
     """Argv shapes that reached "no decision" while still executing a live effect (PR #164 review).
 
