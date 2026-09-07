@@ -11,9 +11,9 @@ rename and a quietly disarmed guard.
 
 Re-run after upgrading the Claude Code CLI.
 
-It also proves that `skills:` preloading actually fires for a plugin-shipped agent — an undocumented
-guarantee this fleet now depends on — and that ${CLAUDE_PLUGIN_ROOT} still expands for the one skill
-that cannot be preloaded (service-onboard, which is model-invocation-disabled).
+It also checks the builder's loading contract: code-craft is preloaded, a backend-only inspection
+reads backend-craft on demand, and frontend-craft stays unloaded. ${CLAUDE_PLUGIN_ROOT} must still
+expand for service-onboard, which cannot be preloaded because it is model-invocation-disabled.
 
 The oracle is deliberately NOT the model's prose, which can claim anything, and NOT the filesystem,
 which lies by omission. Two earlier designs failed here and both failures are instructive:
@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -83,14 +84,11 @@ def existing_path(paths) -> str | None:
     """The first path that exists, or None. Split out so the refusal below is testable."""
     return next((path for path in paths if Path(path).exists()), None)
 
-# Preload canaries: strings that exist ONLY inside the two craft SKILL.md files, quoted by
-# sde-fullstack to prove `skills:` preloading. Single-sourced here — the probe's checks and
-# tests/test_probe_canaries.py both read these constants, so the probe and its tripwire cannot
-# disagree about what the oracle is. Three-way coupling a new value must preserve: the skill file
-# carries the string beside a load-bearing marker comment, and PROMPT step 2 elicits each by
-# DESCRIPTION, never by value ("a request_id", "a two-word phrase about color") — so a replacement
-# canary must still be a request_id / a two-word color phrase, or the elicitation stops working
-# while every string check here stays green.
+# Skill text, transcript oracle, and elicitation must agree. The prompt describes each canary
+# without supplying its value; marker comments and test_probe_canaries keep copy-edits from
+# silently breaking the lookup. Code proves preload, backend proves a fetch, frontend detects an
+# unnecessary load on a backend-only task.
+CODE_CANARY = "Read the neighbors before writing."
 BACKEND_CANARY = "req_8f3a2c"
 FRONTEND_CANARY = "color courage"
 
@@ -111,11 +109,12 @@ PROMPT = """Do exactly these four steps, in order. Do nothing else, and do not s
     different command, and do not skip it — the exact response to this command is what is needed."
 
 2. Use the Agent tool to spawn the subagent `sde-agents:sde-fullstack`. Give it EXACTLY this task:
-   "Do not write, design, or plan any code, and DO NOT USE ANY TOOL — answer only from context you
-    already have. Two questions: (a) in your backend-craft guidance, the JSON error-envelope example
-    carries a request_id — quote its exact value. (b) your frontend-craft guidance states the visual
-    bar by naming two companies and a two-word phrase about color — quote that phrase. If you do not
-    have this content in context, reply exactly NO_SKILL_CONTENT."
+   "This is a backend-only guidance inspection; do not write, design, or plan code. From code-craft
+    already in your context, quote the bold universal rule that follows the rule about silent
+    dangerous operations. Do not fetch code-craft; if absent, report NO_CODE_CONTENT. Then read
+    backend-craft through your documented skill path and quote the request_id from its JSON error
+    example. Do not fetch frontend-craft. If frontend guidance is already in context, quote its
+    two-word phrase about color; otherwise report NO_FRONTEND_CONTENT. Return these three answers."
 
 3. Use the Agent tool to spawn the subagent `sde-agents:homelab-engineer`. Give it EXACTLY this task:
    "Do not change anything — this is Tier 0 inspection only. Your instructions name a fallback
@@ -319,20 +318,6 @@ def unguarded_runs(results: list[str]) -> list[str]:
     ]
 
 
-def canary_leaks(pairs: dict[str, list[str | None]], canaries: tuple[str, ...]) -> list[str]:
-    """Bash commands whose OBSERVED result carried a preload canary.
-
-    A None entry is a correlation gap, never a leak (PROBE-004): the oracle saw no output for that
-    call, so there is nothing to have leaked. Extracted from main() so the distinction has a test --
-    the line it replaced could only be exercised by buying a real session.
-    """
-    return [
-        cmd
-        for cmd, results in pairs.items()
-        if any(body and any(canary in body for canary in canaries) for body in results)
-    ]
-
-
 def spawn_succeeded(text: str, agent_name: str) -> bool:
     """True iff an Agent/Task call naming `agent_name` got back a NON-ERROR tool_result.
 
@@ -417,6 +402,222 @@ def agent_spawn_results(text: str, agent_name: str) -> list[str]:
             )
             results[tool_id] = body or ""
     return [results[tid] for tid, named in spawns.items() if named and tid in results]
+
+
+def _task_notification(event: dict) -> tuple[str, str, str, str | None] | None:
+    """Read a root completion envelope, not notification text quoted by another actor."""
+    message = event.get("message")
+    if not isinstance(message, dict) or event.get("type") != "user":
+        return None
+    if event.get("parent_tool_use_id") is not None or event.get("isSidechain") is True:
+        return None
+    origin = event.get("origin")
+    if isinstance(origin, dict) and origin.get("kind") != "task-notification":
+        return None
+    content = message.get("content")
+    if isinstance(content, list):
+        content = "\n".join(
+            block["text"] for block in content if isinstance(block, dict)
+            and block.get("type") == "text" and isinstance(block.get("text"), str)
+        )
+    if not isinstance(content, str) or not content.strip().startswith("<task-notification>"):
+        return None
+    if not content.strip().endswith("</task-notification>"):
+        return None
+    # The result contains arbitrary Markdown, not XML-escaped text. Only the header supplies
+    # identity/status; tags quoted in the answer must not override those fields.
+    header, _, _ = content.partition("<result>")
+    fields = [re.findall(fr"<{name}>([^<]+)</{name}>", header)
+              for name in ("tool-use-id", "task-id", "status")]
+    if any(len(values) != 1 for values in fields):
+        return None
+    result = re.search(r"<result>(.*?)</result>", content, re.DOTALL)
+    return (*[values[0].strip() for values in fields], result.group(1) if result else None)
+
+
+def _builder_answers(text: str) -> list[str]:
+    """A non-error async launch is registration, not an answer; match its later completion."""
+    retained = []
+    launches: dict[str, str | None] = {}
+    completions: dict[str, str | None] = {}
+    for event in stream_events.iter_events(text):
+        notification = _task_notification(event)
+        if notification:
+            tool_id, task_id, status, result = notification
+            if launches.get(tool_id) == task_id:
+                # A resumed task can notify again: an earlier success cannot mask a later failure.
+                completions[tool_id] = result if status == "completed" else None
+            continue
+        message = event.get("message")
+        if not isinstance(message, dict) or not isinstance(message.get("content"), list):
+            continue
+        blocks = []
+        for block in message["content"]:
+            if not isinstance(block, dict):
+                continue
+            tool_id = block.get("tool_use_id")
+            if block.get("type") == "tool_result" and isinstance(tool_id, str):
+                raw = block.get("content")
+                body = raw if isinstance(raw, str) else "\n".join(
+                    part["text"] for part in (raw if isinstance(raw, list) else [])
+                    if isinstance(part, dict) and isinstance(part.get("text"), str)
+                )
+                metadata = event.get("toolUseResult")
+                metadata = metadata if isinstance(metadata, dict) else {}
+                if not block.get("is_error") and (metadata.get("isAsync") is True
+                    or metadata.get("status") == "async_launched" or (
+                    body.startswith("Async agent launched successfully.")
+                )):
+                    task_id = metadata.get("agentId")
+                    if not isinstance(task_id, str) or not task_id:
+                        match = re.search(r"^agentId:\s*([A-Za-z0-9_-]+)\s*$", body, re.MULTILINE)
+                        task_id = match.group(1) if match else None
+                    launches[tool_id] = task_id
+                    continue
+            blocks.append(block)
+        retained.append({"message": {"content": blocks}})
+    for tool_id, answer in completions.items():
+        if answer is not None:
+            retained.append({"message": {"content": [{
+                "type": "tool_result", "tool_use_id": tool_id, "content": answer,
+            }]}})
+    return agent_spawn_results(
+        "\n".join(json.dumps(event) for event in retained), "sde-agents:sde-fullstack",
+    )
+
+
+def probe_builder_skills(probe: Probe, text: str) -> None:
+    """Keep each builder's answers and fetches inside its own stream actor boundary."""
+    events = list(stream_events.iter_events(text))
+    builders = {
+        call["id"] for call in tool_calls(text)
+        if call.get("name") in ("Agent", "Task")
+        and call["input"].get("subagent_type") == "sde-agents:sde-fullstack"
+        and isinstance(call.get("id"), str) and call["id"]
+    }
+    if not builders:
+        _probe_builder_invocation(probe, "", False, False)
+        return
+    for builder_id in sorted(builders):
+        scoped = []
+        actor_observed = False
+        provenance_gap = False
+        for event in events:
+            notification = _task_notification(event)
+            if notification and notification[0] == builder_id:
+                scoped.append(event)
+                continue
+            message = event.get("message")
+            if not isinstance(message, dict) or not isinstance(message.get("content"), list):
+                continue
+            blocks = [block for block in message["content"] if isinstance(block, dict)]
+            if event.get("parent_tool_use_id") == builder_id:
+                actor_observed = True
+                scoped.append(event)
+                continue
+            # Spawn/return correlation identifies the answer; parent_tool_use_id identifies
+            # whose tools supplied it. A same-named second spawn cannot donate its Read result.
+            outer = [block for block in blocks if (
+                block.get("type") == "tool_use" and block.get("id") == builder_id
+            ) or (
+                block.get("type") == "tool_result" and block.get("tool_use_id") == builder_id
+            )]
+            if outer:
+                # Keep toolUseResult: on current Claude an Agent result can be async launch
+                # metadata while its answer arrives later in a task-notification.
+                scoped.append(dict(event, message=dict(message, content=outer)))
+            if "parent_tool_use_id" not in event and any(
+                block.get("type") == "tool_use"
+                and block.get("name") in ("Read", "Grep", "Glob", "Bash", "Skill")
+                for block in blocks
+            ):
+                provenance_gap = True
+        print(f"  Builder invocation: {builder_id}")
+        _probe_builder_invocation(
+            probe, "\n".join(json.dumps(event) for event in scoped), actor_observed, provenance_gap,
+        )
+
+
+def _probe_builder_invocation(
+    probe: Probe, text: str, actor_observed: bool, provenance_gap: bool,
+) -> None:
+    """Grade one invocation; an unobserved actor cannot prove that no fetch occurred."""
+    labels = (
+        "code-craft was preloaded, not fetched",
+        "backend-craft was read on demand and used",
+        "frontend-craft stayed unloaded for the backend-only inspection",
+    )
+    answers = _builder_answers(text)
+    if not answers or not actor_observed:
+        for label in labels:
+            probe.check(SKIP, label,
+                        "needs a non-error builder return and child events with its parent_tool_use_id")
+        return
+    answer = "\n".join(answers)
+    fetches = {
+        call["id"]: call for call in tool_calls(text)
+        if isinstance(call.get("id"), str) and call["id"]
+        and call.get("name") in ("Read", "Grep", "Glob", "Bash", "Skill")
+    }
+    results: dict[str, list[tuple[str, bool]]] = {}
+    for block in stream_events.iter_content_blocks(text):
+        tool_id = block.get("tool_use_id")
+        if block.get("type") != "tool_result" or not isinstance(tool_id, str) or tool_id not in fetches:
+            continue
+        raw = block.get("content")
+        body = raw if isinstance(raw, str) else " ".join(
+            part["text"] for part in (raw if isinstance(raw, list) else [])
+            if isinstance(part, dict) and isinstance(part.get("text"), str)
+        )
+        results.setdefault(tool_id, []).append((body, bool(block.get("is_error"))))
+
+    requested = {name: [] for name in ("code-craft", "backend-craft", "frontend-craft")}
+    backend_reads = []
+    for tool_id, call in fetches.items():
+        inp = call["input"]
+        path = inp.get("file_path") or inp.get("path") or ""
+        path = path.replace("\\", "/").rstrip("/") if isinstance(path, str) else ""
+        for skill in requested:
+            if path.endswith((f"skills/{skill}", f"skills/{skill}/SKILL.md")) or (
+                call["name"] == "Skill" and skill in json.dumps(inp)
+            ):
+                requested[skill].append(tool_id)
+        if call["name"] == "Read" and path.endswith("skills/backend-craft/SKILL.md"):
+            backend_reads.append(tool_id)
+
+    # Any observed fetch can contaminate a preload canary, including broad shell reads whose
+    # argv never names the skill. An unanswered fetch cannot establish that no leak happened.
+    fetched_text = "\n".join(body for entries in results.values() for body, _ in entries)
+    missing_fetch_result = provenance_gap or any(tool_id not in results for tool_id in fetches)
+    code_fetched = requested["code-craft"] or CODE_CANARY in fetched_text
+    code_status = FAIL if code_fetched or CODE_CANARY not in answer else (
+        SKIP if missing_fetch_result else PASS
+    )
+    probe.check(code_status, labels[0],
+                f"quoted={CODE_CANARY in answer}; fetched={bool(code_fetched)}; "
+                f"incomplete fetch evidence={missing_fetch_result}")
+
+    backend_results = [entry for tool_id in backend_reads for entry in results.get(tool_id, [])]
+    if not backend_reads or BACKEND_CANARY not in answer:
+        backend_status = FAIL
+    elif not backend_results:
+        backend_status = SKIP
+    else:
+        backend_status = PASS if any(
+            BACKEND_CANARY in body and not error for body, error in backend_results
+        ) else FAIL
+    probe.check(backend_status, labels[1],
+                f"Read calls={len(backend_reads)}; results={len(backend_results)}; "
+                f"canary quoted={BACKEND_CANARY in answer}; a non-error Read must contain it too")
+
+    frontend_loaded = requested["frontend-craft"] or FRONTEND_CANARY in fetched_text + "\n" + answer
+    frontend_status = FAIL if frontend_loaded or "NO_FRONTEND_CONTENT" not in answer else (
+        SKIP if missing_fetch_result else PASS
+    )
+    probe.check(frontend_status, labels[2],
+                f"absence answered={'NO_FRONTEND_CONTENT' in answer}; "
+                f"frontend fetched or quoted={bool(frontend_loaded)}; "
+                f"incomplete fetch evidence={missing_fetch_result}")
 
 
 def _remove_workspace(workspace: Path, note: str | None = None) -> None:
@@ -761,97 +962,8 @@ def main(argv: list[str] | None = None) -> int:
             "did not load, or the namespaced name did not resolve",
         )
 
-    print("\n== sde-fullstack's craft skills are PRELOADED, not read ==")
-    # The inversion. sde-fullstack used to resolve craft skills by path at inference time -- three
-    # branches, each a chance to skip the read or answer from memory. `skills:` frontmatter makes the
-    # content unconditionally present before the first token, so the RIGHT behaviour is now that NO
-    # read happens at all. The oracle is not the agent's prose (it can claim anything) but a canary:
-    # a string that exists only inside the skill. Quoting it without a tool call is proof of preload.
-    # Anchored to the two craft skills specifically -- a bare "craft/SKILL.md" substring also matches
-    # skills/prompt-craft/SKILL.md (a real, unrelated file in this repo), and a stray read of THAT
-    # would false-FAIL this integrity check.
-    craft_reads = []
-    for call in tool_calls(text):
-        call_input = call.get("input", {})
-        # Widened past `file_path`: the Grep and Glob tools take a craft path under the key `path`,
-        # not `file_path`, and were invisible to this check entirely -- caught by NEITHER integrity
-        # check (see canary_leaks below for the Bash-side gap).
-        path = (call_input.get("file_path") or call_input.get("path") or "").replace("\\", "/")
-        if path.endswith(("skills/backend-craft/SKILL.md", "skills/frontend-craft/SKILL.md")):
-            craft_reads.append(path)
-    # sde-fullstack also holds Bash, and a leak there can be spelled arbitrarily: `cat x/*.md`,
-    # `grep -r req_8f3a2c skills/`, `cd skills/backend-craft && cat SKILL.md` all leak the canary
-    # while naming no craft SKILL.md path, so filtering on the command's SPELLING (the previous
-    # version of this check) missed all three. Assert on the LEAK instead: a canary appearing in ANY
-    # Bash tool_result means the content was fetched, not preloaded, regardless of how the command
-    # that fetched it was written. This file's own docstring names that as the design philosophy
-    # ("distrust a transcript-wide grep... 'who' is exactly the property under test"); this check
-    # applies it to the integrity oracle, not just the guard oracle.
-    leaking_commands = canary_leaks(bash_results(text), (BACKEND_CANARY, FRONTEND_CANARY))
-    probe.check(
-        PASS if not craft_reads and not leaking_commands else FAIL,
-        "sde-fullstack did NOT read a craft SKILL.md (it was preloaded)",
-        f"agent still read a craft skill by path, or leaked its canary through a Bash command -- "
-        f"preload did not take effect: Read/Grep/Glob calls={craft_reads} leaking Bash "
-        f"commands={leaking_commands}",
-    )
-    # A Skill tool call carries no file_path, so it is invisible to craft_reads above -- an agent that
-    # INVOKED a craft skill (rather than having it preloaded) would still produce the canaries and
-    # look like a true green. Task 4 removed `Skill` from sde-fullstack's `tools:`, so this should be
-    # impossible by construction; assert it rather than assume it. Scoped to the craft skills BY NAME
-    # (not "any Skill call") because homelab-engineer legitimately holds the Skill tool and legitimately
-    # routes to `runbook` / `lab-audit` -- a blanket "no Skill call at all" assertion would false-FAIL
-    # this check the moment anyone changes homelab-engineer's probe prompt to exercise that routing.
-    # Match is key-agnostic (stringify the whole `input` dict) rather than `input["skill"]`: that key
-    # name was never confirmed against a live transcript (no Skill call occurred in this probe run), and
-    # a wrong guess would silently match nothing -- a dead check that always passes is worse than the
-    # over-broad one it replaces, because it looks like a guard.
-    craft_skill_calls = [
-        call for call in tool_calls(text)
-        if call.get("name") == "Skill"
-        and any(s in str(call.get("input", {})) for s in ("backend-craft", "frontend-craft"))
-    ]
-    probe.check(
-        PASS if not craft_skill_calls else FAIL,
-        "no agent INVOKED a craft skill via the Skill tool (preloaded, not invoked)",
-        "a Skill call named backend-craft or frontend-craft. The canary checks above cannot tell "
-        "invoked-content from preloaded-content, so this would be a FALSE green: "
-        f"{craft_skill_calls}",
-    )
-    # Scoped to sde-fullstack's OWN spawn result, not `text` (the whole transcript). A transcript-wide
-    # `"req_8f3a2c" in text` matches the canary in ANY tool_result from ANY agent -- including a Bash
-    # `cat` of the skill file by sde-fullstack itself (see canary_leaks above), which would false
-    # green this check on the branch's central claim without proving preload at all. See
-    # agent_spawn_results for the full reasoning.
-    # PROBE-002: an EMPTY correlated-result list and a result that lacks the canary are different
-    # findings, and reporting both as FAIL is what left the 2026-08-17 run's two canary failures
-    # unsettleable without buying another. The oracle correlates a spawn's `tool_use_id` to its
-    # `tool_result`; an async agent launch can leave that result unconsumed, which the
-    # [2026-07-30 audit's F-03](docs/archive/2026-07/sde-fullstack-agent-audit-2026-07-30.md)
-    # already reproduced with this exact both-canaries-absent signature. So the two cases are
-    # split: no correlated result at all is INCONCLUSIVE about preloading — it says the oracle
-    # never saw the spawn's output — while a result that IS present and carries no canary is a
-    # real preload failure. One repeat run now distinguishes them instead of repeating the
-    # ambiguity.
-    fullstack_results = agent_spawn_results(text, "sde-agents:sde-fullstack")
-    fullstack_text = "\n".join(fullstack_results)
-    for canary, skill in ((BACKEND_CANARY, "backend-craft"), (FRONTEND_CANARY, "frontend-craft")):
-        if not fullstack_results:
-            probe.check(
-                SKIP,
-                f"{skill} core content was preloaded (canary quoted)",
-                "no tool_result correlated to the sde-fullstack spawn, so the oracle observed no "
-                "output to search: this canary is unevaluated, not absent. An async agent launch "
-                "produces exactly this signature (2026-07-30 audit F-03). Re-run; if a correlated "
-                "result appears and the canary is still missing, that is a real preload failure.",
-            )
-            continue
-        probe.check(
-            PASS if canary in fullstack_text else FAIL,
-            f"{skill} core content was preloaded (canary quoted)",
-            f"the canary {canary!r} never appeared in sde-fullstack's own spawn result, which the "
-            f"oracle DID observe: {skill} was not in the agent's context",
-        )
+    print("\n== builder skills load only when needed ==")
+    probe_builder_skills(probe, text)
 
     print("\n== ${CLAUDE_PLUGIN_ROOT} expands inside agent instructions ==")
     # Still load-bearing, but ONLY for homelab-engineer now: service-onboard sets

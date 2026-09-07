@@ -1,14 +1,8 @@
-"""Guards the canary strings scripts/probe_plugin.py depends on to prove skill preloading.
+"""Check skill-loading evidence and keep its canaries bound to actual skill content.
 
-BACKEND_CANARY (skills/backend-craft/SKILL.md, under "## Contract first") and FRONTEND_CANARY
-(skills/frontend-craft/SKILL.md, under "## Visual character") are embedded in ordinary skill
-content, but the probe's oracle for "was this skill preloaded, not read" is exactly "did this
-string appear in the transcript" -- see scripts/probe_plugin.py's "sde-fullstack's craft skills
-are PRELOADED, not read" section. A copy-edit to either SKILL.md would silently disarm that
-check: the probe would still run, still print PASS/FAIL, and never say why the canary stopped
-matching. Two layers hold this together: a marker comment beside each canary in the skill file
-warns the editor at the edit site, and this test is the tripwire behind the warning -- asserted
-through the probe's own constants so the probe and this guard cannot drift apart.
+The builder preloads code-craft and reads backend guidance only for a backend task. Canary
+correlation distinguishes those paths; frontend content reveals an unnecessary load. Marker
+comments and these source checks keep a copy-edit from silently invalidating that instrument.
 """
 from __future__ import annotations
 
@@ -128,6 +122,12 @@ class ProbeCanaryTests(unittest.TestCase):
         })
         self.assertEqual(1, len(observed))
 
+    def test_code_craft_canary_is_present_and_not_supplied_by_the_prompt(self) -> None:
+        text = (REPO / "skills" / "code-craft" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn(f"**{probe_plugin.CODE_CANARY}**", text)
+        for canary in (probe_plugin.CODE_CANARY, probe_plugin.BACKEND_CANARY, probe_plugin.FRONTEND_CANARY):
+            self.assertNotIn(canary, probe_plugin.PROMPT)
+
     def test_backend_craft_canary_is_present(self) -> None:
         # Asserted via the probe's own constant, not a copied literal: with a duplicate string
         # here, a probe-side canary change would fail live probes while this tripwire stayed
@@ -136,7 +136,7 @@ class ProbeCanaryTests(unittest.TestCase):
         self.assertIn(
             probe_plugin.BACKEND_CANARY,
             text,
-            "scripts/probe_plugin.py quotes this canary to prove backend-craft was preloaded -- "
+            "scripts/probe_plugin.py uses this canary to prove backend-craft was fetched -- "
             "do not remove or reword it without updating the probe",
         )
 
@@ -145,9 +145,267 @@ class ProbeCanaryTests(unittest.TestCase):
         self.assertIn(
             probe_plugin.FRONTEND_CANARY,
             text,
-            "scripts/probe_plugin.py quotes this canary to prove frontend-craft was preloaded -- "
+            "scripts/probe_plugin.py uses this canary to detect unwanted frontend loading -- "
             "do not remove or reword it without updating the probe",
         )
+
+
+class BuilderSkillLoadingTests(unittest.TestCase):
+    """A backend-only task must prove both selective loading and a real preload."""
+
+    CODE = "Read the neighbors before writing."
+    BACKEND = "req_8f3a2c"
+    FRONTEND = "color courage"
+
+    @staticmethod
+    def call(tool_id, name, **tool_input):
+        return {"type": "tool_use", "id": tool_id, "name": name, "input": tool_input}
+
+    @staticmethod
+    def result(tool_id, content, **fields):
+        return {"type": "tool_result", "tool_use_id": tool_id, "content": content, **fields}
+
+    @staticmethod
+    def actor_event(actor, block):
+        return {"parent_tool_use_id": actor, "message": {"content": [block]}}
+
+    def check_loading(self, *extra, answer=None, fetch=True, fetch_result=True, provenance=True):
+        blocks = [self.call("builder", "Agent", subagent_type="sde-agents:sde-fullstack")]
+        if fetch:
+            blocks.append(self.call("backend", "Read", file_path="/plugin/skills/backend-craft/SKILL.md"))
+            if fetch_result:
+                blocks.append(self.result("backend", self.BACKEND))
+        blocks.extend(extra)
+        if answer is None:
+            answer = f"{self.CODE}\n{self.BACKEND}\nNO_FRONTEND_CONTENT"
+        if answer is not False:
+            blocks.append(self.result("builder", answer))
+        events = []
+        for block in blocks:
+            if "message" in block:
+                events.append(block)
+                continue
+            actor = None if block.get("name") == "Agent" or block.get("tool_use_id") == "builder" else "builder"
+            event = self.actor_event(actor, block)
+            if not provenance:
+                event.pop("parent_tool_use_id")
+            events.append(event)
+        transcript = "\n".join(json.dumps(event) for event in events)
+        probe = probe_plugin.Probe()
+        with contextlib.redirect_stdout(io.StringIO()):
+            probe_plugin.probe_builder_skills(probe, transcript)
+        return [status for status, *_ in probe.results]
+
+    def test_backend_only_inspection_loads_only_the_needed_layer(self):
+        self.assertEqual(["PASS", "PASS", "PASS"], self.check_loading())
+
+    def async_launch(self, *, structured=True):
+        # Sanitized shape observed on Claude 2.1.263: the successful tool_result is a launch
+        # receipt; task completion arrives later as a root user task-notification.
+        event = self.actor_event(None, self.result("builder", [{
+            "type": "text",
+            "text": "Async agent launched successfully.\nagentId: probe-builder-task\n"
+                    "The agent is working in the background.",
+        }]))
+        if structured:
+            event["toolUseResult"] = {
+                "isAsync": True, "status": "async_launched", "agentId": "probe-builder-task",
+            }
+        return event
+
+    def completion(self, *, tool_id="builder", task_id="probe-builder-task", status="completed",
+                   actor=None, text_blocks=False):
+        content = (
+            f"<task-notification>\n<task-id>{task_id}</task-id>\n"
+            f"<tool-use-id>{tool_id}</tool-use-id>\n<status>{status}</status>\n"
+            f"<result>{self.CODE}\n{self.BACKEND}\nNO_FRONTEND_CONTENT</result>\n"
+            "</task-notification>"
+        )
+        return {
+            "type": "user", "parent_tool_use_id": actor,
+            "origin": {"kind": "task-notification"},
+            "message": {"role": "user", "content": (
+                [{"type": "text", "text": content}] if text_blocks else content
+            )},
+        }
+
+    def test_async_launch_metadata_is_not_a_completed_builder_answer(self):
+        self.assertEqual(["INCONCLUSIVE"] * 3, self.check_loading(self.async_launch(), answer=False))
+
+    def test_correlated_async_completion_supplies_the_builder_answer(self):
+        for text_blocks in (False, True):
+            with self.subTest(text_blocks=text_blocks):
+                self.assertEqual(["PASS"] * 3, self.check_loading(
+                    self.async_launch(), self.completion(text_blocks=text_blocks), answer=False,
+                ))
+
+    def test_wrong_failed_or_cross_actor_notifications_cannot_complete_the_builder(self):
+        for changed in (
+            {"tool_id": "another-spawn"}, {"task_id": "another-agent"},
+            {"status": "failed"}, {"actor": "reviewer"},
+        ):
+            with self.subTest(changed=changed):
+                self.assertEqual(["INCONCLUSIVE"] * 3, self.check_loading(
+                    self.async_launch(), self.completion(**changed), answer=False,
+                ))
+
+    def test_stdout_launch_text_still_requires_correlated_completion(self):
+        self.assertEqual(["INCONCLUSIVE"] * 3, self.check_loading(
+            self.async_launch(structured=False), answer=False,
+        ))
+        self.assertEqual(["PASS"] * 3, self.check_loading(
+            self.async_launch(structured=False), self.completion(), answer=False,
+        ))
+
+    def test_notification_without_a_recorded_async_launch_is_not_an_answer(self):
+        self.assertEqual(["INCONCLUSIVE"] * 3, self.check_loading(self.completion(), answer=False))
+
+    def test_a_later_failed_notification_does_not_reuse_an_earlier_success(self):
+        self.assertEqual(["INCONCLUSIVE"] * 3, self.check_loading(
+            self.async_launch(), self.completion(), self.completion(status="failed"), answer=False,
+        ))
+
+    def test_an_errored_launch_cannot_be_completed_by_a_notification(self):
+        launch = self.async_launch()
+        launch["message"]["content"][0]["is_error"] = True
+        self.assertEqual(["INCONCLUSIVE"] * 3, self.check_loading(
+            launch, self.completion(), answer=False,
+        ))
+
+    def test_malformed_or_non_root_notifications_are_not_answers(self):
+        for variant in ("unclosed", "duplicate-id", "other-origin", "sidechain"):
+            event = self.completion()
+            if variant == "unclosed":
+                event["message"]["content"] = event["message"]["content"].replace("</task-notification>", "")
+            elif variant == "duplicate-id":
+                event["message"]["content"] = event["message"]["content"].replace(
+                    "<result>", "<tool-use-id>builder</tool-use-id><result>",
+                )
+            elif variant == "other-origin":
+                event["origin"] = {"kind": "user"}
+            else:
+                event["isSidechain"] = True
+            with self.subTest(variant=variant):
+                self.assertEqual(["INCONCLUSIVE"] * 3, self.check_loading(
+                    self.async_launch(), event, answer=False,
+                ))
+
+    def test_another_actor_cannot_supply_the_builders_backend_read(self):
+        for actor in (None, "reviewer"):
+            with self.subTest(actor=actor):
+                statuses = self.check_loading(
+                    self.actor_event(actor, self.call("elsewhere", "Read", file_path="/plugin/skills/backend-craft/SKILL.md")),
+                    self.actor_event(actor, self.result("elsewhere", self.BACKEND)),
+                    fetch=False,
+                )
+                self.assertEqual("INCONCLUSIVE", statuses[1])
+
+    def test_without_actor_provenance_successful_reads_are_inconclusive(self):
+        self.assertEqual(["INCONCLUSIVE"] * 3, self.check_loading(provenance=False))
+
+    def test_an_unattributed_fetch_leaves_absence_checks_inconclusive(self):
+        self.assertEqual(["INCONCLUSIVE", "PASS", "INCONCLUSIVE"], self.check_loading(
+            {"message": {"content": [self.call("unknown", "Read", file_path="/unknown")]}}
+        ))
+
+    def test_an_observed_builder_cannot_borrow_a_different_actors_read(self):
+        self.assertEqual("FAIL", self.check_loading(
+            self.actor_event("builder", {"type": "text", "text": "Inspection finished."}),
+            self.actor_event(None, self.call("elsewhere", "Read", file_path="/plugin/skills/backend-craft/SKILL.md")),
+            self.actor_event(None, self.result("elsewhere", self.BACKEND)),
+            fetch=False,
+        )[1])
+
+    def test_no_builder_spawn_leaves_all_loading_checks_inconclusive(self):
+        transcript = json.dumps(self.actor_event(
+            "reviewer", self.call("backend", "Read", file_path="/plugin/skills/backend-craft/SKILL.md"),
+        ))
+        probe = probe_plugin.Probe()
+        with contextlib.redirect_stdout(io.StringIO()):
+            probe_plugin.probe_builder_skills(probe, transcript)
+        self.assertEqual(["INCONCLUSIVE"] * 3, [status for status, *_ in probe.results])
+
+    def test_the_read_result_must_have_the_same_actor_as_its_call(self):
+        self.assertEqual("INCONCLUSIVE", self.check_loading(
+            self.actor_event("reviewer", self.result("backend", self.BACKEND)),
+            fetch_result=False,
+        )[1])
+
+    def test_two_builder_invocations_cannot_pool_read_and_answer_evidence(self):
+        statuses = self.check_loading(
+            self.actor_event(None, self.call("builder2", "Agent", subagent_type="sde-agents:sde-fullstack")),
+            self.actor_event("builder2", self.call("backend2", "Read", file_path="/plugin/skills/backend-craft/SKILL.md")),
+            self.actor_event("builder2", self.result("backend2", self.BACKEND)),
+            self.actor_event(None, self.result("builder2", "done")),
+            fetch=False,
+        )
+        self.assertNotIn("PASS", statuses)
+
+    def test_another_actors_unrelated_reads_do_not_contaminate_the_builder(self):
+        self.assertEqual(["PASS"] * 3, self.check_loading(
+            self.actor_event("reviewer", self.call("elsewhere", "Read", file_path="/plugin/skills/code-craft/SKILL.md")),
+            self.actor_event("reviewer", self.result("elsewhere", self.CODE + self.FRONTEND)),
+        ))
+
+    def test_missing_or_errored_builder_result_is_inconclusive(self):
+        for extra in ((), (self.result("builder", "timed out", is_error=True),)):
+            with self.subTest(extra=extra):
+                self.assertEqual(["INCONCLUSIVE"] * 3, self.check_loading(*extra, answer=False))
+
+    def test_a_different_agents_answer_cannot_prove_builder_loading(self):
+        self.assertEqual(["INCONCLUSIVE"] * 3, self.check_loading(
+            self.call("reviewer", "Agent", subagent_type="sde-agents:code-reviewer"),
+            self.result("reviewer", f"{self.CODE} {self.BACKEND} NO_FRONTEND_CONTENT"),
+            answer=False,
+        ))
+
+    def test_answering_without_the_backend_read_does_not_prove_on_demand_loading(self):
+        self.assertEqual("FAIL", self.check_loading(
+            self.actor_event("builder", {"type": "text", "text": "Inspection finished."}),
+            fetch=False,
+        )[1])
+
+    def test_missing_backend_result_is_inconclusive_even_if_the_answer_quotes_it(self):
+        self.assertEqual("INCONCLUSIVE", self.check_loading(fetch_result=False)[1])
+
+    def test_wrong_or_failed_backend_read_cannot_prove_a_successful_fetch(self):
+        for fields in ({}, {"is_error": True}):
+            with self.subTest(fields=fields):
+                self.assertEqual("FAIL", self.check_loading(
+                    self.result("backend", "file unavailable", **fields), fetch_result=False,
+                )[1])
+
+    def test_backend_canary_from_an_unrelated_result_is_not_fetch_evidence(self):
+        self.assertEqual("INCONCLUSIVE", self.check_loading(
+            self.result("unrelated", self.BACKEND), fetch_result=False,
+        )[1])
+
+    def test_an_observed_answer_missing_the_requested_content_fails(self):
+        self.assertEqual(["FAIL"] * 3, self.check_loading(answer="done"))
+
+    def test_fetching_code_craft_disproves_preload(self):
+        for call in (
+            self.call("code", "Read", file_path="/plugin/skills/code-craft/SKILL.md"),
+            self.call("code", "Skill", skill="sde-agents:code-craft"),
+            self.call("code", "Bash", command="cat skills/*/SKILL.md"),
+        ):
+            with self.subTest(call=call):
+                self.assertEqual("FAIL", self.check_loading(call, self.result("code", self.CODE))[0])
+
+    def test_unwanted_frontend_loading_or_preload_fails(self):
+        self.assertEqual("FAIL", self.check_loading(answer=f"{self.CODE} {self.BACKEND} {self.FRONTEND}")[2])
+        for call in (
+            self.call("front", "Read", file_path="/plugin/skills/frontend-craft/SKILL.md"),
+            self.call("front", "Skill", skill="sde-agents:frontend-craft"),
+            self.call("front", "Bash", command="cat skills/*/SKILL.md"),
+        ):
+            with self.subTest(call=call):
+                self.assertEqual("FAIL", self.check_loading(call, self.result("front", self.FRONTEND))[2])
+
+    def test_an_unanswered_fetch_cannot_prove_no_canary_leaked(self):
+        self.assertEqual(["INCONCLUSIVE", "PASS", "INCONCLUSIVE"], self.check_loading(
+            self.call("opaque", "Bash", command="cat unseen-file"),
+        ))
 
 
 class ProbeInconclusiveReportingTests(unittest.TestCase):
@@ -400,29 +658,6 @@ class ProbeTranscriptParserTests(unittest.TestCase):
         pairs = probe_plugin.bash_results(transcript)
         self.assertEqual({"find . -exec MAINLOOP_PROBE": [""]}, pairs)
         self.assertEqual((True, [""]), probe_plugin.result_for("MAINLOOP_PROBE", pairs))
-
-    def test_a_canary_leak_needs_an_observed_result_not_a_correlation_gap(self) -> None:
-        """PROBE-004 fallout: a None body is a gap, not a leak, and must not be searched.
-
-        Once `bash_results` reports an uncorrelated call as None, every consumer that treats its
-        values as text is a crash waiting for a truncated session - `CANARY in None` raises
-        TypeError. It is also wrong on the merits: the oracle saw no output for that call, so
-        there is nothing to have leaked.
-        """
-        canaries = (probe_plugin.BACKEND_CANARY, probe_plugin.FRONTEND_CANARY)
-
-        self.assertEqual([], probe_plugin.canary_leaks({"echo hi": [None]}, canaries))
-        self.assertEqual([], probe_plugin.canary_leaks({"echo hi": ["clean output"]}, canaries))
-        self.assertEqual(
-            ["cat backend-craft/SKILL.md"],
-            probe_plugin.canary_leaks(
-                {
-                    "cat backend-craft/SKILL.md": [f"...{probe_plugin.BACKEND_CANARY}..."],
-                    "echo hi": [None],
-                },
-                canaries,
-            ),
-        )
 
     def test_agent_consumers_ignore_non_object_tool_input(self) -> None:
         transcript = json.dumps(

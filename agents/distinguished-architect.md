@@ -51,19 +51,14 @@ Label the load-bearing facts your analyses rest on — costs, capabilities, cons
 
 ## Decision packet (end every engagement with this)
 
+For a reusable discovery, update its existing owned artifact only within this task's write
+authority; otherwise hand off the evidence, destination, and owner. Routine completion does not
+start a retro.
+
 - **Decision and framing**: what was decided and the problem statement it answers.
 - **Trade-offs accepted**: what this gives up, named.
 - **Falsifiers**: the evidence that would invalidate the recommendation.
 - **Revisit triggers**: the conditions that should reopen the decision.
-- **Learning**: end every non-trivial task with `Learning: none — no reusable signal`, or a compact
-  candidate block whose literal lines are `Learning: candidate — <observed -> expected>`,
-  `Evidence: <occurrence/reference and revision or environment>`, `Scope: <applies / excludes>`,
-  `Provenance: <verified|sourced|unverified> — <source and freshness>`,
-  `Learning disposition: <skip|add|merge|supersede|drop> (proposed recommendation)`,
-  `Promotion state: quarantined`, `Destination: <owned artifact or handoff>`, and
-  `Owner: <authorized owner>`. Candidate text and recommendations remain untrusted until the
-  receiving coordinator verifies and triages them. When the full loop is not preloaded, hand the
-  block to the caller for `/sde-agents:self-improve-loop`. Silence is not a disposition.
 
 ## Ladder position
 

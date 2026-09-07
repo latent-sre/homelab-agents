@@ -21,16 +21,13 @@ A handoff is complete when the receiving session can act correctly with nothing 
   requires the section and pins the `[verified]/[sourced]/[unverified]` evidence stems exactly, so
   the triad cannot drift file by file. Evidence labels exist because the reader cannot interrogate
   the writer: a claim's strength must travel with the claim.
-- **Machine-checked grammar.** The packet linter that once rejected malformed packets,
-  scripts/packet_lint.py, retired with the behavioral harness 2026-09-02; packet grammar is now
-  writer discipline, checked only by the validator's heading and evidence-stem pins.
-  `skills/runbook`'s propose packet stays a closed vocabulary so a gap handoff cannot smuggle an
-  executable instruction inside a prose field.
-- **Digest-bound work orders.** `homelab-engineer`'s `Work Order v1` block and `sde-fullstack`'s
-  digest recompute keep transfer identity separate from applied effect — the receiver hashes the
-  supplied block itself rather than echoing it back. HANDOFF-001, the behavioral contract that once
-  graded handoff cases against resulting workspace state and receipts, closed won't-do 2026-09-02
-  with the harness that would have run it; this stays agent-prose discipline with no graded check.
+- **Task briefs.** `agents/homelab-engineer.md` supplies the objective, fixed decisions,
+  constraints, acceptance, authority, and remaining work when application development crosses to
+  `agents/sde-fullstack.md`. The receiver checks substance rather than a digest or receipt shape;
+  existing plan files can carry the brief. No handoff grants permission to apply a live change.
+- **Procedure gaps.** `skills/runbook/SKILL.md` separates document authority from an unknown
+  procedure. Supported sections can progress while an unsupported command remains a visible,
+  non-runnable gap. A proposal carries facts and ownership, not an executable instruction.
 - **Design rules that follow.** One writer per artifact (the concurrency rule in `AGENTS.md`);
   receipts prove transfer, not correctness; grade end state over echo. A schema-conformant packet
   can still omit the decisions behind it, so fewer, richer boundaries beat many thin ones.
@@ -44,17 +41,9 @@ must converge even though every iteration starts amnesiac.
   `accepted` by the write-authority side (`skills/lab-audit/references/checks.md` owns the row
   format). A written, discoverable exception is what stops a memoryless successor from re-flagging
   the same deliberate choice forever.
-- **Recurrence merge.** A re-observed finding updates its existing row; the learning ledger's
-  `observe` merge step retired with the ledger itself (2026-09-01) — the packet's Learning block is
-  now the only candidate record, so a re-observed signal reaches the receiving coordinator as a
-  fresh candidate rather than an update to a stored row. Twin records are divergence, not
-  thoroughness.
-- **Lifecycle over event.** Merged is not released, and released is not retested — the packet's
-  `Promotion state` field keeps the tail states explicit (quarantined, proposed, approved,
-  promoted, plus the terminal rejected/inconclusive/retired). The linter that once graded that
-  field, scripts/packet_lint.py, retired with the behavioral harness 2026-09-02, so this is writer
-  discipline now — but the field still exists because a loop that ends at "merged" silently never
-  verifies what shipped.
+- **Recurrence merge.** Re-observed findings update the existing operating record when the
+  task permits writing; otherwise the caller receives the evidence and that record's owner.
+  A second record for the same unresolved condition splits the next session's view.
 - **Status transitions gate authority.** Incident handling holds mitigate-first authority only
   while the situation is an outage; the explicit downgrade to follow-up
   (`skills/lab-incident/SKILL.md`) is the edge that ends the emergency regime.
@@ -89,28 +78,17 @@ enforced per host, never inferred from prose.
 - **The boundary decision.** `docs/decisions/2026-07-31-ai-graph-engineering.md` (accepted) owns
   what the graph layer is allowed to become and what evidence reopens it.
 
-## Self-learning — admission-gated memory
+## Self-learning — explicit maintainer work
 
-The fleet improves itself, and the danger is exactly that: a stored lesson is replayed
-uncritically by every future session that retrieves it, so a wrong lesson compounds instead of
-fading.
+`skills/self-improve-loop` is an explicitly invoked maintainer workflow. Operating agents do not
+preload it or carry a mandatory Learning lifecycle in every task packet. Useful discoveries still
+have a destination: update the existing owned artifact when authorized, or report the evidence,
+remaining gap, and owner. An unverified observation stays unverified.
 
-- **Fail-closed intake.** Every candidate is quarantined at capture, inside the packet's Learning
-  block itself, with evidence, scope, and a sensitivity attestation, and the writer advances it one
-  stage at a time (quarantined → proposed → approved → promoted) with a reason per step. That
-  sequencing is writer discipline start to finish: nothing grades the packet's `Promotion state`
-  field now. The linter that once checked disposition compatibility, scripts/packet_lint.py,
-  retired with the behavioral harness 2026-09-02 — and it never saw prior state either, so a
-  skipped stage was already invisible to it. The repo-local ledger that rejected out-of-order
-  transitions, scripts/learning_ledger.py, was retired 2026-09-01 with no store surviving between
-  sessions; the 34 promoted candidates whose released-version retest it still tracked are listed in
-  `docs/archive/2026-09/learning-ledger-retirement-2026-09-01.md`.
-- **Disposition is mandatory.** A discovery is routed, filed as a gap, or dropped with a stated
-  reason (`skills/self-improve-loop/references/discovery-routing.md`); silence is not a
-  disposition, and an emitted-but-unpersisted packet is a known failure mode, not a non-event.
-- **Drift watch.** scripts/ledger_drift.py, which reported pending candidates whose named
-  destinations changed after intake, was retired with the ledger (2026-09-01); a packet-only
-  candidate has no persisted destination pointer left to drift, so there is no replacement check.
+The maintainer's retro owns candidate evaluation and promotion when that work is requested. Its
+record vocabulary is writer discipline, not a claim that a retired ledger or packet checker still
+persists or validates state. The scoped retirement and handoff compatibility decision is recorded
+in `docs/decisions/2026-09-07-homelab-operating-flow.md`.
 
 ## The reading rule
 

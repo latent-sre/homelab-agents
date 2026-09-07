@@ -31,9 +31,9 @@ This skill is general-purpose — any web UI, not just operator tooling — held
 
 ## Visual character & motion — designed, not default
 
-<!-- "color courage" in the next sentence is a load-bearing preload canary: the plugin probe
-     (scripts/probe_plugin.py, FRONTEND_CANARY) asks sde-fullstack to quote it as proof this
-     skill was preloaded. Reword around that two-word phrase, never through it. -->
+<!-- "color courage" is FRONTEND_CANARY in scripts/probe_plugin.py: its presence reveals
+     unwanted frontend context during a backend-only probe. Reword around the phrase, never
+     through it, unless the probe and its elicitation change together. -->
 Organized and uncluttered is the floor, not the ceiling: keep the color courage turned up — never ship something mistakable for an unstyled admin template. The default design language — app shell, dark-first surfaces, the accent-and-glow palette, motion timings — lives in [`references/design-language.md`](references/design-language.md); read it **before** styling greenfield or unbranded work (in a branded repo, the existing design system wins — see above). Two rules are universal regardless of design system: animate `opacity` and `transform` only (compositor-friendly — no layout thrash), and respect `prefers-reduced-motion`.
 
 **Self-critique as you build** — screenshot what you made and look at it: would a stranger read it as a templated default? Generated UIs cluster around a few stock looks (cream page + serif display + terracotta accent; near-black + one acid accent; hairline-rule broadsheet) and stock component tells (uniform rounded-2xl, purple-to-indigo gradients, a shadow on every surface) — a look you fell into is not a decision you made; change one real thing. Spend your boldness in one place: one deliberate risk you can justify, everything around it quiet. Bespoke or branded work sources its distinctive choices from the subject's own world — its materials, instruments, vernacular — never a house style carried from the last project. (A brief or design system that *asks* for a stock look wins, as always.)
@@ -84,7 +84,9 @@ Semantic HTML first; every input labeled; keyboard reachable with visible focus;
 - **Playwright** (or the repo's E2E runner) for the few end-to-end flows whose breakage would interrupt someone — the paged flows in a product, the ones that block household use in a lab.
 - Before "done": it typechecks, lints, unit + E2E tests pass, the dev server runs, and the primary flow was exercised in a **real browser render**, including a keyboard-only pass — evidence in the review packet. A UI that compiles but was never rendered is written, not verified.
 
-The **review packet** is the end-of-task report defined by the calling agent (`sde-fullstack`, which requires this skill). Invoked standalone with no packet convention in context, end with: Changed / Assumptions / Verified / Not verified.
+The **review packet** is the end-of-task report defined by the calling agent
+(`sde-fullstack` loads this skill for frontend work). Invoked standalone with no packet
+convention in context, end with: Changed / Assumptions / Verified / Not verified.
 
 ## Before you write it — load the reference for what you're building
 

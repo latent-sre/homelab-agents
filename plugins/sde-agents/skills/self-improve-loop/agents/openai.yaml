@@ -1,0 +1,5 @@
+interface:
+  display_name: "Self Improve Loop"
+  short_description: "Runs bounded, evidence-driven improvement loops and the fleet's learning closeout. After a..."
+policy:
+  allow_implicit_invocation: false

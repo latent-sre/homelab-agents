@@ -444,6 +444,20 @@ class PlatformAdapterTests(unittest.TestCase):
                 self.assertNotIn("live-effect gate — matched rule `docker compose up`", rewritten)
                 self.assertIn(marker, rewritten)
 
+    def test_homelab_duplicate_transport_policy_is_rejected(self) -> None:
+        """Two competing transport bullets must not yield a plausible generated control."""
+        canonical = (REPO / "agents" / "homelab-engineer.md").read_text(encoding="utf-8")
+        for label in ("Managed gate", "Standing policy"):
+            start = canonical.index(f"- **{label}:**")
+            end = canonical.index("\n- **", start + 1)
+            duplicate = canonical + "\n\n" + canonical[start:end] + "\n\n"
+            for host in ("copilot", "codex"):
+                with self.subTest(label=label, host=host):
+                    with self.assertRaisesRegex(ValueError, "expected one.*transport anchor"):
+                        generate_platform_adapters.adapt_agent_contract(
+                            duplicate, name="homelab-engineer", host=host
+                        )
+
     def test_guarded_copilot_agents_have_no_shell_tool(self) -> None:
         guard = validate_fleet.load_guard(REPO)
         for name in sorted(guard.GUARDED_AGENT_NAMES):
@@ -467,6 +481,7 @@ class PlatformAdapterTests(unittest.TestCase):
             REPO / "agents" / "sde-fullstack.md"
         )
         skill_names = validate_fleet.split_tools(canonical["skills"])
+        self.assertEqual(["code-craft"], skill_names)
         paths = (
             REPO / ".github" / "agents" / "sde-fullstack.agent.md",
             REPO / ".codex" / "agents" / "sde-fullstack.toml",
@@ -551,17 +566,6 @@ class PlatformAdapterTests(unittest.TestCase):
                     "This role has no `Agent` tool",
                 ):
                     self.assertNotIn(false_control, normalized)
-
-    def test_handoff_owner_reference_is_translated_for_generated_hosts(self) -> None:
-        paths = (
-            REPO / ".github" / "agents" / "sde-fullstack.agent.md",
-            REPO / ".codex" / "agents" / "sde-fullstack.toml",
-        )
-        for path in paths:
-            with self.subTest(path=path.relative_to(REPO)):
-                text = path.read_text(encoding="utf-8")
-                self.assertNotIn("agents/homelab-engineer.md", text)
-                self.assertIn("the installed `homelab-engineer` agent definition", text)
 
     def test_host_agent_adapters_have_no_claude_runtime_references(self) -> None:
         paths = [

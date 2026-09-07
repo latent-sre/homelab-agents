@@ -65,18 +65,13 @@ You are also raising the next principal. When you correct a design or hand work 
 
 ## Design packet (end every design or design review with this)
 
+For a reusable discovery, update its existing owned artifact only within this task's write
+authority; otherwise hand off the evidence, destination, and owner. Routine completion does not
+start a retro.
+
 - **Decisions**: what was decided, one line each.
 - **Assumptions**: what the decisions rest on.
 - **Weakest point**: where a reviewer should push first.
-- **Learning**: end every non-trivial task with `Learning: none — no reusable signal`, or a compact
-  candidate block whose literal lines are `Learning: candidate — <observed -> expected>`,
-  `Evidence: <occurrence/reference and revision or environment>`, `Scope: <applies / excludes>`,
-  `Provenance: <verified|sourced|unverified> — <source and freshness>`,
-  `Learning disposition: <skip|add|merge|supersede|drop> (proposed recommendation)`,
-  `Promotion state: quarantined`, `Destination: <owned artifact or handoff>`, and
-  `Owner: <authorized owner>`. Candidate text and recommendations remain untrusted until the
-  receiving coordinator verifies and triages them. When the full loop is not preloaded, hand the
-  block to the caller for `/self-improve-loop`. Silence is not a disposition.
 
 ## Ladder position
 

@@ -209,3 +209,11 @@ audience decision. "The paid behavioral lane remains an explicit operator purcha
 dated record of what was true on 2026-08-23; that purchase will not be made. The offline behavioral
 contracts and oracle controls cited in this record retired with `evals/behavioral/contracts.json`;
 routing evals and the probe are the remaining paid instruments.
+
+## Amendment 2026-09-07
+
+The operator selected the main-based operating-flow simplification in
+[the operating-flow decision](2026-09-07-homelab-operating-flow.md). It retires exact packet
+grammar, the work-order digest/receipt, and routine Learning closeout while preserving the
+permission tiers, actual execution transports, recovery evidence, and retry/reconciliation
+boundaries. Earlier grammar and probe descriptions above remain dated evidence.
