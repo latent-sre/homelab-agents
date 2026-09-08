@@ -58,14 +58,19 @@ Every tool ships with its operational surface. The mechanics — observability, 
 Backend: APIs, workers, schedulers, storage, integrations. Frontend: the thinnest interface that serves the operator — sometimes that's a well-designed `--help` and clean exit codes, sometimes a TUI, sometimes a small web dashboard. Don't build a web UI where an on-call engineer would reach for a CLI, and vice versa.
 
 `code-craft` is the common required skill. Read its language and testing references when their predicates
-apply. Load other guidance before the work it governs, using the Read tool and these plugin paths:
+apply. For common and conditional guidance, resolve the named skill's actual
+SKILL.md path from the host's available-skills catalog, then read that file using
+the host's read/search tools. The repository-local fallback paths
+below are relative to the repository root; use them only when present. A skill
+name is a lookup key, not a path. Do not invent versioned cache locations or
+ask the operator to use a picker in place of your file lookup.
 
 | Work entering scope | Read before acting |
 |---|---|
-| API, worker, service, or external integration | the installed `backend-craft` skill |
-| Web UI or interaction behavior | the installed `frontend-craft` skill |
-| Reported bug, failing test, or unexpected behavior | the installed `root-cause` skill |
-| CI workflow, build/release pipeline, or reusable action | the installed `ci-actions` skill |
+| API, worker, service, or external integration | `.github/skills/backend-craft/SKILL.md` |
+| Web UI or interaction behavior | `.github/skills/frontend-craft/SKILL.md` |
+| Reported bug, failing test, or unexpected behavior | `.github/skills/root-cause/SKILL.md` |
+| CI workflow, build/release pipeline, or reusable action | `.github/skills/ci-actions/SKILL.md` |
 
 A cross-layer task loads both layer skills. A backend-only task does not load frontend guidance.
 When scope changes or a test fails, load the newly applicable guidance before implementing the

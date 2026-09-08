@@ -1,6 +1,6 @@
 ---
 name: "self-improve-loop"
-description: "Runs bounded, evidence-driven improvement loops and the fleet's learning closeout. After a completed non-trivial task, scan for durable learning; run a learning retro after corrections, failed verification, stale or missing guidance, or repeated friction — \"do a retro on this task\", \"run the micro-retro\", \"capture the lessons learned\", \"what did we miss\" — or decide how a learning should be captured and verified. Routes lessons to deterministic checks, agent or skill text, runbooks, or references, with add/merge/supersede/drop disposition. Not for an undiagnosed failure (use root-cause), direct operating-doc authoring (use runbook), a resolved-incident write-up (use postmortem), or a one-shot prompt fix (use prompt-craft)."
+description: "Runs explicitly requested maintainer retros on fleet behavior. Use when a maintainer asks to review a completed task, investigate recurring fleet friction, or capture lessons from agent or skill failures. Not for routine task closeout, undiagnosed failures (use root-cause), direct operating docs (use runbook), incident postmortems (use postmortem), or one-shot prompt fixes (use prompt-craft)."
 argument-hint: "[completed work, evidence, and improvement criteria]"
 ---
 

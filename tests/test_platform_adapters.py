@@ -512,6 +512,38 @@ class PlatformAdapterTests(unittest.TestCase):
                 self.assertEqual(source.stem, generated["name"])
                 self.assertEqual(expected, generated["sandbox_mode"])
 
+    def test_builder_conditional_skills_have_resolvable_host_paths(self) -> None:
+        source = REPO / "agents" / "sde-fullstack.md"
+        for host, root, render in (
+            ("copilot", ".github/skills", lambda: generate_platform_adapters.render_copilot_agent(
+                source, guarded_names=set())),
+            ("codex", "plugins/sde-agents/skills", lambda: generate_platform_adapters.render_codex_agent(source)),
+        ):
+            with self.subTest(host=host):
+                text = render()
+                self.assertNotIn("using the Read tool and these plugin paths", text)
+                self.assertIn("available-skills catalog", text)
+                self.assertIn("use them only when present", text)
+                for name in ("backend-craft", "frontend-craft", "root-cause", "ci-actions"):
+                    path = f"{root}/{name}/SKILL.md"
+                    self.assertIn(f"`{path}`", text)
+                    self.assertTrue((REPO / path).is_file())
+
+    def test_builder_loading_rewrite_rejects_missing_or_duplicate_routes(self) -> None:
+        _, body, _ = generate_platform_adapters._definition_parts(REPO / "agents/sde-fullstack.md")
+        for host in ("codex", "copilot"):
+            adapted = generate_platform_adapters.adapt_text(body, host)
+            for anchor in (
+                "apply. Load other guidance before the work it governs, using the Read tool and these plugin paths:",
+                *(f"| the installed `{name}` skill |" for name in
+                  ("backend-craft", "frontend-craft", "root-cause", "ci-actions")),
+            ):
+                for broken in (adapted.replace(anchor, "missing route"), adapted + "\n" + anchor):
+                    with self.subTest(host=host, anchor=anchor), self.assertRaisesRegex(
+                        ValueError, "expected one.*skill-loading"
+                    ):
+                        generate_platform_adapters.adapt_agent_contract(broken, name="sde-fullstack", host=host)
+
     def test_investigator_provenance_boundary_survives_every_host_rewrite(self) -> None:
         # The canonical untrusted-provenance paragraph is REPLACED wholesale on both non-Claude
         # hosts, so a boundary added canonically silently fails to reach them — which is exactly

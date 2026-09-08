@@ -134,38 +134,6 @@ regenerated adapters; green tiers.
 **Next action:** Ship the Copilot-cap tripwire first — prerequisite-free, small, and its
 measurement is already committed evidence.
 
-#### CTX-005 — shrink `homelab-engineer`'s always-loaded body
-
-**Status:** `decision-needed` — one authorized safety repair and one behavioral round are spent;
-the branch is no-go evidence, not merge-ready.
-
-**Outcome:** The safety repair improved fresh behavior (45/125 to 55/125, new safety case 5/5)
-but regressed three baseline-perfect contracts to 4/5 (60/130 overall); acceptance still fails.
-
-**Source:**
-[Homelab proportional operations decision](decisions/2026-08-23-homelab-proportional-operations.md) ·
-[CTX-005 discipline audit](archive/2026-08/ctx-005-engineering-discipline-audit-2026-08-23.md) ·
-[GATE-006 outcome](archive/2026-08/gate-006-outcome-2026-08-30.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#ctx-005-shrink-homelab-engineers-always-loaded-body)
-
-**Prerequisites:** GATE-006 (landed). Its after-side lane cannot serve as this diet's before
-side — a fresh baseline must be captured.
-
-**Constraints:**
-- EVAL-011 closed won't-do 2026-09-02 with the behavioral harness it would have gated this item
-  through; the biased-rate concern it named cannot be resolved by re-measuring, since no
-  contract-graded instrument remains. Verify with a routing round and the probe instead, and note
-  that neither measures the inspect-first discipline the always-loaded body carries as directly as
-  a behavioral contract did.
-- Do not mix another policy change into the diet.
-
-**Acceptance:** Before/after character counts under the same instrument; a routing round shows no
-regression on affected homelab clusters; probe stays green; adapters match sources; the outcome
-names what was removed, compressed, or kept and why. No contract-graded check remains.
-
-**Next action:** No further review-driven bytes or capture retries are planned; a later ruling
-reopening work restarts root-cause analysis from refreshed main.
-
 #### LABSEC-002 — add a guard-enforced lab inspector
 
 **Status:** `ready` — Option A accepted 2026-07-31; normal-session probes proved registration,

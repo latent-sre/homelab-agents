@@ -169,8 +169,11 @@ class BuilderSkillLoadingTests(unittest.TestCase):
     def actor_event(actor, block):
         return {"parent_tool_use_id": actor, "message": {"content": [block]}}
 
-    def check_loading(self, *extra, answer=None, fetch=True, fetch_result=True, provenance=True):
-        blocks = [self.call("builder", "Agent", subagent_type="sde-agents:sde-fullstack")]
+    def check_loading(self, *extra, answer=None, fetch=True, fetch_result=True, provenance=True,
+                      spawn=None):
+        blocks = [spawn if spawn is not None else self.call(
+            "builder", "Agent", subagent_type="sde-agents:sde-fullstack",
+        )]
         if fetch:
             blocks.append(self.call("backend", "Read", file_path="/plugin/skills/backend-craft/SKILL.md"))
             if fetch_result:
@@ -228,6 +231,43 @@ class BuilderSkillLoadingTests(unittest.TestCase):
                 [{"type": "text", "text": content}] if text_blocks else content
             )},
         }
+
+    def test_outer_builder_evidence_requires_root_provenance(self):
+        """Matching IDs must not let another actor supply a spawn, answer, or launch receipt."""
+        for kind in ("spawn", "answer", "launch", "notification"):
+            for origin in ("reviewer", "builder", "missing", "sidechain"):
+                with self.subTest(kind=kind, origin=origin):
+                    spawn = None
+                    extra = []
+                    answer = None
+                    if kind == "spawn":
+                        event = self.actor_event(None, self.call(
+                            "builder", "Agent", subagent_type="sde-agents:sde-fullstack",
+                        ))
+                        spawn = event
+                    elif kind == "answer":
+                        event = self.actor_event(None, self.result(
+                            "builder", f"{self.CODE}\n{self.BACKEND}\nNO_FRONTEND_CONTENT",
+                        ))
+                        extra = [event]
+                        answer = False
+                    elif kind == "launch":
+                        event = self.async_launch()
+                        extra = [event, self.completion()]
+                        answer = False
+                    else:
+                        event = self.completion()
+                        extra = [self.async_launch(), event]
+                        answer = False
+                    if origin == "missing":
+                        event.pop("parent_tool_use_id")
+                    elif origin == "sidechain":
+                        event["isSidechain"] = True
+                    else:
+                        event["parent_tool_use_id"] = origin
+                    self.assertEqual(["INCONCLUSIVE"] * 3, self.check_loading(
+                        *extra, spawn=spawn, answer=answer,
+                    ))
 
     def test_async_launch_metadata_is_not_a_completed_builder_answer(self):
         self.assertEqual(["INCONCLUSIVE"] * 3, self.check_loading(self.async_launch(), answer=False))

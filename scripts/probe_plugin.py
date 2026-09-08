@@ -404,12 +404,18 @@ def agent_spawn_results(text: str, agent_name: str) -> list[str]:
     return [results[tid] for tid, named in spawns.items() if named and tid in results]
 
 
+def _root_event(event: dict) -> bool:
+    """An omitted actor is unknown, not proof that the root emitted this event."""
+    return ("parent_tool_use_id" in event and event["parent_tool_use_id"] is None
+            and event.get("isSidechain") is not True)
+
+
 def _task_notification(event: dict) -> tuple[str, str, str, str | None] | None:
     """Read a root completion envelope, not notification text quoted by another actor."""
     message = event.get("message")
     if not isinstance(message, dict) or event.get("type") != "user":
         return None
-    if event.get("parent_tool_use_id") is not None or event.get("isSidechain") is True:
+    if not _root_event(event):
         return None
     origin = event.get("origin")
     if isinstance(origin, dict) and origin.get("kind") != "task-notification":
@@ -441,6 +447,9 @@ def _builder_answers(text: str) -> list[str]:
     launches: dict[str, str | None] = {}
     completions: dict[str, str | None] = {}
     for event in stream_events.iter_events(text):
+        # Child events prove fetches, but cannot return their own outer Agent invocation.
+        if not _root_event(event):
+            continue
         notification = _task_notification(event)
         if notification:
             tool_id, task_id, status, result = notification
@@ -515,14 +524,14 @@ def probe_builder_skills(probe: Probe, text: str) -> None:
                 actor_observed = True
                 scoped.append(event)
                 continue
-            # Spawn/return correlation identifies the answer; parent_tool_use_id identifies
-            # whose tools supplied it. A same-named second spawn cannot donate its Read result.
+            # IDs correlate a spawn/return only inside the root actor. A foreign actor's
+            # matching ID cannot donate an answer or an async launch registration.
             outer = [block for block in blocks if (
                 block.get("type") == "tool_use" and block.get("id") == builder_id
             ) or (
                 block.get("type") == "tool_result" and block.get("tool_use_id") == builder_id
             )]
-            if outer:
+            if outer and _root_event(event):
                 # Keep toolUseResult: on current Claude an Agent result can be async launch
                 # metadata while its answer arrives later in a task-notification.
                 scoped.append(dict(event, message=dict(message, content=outer)))

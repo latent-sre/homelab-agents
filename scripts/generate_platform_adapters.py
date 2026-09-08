@@ -378,6 +378,31 @@ def adapt_agent_contract(text: str, *, name: str, host: str) -> str:
     """Replace Claude-only authority claims in generated agent bodies."""
 
     host_label = "Codex" if host == "codex" else "Copilot/VS Code"
+    if name == "sde-fullstack":
+        skill_root = CODEX_SKILLS if host == "codex" else COPILOT_SKILLS
+        reader = ("an available filesystem tool or a read-only shell command" if host == "codex"
+                  else "the host's read/search tools")
+        replacements = {
+            "apply. Load other guidance before the work it governs, using the Read tool and these plugin paths:": (
+                "apply. For common and conditional guidance, resolve the named skill's actual\n"
+                "SKILL.md path from the host's available-skills catalog, then read that file using\n"
+                f"{reader}. The repository-local fallback paths\n"
+                "below are relative to the repository root; use them only when present. A skill\n"
+                "name is a lookup key, not a path. Do not invent versioned cache locations or\n"
+                "ask the operator to use a picker in place of your file lookup."
+            ),
+            **{f"| the installed `{skill}` skill |": f"| `{skill_root.as_posix()}/{skill}/SKILL.md` |"
+               for skill in ("backend-craft", "frontend-craft", "root-cause", "ci-actions")},
+        }
+        for anchor, replacement in replacements.items():
+            matches = text.count(anchor)
+            if matches != 1:
+                raise ValueError(
+                    f"sde-fullstack {host} rewrite: expected one conditional skill-loading anchor "
+                    f"({matches} matches); otherwise the adapter would retain an unusable path "
+                    f"or omit a required guidance route."
+                )
+            text = text.replace(anchor, replacement)
     # Both callers supply adapt_text output, so Agent-tool terminology is already translated.
     text = text.replace(
         "You hold Write and Edit **to author tests**",

@@ -28,6 +28,12 @@ main `68dfc4458a416fde73eab79ba6a5028b535a8924`; the roster-cut branch is not it
 The agent roster, audit split, onboarding-map, tool grants, and live-effect hook are unchanged.
 The diagnostic false positives and adjacent operational recipe findings were not selected.
 
+The operator's selection of these broader policy changes from refreshed main supersedes the
+earlier CTX-005 contract-preserving diet and its no-policy-change constraint. CTX-005 closes as
+superseded; its old candidate remains historical no-go evidence, not a donor or an accepted
+experiment. LABFLOW-001 is the sole live owner of this scope. This is not a claim that CTX-005's
+missing routing/behavioral acceptance passed; the new work's evidence and gaps are stated below.
+
 ## Alternatives and consumers
 
 A homelab-only Learning exception would add a policy split to the validator; retire the universal
@@ -170,9 +176,52 @@ cc2478874ca970f03adb7d9012871ea3c06a901fec9d6ca01f5f0311b9a485c7
 
 Host installation is outside this change. The doctor reports the working diff, the existing
 aggregate skill-listing budget warning, and installed Codex agent drift. Source/adapter validation
-does not certify those installed copies. Descriptions were unchanged; no routing-rate improvement
-is claimed. The explicit-only retro's automatic positive cases were retired, leaving 103 routing
+does not certify those installed copies. Descriptions were unchanged in the initial candidate;
+the PR review correction below aligns the explicit-only retro's description. No routing-rate
+improvement is claimed. The retro's automatic positive cases were retired, leaving 103 routing
 cases (41 positive, 62 negative); their negative boundaries remain.
+
+## PR #175 review corrections
+
+The four review findings on `28c6487` are corrected in one follow-up batch:
+
+- Portable builder instructions resolve actual catalog paths and provide checked repository-local
+  fallbacks for all four conditional skills. Both generated hosts are regenerated; neither names
+  a nonexistent Claude Read tool or treats a descriptive label as a file path. Native portable-host
+  discovery was not exercised; the emitted routes and all eight fallback files were checked.
+- The canonical retro description and generated picker text now lead with explicitly requested
+  maintainer retros, matching disabled implicit invocation.
+- Outer builder spawn, answer, async launch, and completion evidence requires explicit root
+  attribution. Thirteen previously passing foreign/missing/sidechain cases failed before repair;
+  all 51 canary tests now pass. The genuine saved native capture above replays three passes under
+  the corrected oracle; this is a replay, not a new live session.
+- CTX-005 is superseded as stated in the decision above, preserving its failed history and leaving
+  LABFLOW-001 as the sole live owner of the selected operating-flow work.
+
+The final full suite ran **488 tests in 77.184 seconds, OK with two skips**. All 32 adapter tests
+passed, including red-first checks for unusable paths and missing/duplicate route rewrites. A
+focused independent review of this correction found no remaining material findings.
+
+Paired routing used unchanged cases and evaluator bytes, three runs per case, requested `sonnet`
+(observed `claude-sonnet-5`), Claude 2.1.263, clean-room mode, threshold 0.5, concurrency two, and
+**600-second** per-run timeouts. `retro-boundary` passed 5/5 cases before and after: postmortem 3/3
+on the positive, zero forbidden invocations on all four negatives. `continuous-improvement`
+passed 6/6 before and after, with zero self-improve-loop invocations in all 18 negative trials on
+each side. Every case's correct-rate delta is zero; no errors, inconclusive cases, or excluded runs
+were reported. These checks preserve routing boundaries; they do not prove picker usability.
+
+The plugin locator differs (`.` before, `<external-plugin-dir>` after) because the before source
+was frozen at `28c6487` in a separate checkout. Both sides ran identified private plugin copies;
+all other recorded conditions and the case/evaluator provenance match. Local artifacts are under
+`C:\Users\hawkins\sde-agents\.worktrees\pr175-review-evidence`, including the four benchmark files
+and `routing-comparison.json`. Benchmark SHA-256 identities:
+
+```text
+retro-before  1e1b3816038520cc3725f7a2c8edd1b663ee4ac34d4ef4e14844fa7b64e92d23
+retro-after   e1a28318b3486ace884b46af923b5e87374b5c20d3bd69ec43f5ec8126ae529c
+improvement-before  1ba772e706442c396d7cd7e15a304fb48718d45cfc1b566db8adf78e325a3069
+improvement-after   1c06ff152eb9b31a335f4c75ffac2fd8d86edbd8518f96a75f974decc85fda30
+```
 
 ## Reopen triggers
 
