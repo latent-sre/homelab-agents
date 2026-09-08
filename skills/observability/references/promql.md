@@ -16,9 +16,15 @@ sum(rate(http_requests_total{status=~"5.."}[5m])) by (service)
 # 3. Latency percentile from a histogram — by (le) is mandatory
 histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service))
 
-# 4. Staleness of a job — the single most useful lab query
-time() - max(backup_last_success_timestamp_seconds) by (job) > 26 * 3600
+# 4. Staleness of each backup target/dataset — retain the series identity
+time() - backup_last_success_timestamp_seconds > 26 * 3600
 ```
+
+The backup metric must expose a stable identity for every required target/dataset. Keep those
+labels: `max ... by (job)` lets one recent backup hide another target's stale backup under the
+same job. Aggregate only redundant reports of the same backup obligation, retaining all labels
+that distinguish obligations. A missing series requires a separate expected-inventory check;
+a threshold cannot alert on a series that is absent.
 
 ## Traps, in the order people hit them
 

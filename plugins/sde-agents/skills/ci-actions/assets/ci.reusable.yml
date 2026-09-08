@@ -66,7 +66,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Lint and typecheck
+      - name: Lint and formatting
         run: |
           ruff check .
           ruff format --check .

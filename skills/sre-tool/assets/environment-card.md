@@ -11,6 +11,11 @@
 - **Ports**: <!-- required: every port the tool binds, and what owns each -->
 - **Module identity**: <!-- required: module/package name from `git remote -v` + manifests, never inferred -->
 - **Credentials**: <!-- required: where secrets live (env file path, store) — never the values -->
+- **Verification boundary**: <!-- before executable verification: owner, availability, enforced
+     credential/network/filesystem controls, permitted effects, runtime/image digest if applicable,
+     writable scratch and retained evidence paths; unavailable means affected criteria inconclusive -->
+- **Evidence/state contract**: <!-- existing provider's schema, validator and transition authority,
+     or "none — use the explicit verification packet and plan"; do not invent fleet machinery -->
 - **Progress**: <!-- required: where builders append phase markers — one writer per file. Solo
      builder: .agents/PROGRESS.md. Parallel batch: each builder appends only to its own shard,
      .agents/progress/<component>.md. The orchestrator's plan file (default .agents/plan.md) is

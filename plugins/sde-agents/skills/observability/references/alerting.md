@@ -33,11 +33,11 @@ groups:
 
       # The highest-value lab alert class: a job that silently stopped succeeding.
       - alert: BackupStale
-        expr: time() - max(backup_last_success_timestamp_seconds) by (job) > 26 * 3600
+        expr: time() - backup_last_success_timestamp_seconds > 26 * 3600
         for: 10m
         labels: { severity: page }
         annotations:
-          summary: "{{ $labels.job }} has not completed a successful backup in over 26h"
+          summary: "{{ $labels.job }} backup is over 26h old ({{ $labels }})"
           description: "Restore capability is degrading with every hour."
           runbook_url: "https://git.lan/lab/docs/runbooks/backups.md"
 ```
@@ -47,6 +47,12 @@ these household-critical examples, an `absent()` companion so a dead target can'
 staleness alert on the job whose failure is otherwise silent (26h, not 24h — a daily job that runs
 at a slightly different time must not page every morning). A lightweight service without a runbook
 still needs an actionable annotation, but it may name the first action and owner inline.
+
+The backup metric must identify each required target/dataset. Preserve that identity in the rule
+and notification: a fresh target must not clear a different target's stale backup. The Paperless
+absence rule watches only Paperless; add a separate absence check for each expected backup
+identity, or compare an expected-backup inventory with observed series. A broad `absent(metric)`
+cannot detect one missing target while another target still reports the metric.
 
 ## Thresholds you can defend
 
