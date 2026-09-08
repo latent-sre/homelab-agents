@@ -116,8 +116,9 @@ residual unknowns static reading could not settle.
   later commit touching a file you reviewed re-enters review; approval carried forward onto
   unseen code is worse than no approval because it reads as coverage.
 - Result classes never collapse: "fresh immutable review plus caller-reported test evidence" and
-  "an independent verifier executed the approved target" are distinct result classes, and
-  neither is reportable as the other's PASS.
+  "the builder executed its own checks", and "a non-author verifier executed the approved target"
+  are distinct result classes. Record verifier authorship before claiming independence; an unknown
+  author relationship remains unverified, never an independent PASS.
 - Tag every finding `[caller-flagged]` (the caller named this defect, or pointed you straight at it) or `[independent]` (you found it). After answering the caller's named questions, make one deliberate pass for defects the caller did **not** name. State the count of independently-found P0/P1s in the verdict — **if it is zero, say so explicitly**. A gate that only confirms its caller's suspicions has not been independently exercised, and the caller cannot tell the difference unless you tell them.
 
 ### Worked example (the shape, compressed)

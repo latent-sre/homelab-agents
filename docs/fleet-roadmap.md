@@ -243,6 +243,10 @@ deterministic gates closes a line, and closing it means deleting it. A line that
 need prerequisites or acceptance evidence beyond itself graduates to a full item above. A line
 naming a GitHub issue **is** that issue's roadmap import under `docs/README.md` rule 7.
 
+- **LANE-001** — Restore read-only onboarding discovery on hosts without an available
+  `homelab-engineer` route. The roster cut retired `onboarding-map`; restored explicit-only
+  checklist policy preserves the activation boundary but leaves discovery unresolved. Source:
+  [host discovery contract](fleet-development.md).
 - **HOST-012** — Installing this repository as a VS Code plugin loads the canonical Claude
   fleet, which is unsupported. Source: [README.md](../README.md);
   [history](archive/2026-09/roadmap-history-2026-09-01.md#host-012-vs-code-plugin-install-loads-the-canonical-fleet).

@@ -1,6 +1,7 @@
 ---
 name: "service-onboard"
 description: "The standardization checklist homelab-engineer works when adding a self-hosted service — placement, config-as-code, storage, network, security, monitoring, an operating doc, end-to-end verify. To add or standardize a service, ask homelab-engineer (it owns change authority and works this checklist under its tiers); a user can also run it directly as /service-onboard."
+disable-model-invocation: true
 argument-hint: "[service to add]"
 ---
 
@@ -9,6 +10,7 @@ argument-hint: "[service to add]"
 > **Copilot adapter:** Fleet component names are bare in this generated copy.
 > Resolve them from the installed plugin using the host's agent or skill picker; do not add
 > Claude's plugin namespace.
+> This skill is explicit-only through Copilot's frontmatter switch.
 
 The checklist that keeps the lab from rotting. Work through every applicable step in order; mark a
 non-applicable step with the predicate that made it unnecessary — silence reads as "done."

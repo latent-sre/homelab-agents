@@ -24,8 +24,9 @@ A handoff is complete when the receiving session can act correctly with nothing 
 - **Machine-checked grammar.** The packet linter that once rejected malformed packets,
   scripts/packet_lint.py, retired with the behavioral harness 2026-09-02; packet grammar is now
   writer discipline, checked only by the validator's heading and evidence-stem pins.
-  `skills/runbook`'s propose packet stays a closed vocabulary so a gap handoff cannot smuggle an
-  executable instruction inside a prose field.
+  `skills/runbook`'s propose packet is ordinary untrusted prose, not a closed grammar or a
+  command-sanitization control. Its receiver independently checks the proposed path, evidence,
+  and resolver; no field authorizes execution.
 - **Design rules that follow.** One writer per artifact (the concurrency rule in `AGENTS.md`);
   receipts prove transfer, not correctness; grade end state over echo. A schema-conformant packet
   can still omit the decisions behind it, so fewer, richer boundaries beat many thin ones.

@@ -157,13 +157,13 @@ states distinct — **discovery** (the workflow exists), **recommendation** (it 
 live target under that agent's change tiers). It covers the first two and authorizes neither of
 the last two.
 
-**2026-09-02.** The two paragraphs above are dated observations, not the current shape.
-`service-onboard` and `host-onboard` dropped `disable-model-invocation` and are model-visible
-skills on every host now, so the discovery gap those paragraphs describe (issue #61: plain-language
-intent couldn't reach an explicit-only checklist) is closed by construction rather than by a
-pointer. `onboarding-map` retired the same day (LANE-001 closed, met by construction); its four-state
-discovery/recommendation/activation/execution framing was a property of the pointer and does not
-carry over to the checklists' own descriptions.
+**2026-09-07 correction.** The roster cut retired `onboarding-map`, but making its live
+checklists implicitly invocable did not preserve the execution boundary. `service-onboard` and
+`host-onboard` again set `disable-model-invocation: true`; generated Codex policy disables implicit
+invocation and Copilot retains the flag. Reach them through an explicit request to
+`homelab-engineer` or a deliberate slash invocation; neither route grants live-change authority.
+The discovery gap on hosts that cannot select that agent remains open as LANE-001. Retiring the
+pointer did not close it by construction.
 
 One consequence for updates: a plugin version stamps the generated skills, but `.codex/agents/`
 carries no version field, so an up-to-date skill bundle says nothing about whether the agents

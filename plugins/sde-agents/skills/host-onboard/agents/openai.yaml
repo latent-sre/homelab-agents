@@ -1,0 +1,5 @@
+interface:
+  display_name: "Host Onboard"
+  short_description: "The standardization checklist homelab-engineer works when bringing a new or rebuilt machine into..."
+policy:
+  allow_implicit_invocation: false

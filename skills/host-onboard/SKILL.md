@@ -1,6 +1,7 @@
 ---
 name: host-onboard
 description: The standardization checklist sde-agents:homelab-engineer works when bringing a new or rebuilt machine into the lab — OS and patch baseline, users and SSH with access recovery, package and update policy, firewall and management exposure, systemd health, storage, time and DNS, telemetry enrollment, backup enrollment, and config tracking with rollback. To onboard a host, ask sde-agents:homelab-engineer (it owns change authority and works this checklist under its tiers); a user can also run it directly as /sde-agents:host-onboard.
+disable-model-invocation: true
 argument-hint: [host to onboard]
 ---
 
@@ -15,7 +16,7 @@ needs an authorized decision · 3 destructive/access-path, needs a fresh decisio
 recovery) — SSH, firewall, and user changes are Tier 3 by definition, because getting them wrong
 locks the operator out.
 This checklist grants no permission of its own. Whichever way you arrived here (homelab-engineer
-reads it by path; it may also be model-invocable as a plugin skill), the authority stays with
+reads it by path, or a user invokes the slash command), the authority stays with
 homelab-engineer: if you reached it without that agent's tier discipline, stop and route through
 it.
 

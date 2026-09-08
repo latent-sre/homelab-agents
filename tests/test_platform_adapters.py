@@ -577,7 +577,7 @@ class PlatformAdapterTests(unittest.TestCase):
                         self.assertNotIn(false_control, text)
 
     def test_explicit_only_skills_keep_host_specific_invocation_controls(self) -> None:
-        for name in ("self-improve-loop",):
+        for name in ("self-improve-loop", "service-onboard", "host-onboard"):
             with self.subTest(skill=name):
                 copilot_skill = (
                     REPO

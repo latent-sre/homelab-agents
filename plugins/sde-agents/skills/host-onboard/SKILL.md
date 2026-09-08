@@ -9,6 +9,7 @@ argument-hint: "[host to onboard]"
 > **Codex adapter:** Fleet component names are bare in this generated copy.
 > Resolve them from the installed plugin using the host's agent or skill picker; do not add
 > Claude's plugin namespace.
+> This skill is explicit-only through the generated `agents/openai.yaml` policy.
 
 The checklist that turns a fresh install into a lab host someone can operate at 3 a.m. Work every
 step in order; when one is skipped, say so explicitly and why — silence reads as "done."
@@ -21,7 +22,7 @@ needs an authorized decision · 3 destructive/access-path, needs a fresh decisio
 recovery) — SSH, firewall, and user changes are Tier 3 by definition, because getting them wrong
 locks the operator out.
 This checklist grants no permission of its own. Whichever way you arrived here (homelab-engineer
-reads it by path; it may also be model-invocable as a plugin skill), the authority stays with
+reads it by path, or a user invokes the slash command), the authority stays with
 homelab-engineer: if you reached it without that agent's tier discipline, stop and route through
 it.
 

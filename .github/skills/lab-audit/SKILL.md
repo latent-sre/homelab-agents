@@ -31,16 +31,18 @@ when it can't, the row lands in the denominator, not in silence (the caller or
 
 Two rules with no exceptions:
 
-- **A finding carries an attack path or gets downgraded.** A pattern match with no reachable route
+- **An adversary finding carries an attack path or gets downgraded.** A pattern match with no reachable route
   from an attacker position is a P2/P3 note, not a P0 — say what position the attacker needs, what
-  they cross, and what they reach, or lower the severity and say why.
+  they cross, and what they reach, or lower the severity and say why. Hygiene findings use the
+  operational impact and severity in `references/checks.md`; no attacker is required to establish
+  expiring certificates or irreplaceable state without a backup.
 - **Active compromise stops the sweep.** Evidence the lab is already breached — an unknown
   authorized key, a process or container you can't account for, exfil artifacts, tampered logs —
   ends the audit immediately: preserve the evidence untouched, never clean up, restart, or
   rebuild, and hand to the operator with what you saw and where. Recovery is an incident
   (`lab-incident` under `homelab-engineer`), not an audit step.
 
-## Adversary pass (checks 1–7; run first — every P0 lives here)
+## Adversary pass (checks 1–7; run first)
 
 Read the lab the way an attacker does: not "is it well-kept" but "from a named position — the
 internet, guest wifi, an IoT VLAN, a compromised container — what can I reach, and what does it

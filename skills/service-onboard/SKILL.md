@@ -1,6 +1,7 @@
 ---
 name: service-onboard
 description: The standardization checklist sde-agents:homelab-engineer works when adding a self-hosted service — placement, config-as-code, storage, network, security, monitoring, an operating doc, end-to-end verify. To add or standardize a service, ask sde-agents:homelab-engineer (it owns change authority and works this checklist under its tiers); a user can also run it directly as /sde-agents:service-onboard.
+disable-model-invocation: true
 argument-hint: [service to add]
 ---
 

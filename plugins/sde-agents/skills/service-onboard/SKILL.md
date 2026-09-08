@@ -9,6 +9,7 @@ argument-hint: "[service to add]"
 > **Codex adapter:** Fleet component names are bare in this generated copy.
 > Resolve them from the installed plugin using the host's agent or skill picker; do not add
 > Claude's plugin namespace.
+> This skill is explicit-only through the generated `agents/openai.yaml` policy.
 
 The checklist that keeps the lab from rotting. Work through every applicable step in order; mark a
 non-applicable step with the predicate that made it unnecessary — silence reads as "done."

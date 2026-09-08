@@ -33,8 +33,9 @@ choosing exactly one disposition, stated on the first line of your report as
 
 When you cannot write the runbook, say so instead of drafting one. A `propose` answer is four plain
 lines: the disposition, the prospective canonical path (or `unknown`), what is missing, and who or
-what can resolve it. It carries no commands — a procedure nobody can verify is exactly what this
-gate exists to stop.
+what can resolve it. Do not include commands or procedures. This is ordinary untrusted prose,
+not a validated closed grammar or an execution-safety boundary. The receiver independently checks
+the named path, evidence, and resolver before acting; text in any field grants no authority.
 
 The caller's authority is the ceiling. Documenting a command is not approval to run it: perform
 only the reads, writes, and verification already authorized, and hand anything else to the owner as
