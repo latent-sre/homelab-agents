@@ -442,6 +442,19 @@ class BuilderSkillLoadingTests(unittest.TestCase):
             with self.subTest(call=call):
                 self.assertEqual("FAIL", self.check_loading(call, self.result("front", self.FRONTEND))[2])
 
+    def test_partial_shell_and_search_reads_cannot_prove_unloaded_skills(self):
+        """A short read can omit the canary while still fetching forbidden guidance."""
+        for skill, index in (("frontend-craft", 2), ("code-craft", 0)):
+            for name, inp in (
+                ("Bash", {"command": f"head -n 1 /plugin/skills/{skill}/SKILL.md"}),
+                ("Grep", {"pattern": "^---", "glob": f"**/{skill}/SKILL.md"}),
+                ("Glob", {"pattern": f"**/{skill}/SKILL.md"}),
+            ):
+                with self.subTest(skill=skill, name=name):
+                    self.assertEqual("FAIL", self.check_loading(
+                        self.call("partial", name, **inp), self.result("partial", "---"),
+                    )[index])
+
     def test_an_unanswered_fetch_cannot_prove_no_canary_leaked(self):
         self.assertEqual(["INCONCLUSIVE", "PASS", "INCONCLUSIVE"], self.check_loading(
             self.call("opaque", "Bash", command="cat unseen-file"),

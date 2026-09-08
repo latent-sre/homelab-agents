@@ -588,7 +588,10 @@ def _probe_builder_invocation(
         path = path.replace("\\", "/").rstrip("/") if isinstance(path, str) else ""
         for skill in requested:
             if path.endswith((f"skills/{skill}", f"skills/{skill}/SKILL.md")) or (
-                call["name"] == "Skill" and skill in json.dumps(inp)
+                # Shell/search inputs can fetch only a fragment with no canary. Treat a
+                # named skill in any fetch input conservatively as requested guidance;
+                # even a filename-only search cannot certify that it stayed unloaded.
+                skill in json.dumps(inp)
             ):
                 requested[skill].append(tool_id)
         if call["name"] == "Read" and path.endswith("skills/backend-craft/SKILL.md"):
