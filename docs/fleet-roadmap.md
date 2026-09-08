@@ -40,6 +40,25 @@ each item's Source.
 
 ### Ready
 
+#### LABFLOW-001 — simplify the homelab operating path
+
+**Status:** `active` — the operator selected main-review items 1, 2, 3, 5, and 6 on 2026-09-07;
+implementation is on `refactor/homelab-operating-flow`. Offline checks and bounded behavior probes
+passed; two static review rounds ended with no remaining material findings. The full runtime probe
+retains its recorded coverage gaps. Publication is authorized; host installation is outside scope.
+
+**Outcome:** Routine work keeps useful evidence and ownership without mandatory Learning forms,
+digest receipts, repeated approval proposals, or unrelated builder preloads.
+
+**Source:** [Operating-flow decision](decisions/2026-09-07-homelab-operating-flow.md).
+
+**Prerequisites:** Main-based implementation; existing host permission controls and roster retained.
+
+**Acceptance:** Canonical/adapter parity, focused and full offline checks, reviewed final diff,
+paired source-following outcome probes, and a revised runtime probe with its observed limits.
+
+**Next action:** Review the publication PR and disposition current-head review findings before merge.
+
 #### CTX-001 — modernize fleet definitions for Claude 5-generation context rules
 
 **Status:** `ready` — eval-gated experiment; the harness it needs already exists.
@@ -66,32 +85,30 @@ a routing round are the available instruments.
 **Next action:** Open a bounded spec choosing the pilot definition (`sde-fullstack` is the
 highest-density candidate) and the exact paired-measurement conditions before editing anything.
 
-#### CTX-003 — shrink the per-spawn preload footprint without hollowing the probe's proof
+#### CTX-003 — verify the implemented preload cut
 
-**Status:** `ready` — pass 2 of three; heaviest pass, runs when there is appetite for a routing
-round plus a probe re-run per affected agent.
+**Status:** `active` — narrowed on 2026-09-07 to remaining verification of LABFLOW-001.
+The old instruction to compact a routine closeout contract into `self-improve-loop` is retired:
+that skill is explicit-only maintainer work and is no longer a per-spawn consumer.
 
-**Outcome:** Per-spawn preload cost drops measurably (e.g. `sde-fullstack`'s ~12.1k preloaded
-tokens), with a routing round and the probe showing slimmed bodies still deliver what fat ones
-did — the behavioral contracts that once proved this retired 2026-09-02; references stay the
-on-demand layer.
+**Outcome:** Establish the evidence still owed for the implemented conditional preload, without
+repeating the cut or restoring automatic learning scans.
 
 **Source:**
-[2026-08-16 skill-listing investigation](archive/2026-08/skill-listing-investigation-2026-08-16.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#ctx-003-shrink-the-per-spawn-preload-footprint-without-hollowing-the-probes-proof)
+[operating-flow implementation and limits](decisions/2026-09-07-homelab-operating-flow.md) ·
+[original acceptance history](archive/2026-09/roadmap-history-2026-09-01.md#ctx-003-shrink-the-per-spawn-preload-footprint-without-hollowing-the-probes-proof)
 
-**Prerequisites:** None mechanically; `scripts/probe_plugin.py`'s craft canaries must move
-deliberately with the body, or stay in it.
+**Evidence disposition:** Adapter regeneration and validator parity passed. The bounded native
+builder capture demonstrated the requested preload/read/absence canaries; scorer regressions are
+covered by deterministic tests. Retro-boundary and continuous-improvement routing were measured,
+but they do not substitute for every affected agent's before/after routing. A complete green
+runtime probe, remaining affected-agent routing, and per-skill before/after preload byte deltas
+are still owed. Doctor listing-budget and installed-agent drift warnings remain open; no host
+installation or warning waiver is implied by publication of LABFLOW-001.
 
-**Constraints:** The conditional-reference read is measured intermittent (falsified 2026-08-30) —
-re-verify it before shrinking anything into the on-demand layer.
-
-**Acceptance:** Before/after routing runs for every agent whose preloaded set changed; probe
-green with canary assertions intact or deliberately migrated; regenerated adapters; doctor and
-validator green; byte deltas recorded per skill. No contract-graded check remains.
-
-**Next action:** Restructure `self-improve-loop` first — compact loop plus closeout contract in
-SKILL.md, full lifecycle protocol to a reference.
+**Next action:** Compare the existing LABFLOW-001 evidence with those remaining checks, bind any
+new measurement to immutable before/after plugin bytes, and run only the missing checks. Do not
+edit the explicit-only retro skill to reduce preload cost or treat an unrun check as accepted.
 
 #### CTX-004 — lock the context wins in: settings lines, validator promotion, Copilot cap
 
@@ -114,38 +131,6 @@ regenerated adapters; green tiers.
 
 **Next action:** Ship the Copilot-cap tripwire first — prerequisite-free, small, and its
 measurement is already committed evidence.
-
-#### CTX-005 — shrink `homelab-engineer`'s always-loaded body
-
-**Status:** `decision-needed` — one authorized safety repair and one behavioral round are spent;
-the branch is no-go evidence, not merge-ready.
-
-**Outcome:** The safety repair improved fresh behavior (45/125 to 55/125, new safety case 5/5)
-but regressed three baseline-perfect contracts to 4/5 (60/130 overall); acceptance still fails.
-
-**Source:**
-[Homelab proportional operations decision](decisions/2026-08-23-homelab-proportional-operations.md) ·
-[CTX-005 discipline audit](archive/2026-08/ctx-005-engineering-discipline-audit-2026-08-23.md) ·
-[GATE-006 outcome](archive/2026-08/gate-006-outcome-2026-08-30.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#ctx-005-shrink-homelab-engineers-always-loaded-body)
-
-**Prerequisites:** GATE-006 (landed). Its after-side lane cannot serve as this diet's before
-side — a fresh baseline must be captured.
-
-**Constraints:**
-- EVAL-011 closed won't-do 2026-09-02 with the behavioral harness it would have gated this item
-  through; the biased-rate concern it named cannot be resolved by re-measuring, since no
-  contract-graded instrument remains. Verify with a routing round and the probe instead, and note
-  that neither measures the inspect-first discipline the always-loaded body carries as directly as
-  a behavioral contract did.
-- Do not mix another policy change into the diet.
-
-**Acceptance:** Before/after character counts under the same instrument; a routing round shows no
-regression on affected homelab clusters; probe stays green; adapters match sources; the outcome
-names what was removed, compressed, or kept and why. No contract-graded check remains.
-
-**Next action:** No further review-driven bytes or capture retries are planned; a later ruling
-reopening work restarts root-cause analysis from refreshed main.
 
 #### LABSEC-002 — add a guard-enforced lab inspector
 
@@ -192,56 +177,6 @@ artifact, filed through the ledger's release/retest rule.
 
 **Next action:** Operator runs the two Phase-0 one-liners on the SEC-01 Linux host, then
 captures the paired routing run; the smoke run follows the next release.
-
-#### ACK-001 — make a dropped Learning handoff visible
-
-**Status:** `decision-needed` — gap twice-observed; candidate mechanisms differ in size and
-authority, so the operator chooses before any spec.
-
-**Outcome:** A Learning packet the caller does not persist becomes visibly unpersisted, instead
-of looking identical to a persisted one.
-
-**Source:**
-Issue #73 ·
-[LOOP-001 outcome](archive/2026-08/loop-001-outcome-2026-08-10.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#ack-001-make-a-dropped-learning-handoff-visible)
-
-**Prerequisites:** None — LOOP-001's capture-to-released lifecycle closed 2026-08-10.
-
-**Constraints:** `scripts/learning_ledger.py` and the `learning/` store were retired 2026-09-01;
-this item is moot unless the ledger returns.
-
-**Acceptance:** A scenario where a caller receives a packet and stops shows the stop; the
-emitting side's contract is unchanged for callers that do route it; no new write authority
-granted to a read-only role; adapter parity and deterministic gates green.
-
-**Next action:** Operator rules among three mechanisms (emitter-side pointer plus manifest —
-recommended; caller-side lint scan — deferred, trigger-bound; scratch-file write — declined),
-then a bounded spec.
-
-#### LEDGER-001 — the promoted set has no absorption or drift coverage
-
-**Status:** `ready` — diagnosis complete from a full 53-record audit; each repair below is
-independently landable.
-
-**Outcome:** A lesson recorded as `promoted` is one a reader can trust landed, verified by
-something other than manual audit; three specific records are reconciled with the tree, and the
-coverage gap that hid them is closed or stated.
-
-**Source:**
-[history](archive/2026-09/roadmap-history-2026-09-01.md#ledger-001-the-promoted-set-has-no-absorption-or-drift-coverage)
-
-**Prerequisites:** None. Findings 1 and 2 landed 2026-08-20; findings 3–4 remain.
-
-**Constraints:** `scripts/learning_ledger.py` and the `learning/` store were retired 2026-09-01;
-this item is moot unless the ledger returns.
-
-**Acceptance:** Findings 1–2 land their prose with the required reader check, or drop with a
-stated reason. Finding 3 records its narrowing. Finding 4 extends drift coverage to terminal
-states with a firing test, or states the limitation in `learning/README.md`.
-
-**Next action:** Finding 3 — scope-narrow `lc_36adb3d0` or renew its `review`. Finding 4 —
-extend drift coverage to terminal states or document the limitation.
 
 #### GATE-007 — bind a tier to each declared effect, or say one response carries one tier
 
@@ -321,6 +256,8 @@ naming a GitHub issue **is** that issue's roadmap import under `docs/README.md` 
   discarding every later check. Source:
   [GATE-006 outcome](archive/2026-08/gate-006-outcome-2026-08-30.md);
   [history](archive/2026-09/roadmap-history-2026-09-01.md#probe-006-a-probe-leg-timeout-crashes-instead-of-recording-inconclusive).
+  Reproduced in the [2026-09-07 operating-flow check](decisions/2026-09-07-homelab-operating-flow.md):
+  the 900-second conditional-reference timeout prevented the workflow arm and final capture write.
 
 ## Deferred decisions
 

@@ -62,13 +62,14 @@ several prompts and hope they stay aligned.
 Use `sde-agents:runbook` after choosing one of these outcomes:
 
 - **Update** the existing canonical runbook when its owner and location are known, the evidence is
-  current and applicable, the procedure fits that document, and it can be verified or honestly
-  marked with a precise unverified gap.
+  current and applicable, and the supported change fits that document. Mark procedure-specific
+  command or replay gaps without blocking independent supported sections.
 - **Create** a runbook only after inventory proves none is canonical and the operation is repeatable
   and bounded. Its owner, trigger, prerequisites and authority, safe checks, exact commands,
   expected results, rollback, recovery, escalation, sources, and freshness must be knowable.
-- **Propose** the runbook change without writing commands when causality, ownership, current
-  configuration, trusted command source, authority, or a safe replay path is missing.
+- **Propose** the document change when its ownership, destination, applicability, or edit
+  authority is unresolved. Otherwise use the runbook skill to update supported sections and stop
+  only the procedure whose command, configuration, causality, or replay evidence is missing.
 
 `unverified` means a traceable command was not executed; it is never permission to invent a command.
 A direct user request to write or update an operating document routes to `sde-agents:runbook`, not

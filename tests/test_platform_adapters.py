@@ -444,6 +444,20 @@ class PlatformAdapterTests(unittest.TestCase):
                 self.assertNotIn("live-effect gate — matched rule `docker compose up`", rewritten)
                 self.assertIn(marker, rewritten)
 
+    def test_homelab_duplicate_transport_policy_is_rejected(self) -> None:
+        """Two competing transport bullets must not yield a plausible generated control."""
+        canonical = (REPO / "agents" / "homelab-engineer.md").read_text(encoding="utf-8")
+        for label in ("Managed gate", "Standing policy"):
+            start = canonical.index(f"- **{label}:**")
+            end = canonical.index("\n- **", start + 1)
+            duplicate = canonical + "\n\n" + canonical[start:end] + "\n\n"
+            for host in ("copilot", "codex"):
+                with self.subTest(label=label, host=host):
+                    with self.assertRaisesRegex(ValueError, "expected one.*transport anchor"):
+                        generate_platform_adapters.adapt_agent_contract(
+                            duplicate, name="homelab-engineer", host=host
+                        )
+
     def test_guarded_copilot_agents_have_no_shell_tool(self) -> None:
         guard = validate_fleet.load_guard(REPO)
         for name in sorted(guard.GUARDED_AGENT_NAMES):
@@ -467,6 +481,7 @@ class PlatformAdapterTests(unittest.TestCase):
             REPO / "agents" / "sde-fullstack.md"
         )
         skill_names = validate_fleet.split_tools(canonical["skills"])
+        self.assertEqual(["code-craft"], skill_names)
         paths = (
             REPO / ".github" / "agents" / "sde-fullstack.agent.md",
             REPO / ".codex" / "agents" / "sde-fullstack.toml",
@@ -496,6 +511,38 @@ class PlatformAdapterTests(unittest.TestCase):
                 )
                 self.assertEqual(source.stem, generated["name"])
                 self.assertEqual(expected, generated["sandbox_mode"])
+
+    def test_builder_conditional_skills_have_resolvable_host_paths(self) -> None:
+        source = REPO / "agents" / "sde-fullstack.md"
+        for host, root, render in (
+            ("copilot", ".github/skills", lambda: generate_platform_adapters.render_copilot_agent(
+                source, guarded_names=set())),
+            ("codex", "plugins/sde-agents/skills", lambda: generate_platform_adapters.render_codex_agent(source)),
+        ):
+            with self.subTest(host=host):
+                text = render()
+                self.assertNotIn("using the Read tool and these plugin paths", text)
+                self.assertIn("available-skills catalog", text)
+                self.assertIn("use them only when present", text)
+                for name in ("backend-craft", "frontend-craft", "root-cause", "ci-actions"):
+                    path = f"{root}/{name}/SKILL.md"
+                    self.assertIn(f"`{path}`", text)
+                    self.assertTrue((REPO / path).is_file())
+
+    def test_builder_loading_rewrite_rejects_missing_or_duplicate_routes(self) -> None:
+        _, body, _ = generate_platform_adapters._definition_parts(REPO / "agents/sde-fullstack.md")
+        for host in ("codex", "copilot"):
+            adapted = generate_platform_adapters.adapt_text(body, host)
+            for anchor in (
+                "apply. Load other guidance before the work it governs, using the Read tool and these plugin paths:",
+                *(f"| the installed `{name}` skill |" for name in
+                  ("backend-craft", "frontend-craft", "root-cause", "ci-actions")),
+            ):
+                for broken in (adapted.replace(anchor, "missing route"), adapted + "\n" + anchor):
+                    with self.subTest(host=host, anchor=anchor), self.assertRaisesRegex(
+                        ValueError, "expected one.*skill-loading"
+                    ):
+                        generate_platform_adapters.adapt_agent_contract(broken, name="sde-fullstack", host=host)
 
     def test_investigator_provenance_boundary_survives_every_host_rewrite(self) -> None:
         # The canonical untrusted-provenance paragraph is REPLACED wholesale on both non-Claude
@@ -551,17 +598,6 @@ class PlatformAdapterTests(unittest.TestCase):
                     "This role has no `Agent` tool",
                 ):
                     self.assertNotIn(false_control, normalized)
-
-    def test_handoff_owner_reference_is_translated_for_generated_hosts(self) -> None:
-        paths = (
-            REPO / ".github" / "agents" / "sde-fullstack.agent.md",
-            REPO / ".codex" / "agents" / "sde-fullstack.toml",
-        )
-        for path in paths:
-            with self.subTest(path=path.relative_to(REPO)):
-                text = path.read_text(encoding="utf-8")
-                self.assertNotIn("agents/homelab-engineer.md", text)
-                self.assertIn("the installed `homelab-engineer` agent definition", text)
 
     def test_host_agent_adapters_have_no_claude_runtime_references(self) -> None:
         paths = [

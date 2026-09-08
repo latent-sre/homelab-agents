@@ -1,67 +1,58 @@
 {
   "cluster": "retro-boundary",
-  "members": ["self-improve-loop", "postmortem"],
-  "notes": "Non-incident retros and lesson routing belong to self-improve-loop; the retro on a resolved incident belongs to postmortem. Negatives are vocabulary collisions (retro styling, sprint ceremonies, forensic postmortems) and a live outage, which must reach neither member.",
+  "members": [
+    "self-improve-loop",
+    "postmortem"
+  ],
+  "notes": "Non-incident retros and lesson routing belong to self-improve-loop; the retro on a resolved incident belongs to postmortem. Negatives are vocabulary collisions (retro styling, sprint ceremonies, forensic postmortems) and a live outage, which must reach neither member. 2026-09-07: self-improve-loop is explicit-only maintainer work. Its automatic positive cases retired with that invocation path; remaining negative boundaries and postmortem cases still apply.",
   "cases": [
-    {
-      "id": "pos-task-retro",
-      "prompt": "That deploy script took three attempts before its tests went green. Before we close out, do a retro on this task and capture what kept failing.",
-      "polarity": "positive",
-      "expect_fires": ["self-improve-loop"],
-      "tags": ["retro", "task"]
-    },
-    {
-      "id": "pos-lessons-learned",
-      "prompt": "The migration is finished. Capture the lessons learned from the repeated review findings — and where should each one actually go so it sticks?",
-      "polarity": "positive",
-      "expect_fires": ["self-improve-loop"],
-      "tags": ["retro", "routing"]
-    },
-    {
-      "id": "pos-micro-retro",
-      "prompt": "My fix finally passed after two failed attempts — run the micro-retro and move one lesson left into a deterministic check.",
-      "polarity": "positive",
-      "expect_fires": ["self-improve-loop"],
-      "tags": ["retro", "existing-remit"]
-    },
-    {
-      "id": "pos-iterate-draft",
-      "prompt": "Here are the reviewer's findings on my draft runbook, and the checklist it has to pass. DRAFT (excerpt): \"Restoring the billing database: 1. Stop the API pods. 2. Restore the latest snapshot with `bao-restore --latest`. 3. Start the pods. 4. Tell the on-call channel.\" FINDINGS: (a) step 2 names no verification that the restore succeeded before traffic returns; (b) no rollback if the snapshot is corrupt; (c) 'latest snapshot' is unqualified \u2014 latest by wall clock or by successful-backup marker?; (d) no owner named for the on-call notification. CHECKLIST: every destructive step has a verification, every step has a rollback or an explicit 'no rollback possible' note, every artifact reference is unambiguous, and every handoff names an owner. Iterate on the draft against the checklist until it passes.",
-      "polarity": "positive",
-      "expect_fires": ["self-improve-loop"],
-      "expected_output": "self-improve-loop's evaluator-optimizer remit: iterate a draft against a checklist until it passes, rather than writing a retro. The draft, findings, and checklist are EMBEDDED: the first version said \"here are the reviewer's findings\" and supplied none, so a session correctly asking for the missing draft scored as a routing miss. That is the dangling-referent defect this suite swept for \u2014 and this case is the instance the sweep's own author missed while claiming the class was empty (PR #145 review).",
-      "tags": ["existing-remit", "evaluator-optimizer"]
-    },
     {
       "id": "pos-outage-retro",
       "prompt": "Last night's NAS outage is resolved and everything is healthy again. Do a retro on the outage and write it up properly.",
       "polarity": "positive",
-      "expect_fires": ["postmortem"],
-      "tags": ["incident", "boundary"]
+      "expect_fires": [
+        "postmortem"
+      ],
+      "tags": [
+        "incident",
+        "boundary"
+      ]
     },
     {
       "id": "neg-sprint-retro",
       "prompt": "Facilitate a sprint retrospective for my team's Tuesday ceremony — agenda, icebreaker, and a template for action items.",
       "polarity": "negative",
-      "tags": ["near-miss", "ceremony"]
+      "tags": [
+        "near-miss",
+        "ceremony"
+      ]
     },
     {
       "id": "neg-retro-style",
       "prompt": "Restyle this landing page with a retro 80s synthwave look — neon grid, chrome type, the works.",
       "polarity": "negative",
-      "tags": ["near-miss", "vocabulary"]
+      "tags": [
+        "near-miss",
+        "vocabulary"
+      ]
     },
     {
       "id": "neg-forensic-postmortem",
       "prompt": "For a story I'm writing: what does a postmortem examination involve in forensic pathology, step by step?",
       "polarity": "negative",
-      "tags": ["near-miss", "vocabulary"]
+      "tags": [
+        "near-miss",
+        "vocabulary"
+      ]
     },
     {
       "id": "neg-live-outage",
       "prompt": "Grafana is down right now — every dashboard is blank and the household is asking. Help.",
       "polarity": "negative",
-      "tags": ["near-miss", "live-incident"]
+      "tags": [
+        "near-miss",
+        "live-incident"
+      ]
     }
   ]
 }

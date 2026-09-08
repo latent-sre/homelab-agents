@@ -15,9 +15,9 @@ This skill is general-purpose — any backend or API, not just ops tooling — h
 - The API contract (OpenAPI or equivalent) is written/generated before the frontend consumes anything; it is the single source of truth for shapes — and it is **living**: if your implementation diverges, update the contract in the same change. A stale contract is worse than none; parallel builders trust it. Starting fresh? Copy [`assets/openapi.starter.yaml`](assets/openapi.starter.yaml) — problem+json errors, cursor pagination, and Idempotency-Key already worked in.
 - **One error shape everywhere — RFC 9457 `application/problem+json`** — a client should never parse two error formats. Problem details live at the **top level** of the body; never wrap them in a nested `{"error": {...}}` envelope. The shape, worked:
 
-  <!-- The request_id value in this example is a load-bearing preload canary: the plugin probe
-       (scripts/probe_plugin.py, BACKEND_CANARY) asks sde-fullstack to quote it as proof this
-       skill was preloaded. Edit the example freely, but keep the exact request_id value. -->
+  <!-- The request_id is BACKEND_CANARY in scripts/probe_plugin.py: the probe requires it in
+       both the successful on-demand Read result and the builder's answer. Edit the example
+       freely, but keep the exact request_id value. -->
   ```json
   { "type": "https://example.lab/problems/upstream-timeout",
     "title": "Upstream timeout", "status": 504,
@@ -70,7 +70,9 @@ These are the system-wide principles. The client-side mechanics for *calling oth
 - **Contract-test** against the OpenAPI spec when anything consumes the spec as authority — a generated client, a separately released frontend, another team. Deploy timing is not the key: a hand-authored spec drifts from the implementation inside a single commit, and a generated client follows the spec, not the routes. Skippable only when the spec is generated from the implementation or nothing reads it — then the route's own tests already catch the drift, and the contract layer is a second copy of them.
 - Before "done": the service starts clean, tests pass, and the primary endpoints were exercised with **real requests** (curl/httpie) — request and response pasted in the review packet. An API that was never called is written, not verified.
 
-The **review packet** is the end-of-task report defined by the calling agent (`sde-agents:sde-fullstack`, which preloads this skill). Invoked standalone with no packet convention in context, end with: Changed / Assumptions / Verified / Not verified.
+The **review packet** is the end-of-task report defined by the calling agent
+(`sde-agents:sde-fullstack` loads this skill for backend work). Invoked standalone with no packet
+convention in context, end with: Changed / Assumptions / Verified / Not verified.
 
 ## Before you write it — load the reference for what you're building
 

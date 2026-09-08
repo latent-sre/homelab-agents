@@ -1,0 +1,5 @@
+interface:
+  display_name: "Self Improve Loop"
+  short_description: "Runs explicitly requested maintainer retros on fleet behavior. Use when a maintainer asks to..."
+policy:
+  allow_implicit_invocation: false

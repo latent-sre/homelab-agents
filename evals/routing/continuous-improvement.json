@@ -8,61 +8,8 @@
     "prompt-craft",
     "prompt-engineer"
   ],
-  "description": "Routing eval for the learning boundary: self-improve-loop owns evidence-backed closeout and repeated-pattern improvement, while diagnosis, direct operating docs, incident write-ups, and one-shot prompt work retain their existing owners. Negatives narrow their forbidden set to self-improve-loop so the correct sibling may fire.",
+  "description": "Routing eval for explicit maintainer retros: self-improve-loop runs only when explicitly requested. Ordinary task completion performs no learning scan. Diagnosis, operating docs, incident write-ups, and prompt work retain their existing owners; negatives forbid self-improve-loop while allowing the appropriate sibling.",
   "cases": [
-    {
-      "id": "pos-learning-repeated-failure",
-      "prompt": "Across three recent feature tasks, reviewers caught the same missing failure-path test. Run a fleet learning retro and turn that repeated pattern into one durable improvement.",
-      "polarity": "positive",
-      "expect_fires": [
-        "self-improve-loop"
-      ],
-      "expected_output": "A repeated, evidenced fleet-behavior gap belongs to the self-improvement lifecycle.",
-      "tags": [
-        "self-improve-loop",
-        "recurrence"
-      ]
-    },
-    {
-      "id": "pos-learning-successful-scan",
-      "prompt": "The refactor passed on its first attempt with no corrections or review findings. Use the fleet learning closeout to decide whether any durable lesson is justified.",
-      "polarity": "positive",
-      "expect_fires": [
-        "self-improve-loop"
-      ],
-      "expected_output": "An explicitly requested learning scan may correctly conclude that no durable change is warranted.",
-      "tags": [
-        "self-improve-loop",
-        "no-change"
-      ]
-    },
-    {
-      "id": "pos-learning-runbook-gap",
-      "prompt": "Three restore drills needed the same undocumented recovery step, and the existing service runbook is the canonical operating guide. Decide how this learning should be captured and verified.",
-      "polarity": "positive",
-      "expect_fires": [
-        "self-improve-loop"
-      ],
-      "expected_output": "The learning lifecycle identifies the durable destination; the runbook skill may own the actual operating-doc edit.",
-      "tags": [
-        "self-improve-loop",
-        "runbook",
-        "artifact-routing"
-      ]
-    },
-    {
-      "id": "pos-learning-rejected-candidate",
-      "prompt": "A proposed skill change improved one example but regressed two held-out cases. Record the learning-loop disposition and what should happen to that candidate.",
-      "polarity": "positive",
-      "expect_fires": [
-        "self-improve-loop"
-      ],
-      "expected_output": "A failed candidate belongs in the learning lifecycle as rejected evidence, not as promoted guidance.",
-      "tags": [
-        "self-improve-loop",
-        "rejected-candidate"
-      ]
-    },
     {
       "id": "neg-undiagnosed-failure",
       "prompt": "A test started failing intermittently and nobody knows why. Reproduce it and determine the root cause before anyone changes the code.",
@@ -96,7 +43,7 @@
       "expect_not_fires": [
         "self-improve-loop"
       ],
-      "expected_output": "The incident artifact routes to postmortem; any fleet-behavior action can return to the learning loop afterward.",
+      "expected_output": "The incident artifact routes to postmortem; a separate fleet retrospective requires an explicit maintainer request.",
       "tags": [
         "near-miss",
         "postmortem"
@@ -122,7 +69,7 @@
       "expect_not_fires": [
         "self-improve-loop"
       ],
-      "expected_output": "Ordinary implementation routes to the builder; the learning scan happens at closeout, not as the task's primary route.",
+      "expected_output": "Ordinary implementation routes to the builder and completes without a learning scan or automatic retro. A maintainer may explicitly request a separate retrospective.",
       "tags": [
         "near-miss",
         "implementation"
@@ -141,5 +88,6 @@
         "meeting-notes"
       ]
     }
-  ]
+  ],
+  "notes": " 2026-09-07: self-improve-loop is explicit-only maintainer work. Its automatic positive cases retired with that invocation path; remaining negative boundaries and postmortem cases still apply."
 }

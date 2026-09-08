@@ -209,3 +209,19 @@ audience decision. "The paid behavioral lane remains an explicit operator purcha
 dated record of what was true on 2026-08-23; that purchase will not be made. The offline behavioral
 contracts and oracle controls cited in this record retired with `evals/behavioral/contracts.json`;
 routing evals and the probe are the remaining paid instruments.
+
+## Amendment 2026-09-07
+
+The operator selected the main-based operating-flow simplification in
+[the operating-flow decision](2026-09-07-homelab-operating-flow.md). It retires exact packet
+grammar, the work-order digest/receipt, and routine Learning closeout while preserving the
+permission tiers, actual execution transports, recovery evidence, and retry/reconciliation
+boundaries. Earlier grammar and probe descriptions above remain dated evidence.
+
+That selection supersedes CTX-005's earlier contract-preserving diet, including its prohibition
+on mixing policy changes into that experiment. CTX-005 closes as **superseded**, not accepted:
+its failed candidate remains historical no-go evidence, and its missing acceptance evidence is
+not converted into a pass. LABFLOW-001 owns the newly authorized scope and its explicit verification
+limits. The [original outcome](../archive/2026-08/gate-006-outcome-2026-08-30.md) and
+[CTX-005 history](../archive/2026-09/roadmap-history-2026-09-01.md#ctx-005-shrink-homelab-engineers-always-loaded-body)
+retain the failed results. No old candidate or capture was reused as the new implementation.

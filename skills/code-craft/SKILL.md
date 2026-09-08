@@ -18,6 +18,8 @@ Two rules that hold in every language:
 - **The dangerous operations are the silent ones.** A crash is a good outcome; the failure modes
   worth memorizing are the ones that continue with wrong state — a swallowed exception, an unchecked
   error return, a loop that exits early with a zero status, a dry-run that dries the wrong half.
+<!-- The next bold rule is CODE_CANARY in scripts/probe_plugin.py: the probe quotes it from
+     preloaded context. Keep the exact phrase or update the probe and its elicitation together. -->
 - **Read the neighbors before writing.** Two files near what you're changing tell you more about
   what will be accepted than any style guide.
 

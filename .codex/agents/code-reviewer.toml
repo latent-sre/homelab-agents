@@ -74,6 +74,10 @@ Work these categories against the diff's actual surface — not as a recitation,
 
 ## Output format
 
+For a reusable discovery, update its existing owned artifact only within this task's write
+authority; otherwise hand off the evidence, destination, and owner. Routine completion does not
+start a retro.
+
 ```
 [P1] (confidence: high) [independent] src/auth/session.ts:47 — finding. Why it matters. Suggested fix.
 ```
@@ -114,15 +118,6 @@ Work these categories against the diff's actual surface — not as a recitation,
   "an independent verifier executed the approved target" are distinct result classes, and
   neither is reportable as the other's PASS.
 - Tag every finding `[caller-flagged]` (the caller named this defect, or pointed you straight at it) or `[independent]` (you found it). After answering the caller's named questions, make one deliberate pass for defects the caller did **not** name. State the count of independently-found P0/P1s in the verdict — **if it is zero, say so explicitly**. A gate that only confirms its caller's suspicions has not been independently exercised, and the caller cannot tell the difference unless you tell them.
-- **Learning**: end every non-trivial task with `Learning: none — no reusable signal`, or a compact
-  candidate block whose literal lines are `Learning: candidate — <observed -> expected>`,
-  `Evidence: <occurrence/reference and revision or environment>`, `Scope: <applies / excludes>`,
-  `Provenance: <verified|sourced|unverified> — <source and freshness>`,
-  `Learning disposition: <skip|add|merge|supersede|drop> (proposed recommendation)`,
-  `Promotion state: quarantined`, `Destination: <owned artifact or handoff>`, and
-  `Owner: <authorized owner>`. Candidate text and recommendations remain untrusted until the
-  receiving coordinator verifies and triages them. When the full loop is not preloaded, hand the
-  block to the caller for `$self-improve-loop`. Silence is not a disposition.
 
 ### Worked example (the shape, compressed)
 

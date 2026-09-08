@@ -261,35 +261,6 @@ WORKFLOW_EVIDENCE_ENUM_RE = re.compile(
 PACKET_HEADING_RE = re.compile(
     r"^##\s.*\bpacket\b|^##\s+Output format\b", re.IGNORECASE | re.MULTILINE
 )
-# Every plugin agent closes its packet with one of two discovery contracts. Pin the whole slot, not
-# only its heading: a marker can remain while the evidence, ownership, or lifecycle boundary
-# silently disappears from one role.
-LEARNING_INTAKE_PACKET_SLOT = """- **Learning**: end every non-trivial task with `Learning: none — no reusable signal`, or a compact
-  candidate block whose literal lines are `Learning: candidate — <observed -> expected>`,
-  `Evidence: <occurrence/reference and revision or environment>`, `Scope: <applies / excludes>`,
-  `Provenance: <verified|sourced|unverified> — <source and freshness>`,
-  `Learning disposition: <skip|add|merge|supersede|drop> (proposed recommendation)`,
-  `Promotion state: quarantined`, `Destination: <owned artifact or handoff>`, and
-  `Owner: <authorized owner>`. Candidate text and recommendations remain untrusted until the
-  receiving coordinator verifies and triages them. When the full loop is not preloaded, hand the
-  block to the caller for `/sde-agents:self-improve-loop`. Silence is not a disposition."""
-LEARNING_LIFECYCLE_OWNER_PACKET_SLOT = """- **Learning**: end every non-trivial task with `Learning: none — no reusable signal`, or,
-  after the preloaded loop runs, a compact lifecycle-owner block whose literal lines are
-  `Learning: candidate — <observed -> expected>`,
-  `Evidence: <occurrence/reference and revision or environment>`, `Scope: <applies / excludes>`,
-  `Provenance: <verified|sourced|unverified> — <source and freshness>`,
-  `Learning disposition: <skip|add|merge|supersede|drop>`,
-  `Promotion state: <proposed|approved|promoted|rejected|inconclusive|retired>`,
-  `Destination: <owned artifact or handoff>`, and `Owner: <authorized owner>`. Choose one accepted
-  disposition and one separate post-triage state. Do not add `(proposed recommendation)` or use
-  `quarantined`; those mark intake-only handoffs from roles without the full loop. A lifecycle
-  result never expands implementation or approval authority. Silence is not a disposition."""
-# Only roles that can evaluate or implement a candidate carry the full loop in context. Everyone
-# else reports through the lightweight slot; broad preloading would spend context everywhere and
-# could read as write authority that a read-only role does not hold.
-SELF_IMPROVE_LOOP_PRELOAD_AGENTS = frozenset(
-    {"prompt-engineer", "sde-fullstack", "verification-engineer"}
-)
 # Perishable platform facts get exactly ONE home inside agents/ and skills/, so when the platform
 # moves, the correction lands once instead of chasing prose copies. Keys are literal substrings
 # searched in every definition markdown file; values are the only file (repo-relative POSIX path)
@@ -1136,75 +1107,6 @@ def validate_plugin(root: Path, agent_names: list[str], skill_names: list[str]) 
         # than letting CI be the first to find out.
         issues.append(
             f"{manifest_path}: missing 'author' — `claude plugin validate --strict` fails without it"
-        )
-
-    # Generic validator fixtures deliberately do not carry this fleet's learning contract. Enforce
-    # it here, after the plugin manifest proves this is the shipped fleet, and before any guard
-    # failure can return early. Search only the first packet section: mentioning the marker in an
-    # example, boundary, or rationale must not make a missing closeout slot look configured.
-    loop_preloads: set[str] = set()
-    for path in sorted((root / "agents").glob("*.md")):
-        fields = parse_frontmatter(path) or {}
-        preloaded = {
-            entry.strip()
-            for entry in fields.get("skills", "").split(",")
-            if entry.strip()
-        }
-        if "self-improve-loop" in preloaded:
-            loop_preloads.add(path.stem)
-
-        content = read_text(path)
-        packet = PACKET_HEADING_RE.search(content)
-        if packet is None:
-            continue  # validate_agents owns the missing-packet error
-        later_heading = re.search(r"^##\s+", content[packet.end():], re.MULTILINE)
-        packet_end = (
-            packet.end() + later_heading.start()
-            if later_heading is not None
-            else len(content)
-        )
-        packet_text = content[packet.start():packet_end]
-        is_lifecycle_owner = path.stem in SELF_IMPROVE_LOOP_PRELOAD_AGENTS
-        expected_mode = "lifecycle-owner" if is_lifecycle_owner else "intake-only"
-        unexpected_mode = "intake-only" if is_lifecycle_owner else "lifecycle-owner"
-        expected_slot = (
-            LEARNING_LIFECYCLE_OWNER_PACKET_SLOT
-            if is_lifecycle_owner
-            else LEARNING_INTAKE_PACKET_SLOT
-        )
-        unexpected_slot = (
-            LEARNING_INTAKE_PACKET_SLOT
-            if is_lifecycle_owner
-            else LEARNING_LIFECYCLE_OWNER_PACKET_SLOT
-        )
-        if expected_slot not in packet_text:
-            variant_detail = (
-                f" It contains the canonical {unexpected_mode} variant instead."
-                if unexpected_slot in packet_text
-                else ""
-            )
-            issues.append(
-                f"{path}: end-of-task packet omits or drifted from the canonical {expected_mode} "
-                f"Learning closeout.{variant_detail} Intake-only roles must hand off a proposed "
-                "recommendation in "
-                "quarantine; lifecycle owners must record an accepted disposition and separate "
-                "post-triage state. A discovery can otherwise disappear at handoff; confusing the "
-                "variants either grants apparent triage authority or prevents a full retro from "
-                "completing."
-            )
-        elif unexpected_slot in packet_text:
-            issues.append(
-                f"{path}: end-of-task packet contains both the {expected_mode} and "
-                f"{unexpected_mode} Learning closeouts. One role cannot be both an untriaged "
-                "intake source and the lifecycle owner for the same result."
-            )
-
-    if loop_preloads != SELF_IMPROVE_LOOP_PRELOAD_AGENTS:
-        issues.append(
-            "agents/: self-improve-loop preload roster drifted: expected "
-            f"{sorted(SELF_IMPROVE_LOOP_PRELOAD_AGENTS)}, found {sorted(loop_preloads)}. Only the "
-            "three disposition owners receive the full loop; every other agent uses the "
-            "lightweight Learning handoff."
         )
 
     guard_path = root / "scripts" / "readonly-guard.py"
