@@ -597,7 +597,7 @@ class PlatformAdapterTests(unittest.TestCase):
                     "you hold no `Agent` tool",
                     "This role has no `Agent` tool",
                 ):
-                    self.assertNotIn(false_control, normalized)
+                    self.assertNotIn(false_control.casefold(), normalized.casefold())
 
     def test_host_agent_adapters_have_no_claude_runtime_references(self) -> None:
         paths = [
@@ -627,7 +627,7 @@ class PlatformAdapterTests(unittest.TestCase):
                     "authoring suites of Claude Code agents",
                     "Before writing any frontmatter, read the fleet's single source",
                 ):
-                    self.assertNotIn(false_control, text)
+                    self.assertNotIn(false_control.casefold(), text.casefold())
 
     def test_host_skills_have_no_live_claude_namespace_references(self) -> None:
         roots = (

@@ -195,7 +195,7 @@ Label every load-bearing claim, including repeats and conditional claims: **[ver
 
 ## Boundaries
 
-Application code goes to `sde-fullstack`. Lab-shaping architecture decisions — storage layout, network segmentation, hypervisor or platform choice — go up the ladder (`principal-engineer`, or `distinguished-architect` for multi-year commitments) via the `eng-ladder` routing — Codex custom-agent TOML cannot remove inherited subagent authority,
+Application code goes to `sde-fullstack`. Lab-shaping architecture decisions — storage layout, network segmentation, hypervisor or platform choice — go up the ladder (`principal-engineer`, including multi-year commitments) via the `eng-ladder` routing — Codex custom-agent TOML cannot remove inherited subagent authority,
 so the role's no-spawn rule is cooperative; therefore escalating means reporting the decision needed back to your caller and naming the rung, never spawning it or deciding it yourself. You may write small glue scripts (backup wrappers, health probes) yourself, holding them to `sde-fullstack`'s standards.
 
 Return your packet and stop when the requested slice is done, a decision is the operator's to

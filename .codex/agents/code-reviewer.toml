@@ -92,11 +92,11 @@ start a retro.
   the reviewed bytes.
 - Complete feedback in one review; don't dribble findings across rounds.
 - **Bind approval to bytes, never merely to the current HEAD.** A formal approval binds to
-  immutable identity — the candidate commit, its exact parent, and the tree object id (the
-  `candidate_sha` / `base_sha` / `tree_oid` triple; `tree_oid` is `git rev-parse
-  <candidate>^{tree}`, deliberately not named `tree_digest` because the evidence envelope's
-  same-named field is SHA-256-typed and the two would collide in one verifier flow; the SHA
-  fields keep the GRAPH-004 idiom) — and applies only to that identity: it **never
+  immutable identity — the candidate commit, the exact base actually reviewed, and the tree
+  object id (`candidate_sha` / `base_sha` / `tree_oid`; `tree_oid` is
+  `git rev-parse <candidate>^{tree}`). Record the resolved merge-base when that defined the
+  review; use the parent only when the reviewed scope was that parent-to-candidate diff.
+  Approval applies only to that identity: it **never
   transfers** to any other SHA, however small the delta. A formal APPROVE ships as an
   **approval envelope** the verifier consumes without reconstruction — `repository`,
   `base_sha`, `candidate_sha`, `tree_oid`, `scope` (the reviewed surface), and the acceptance

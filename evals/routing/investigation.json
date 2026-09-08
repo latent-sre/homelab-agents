@@ -51,7 +51,7 @@
       "id": "neg-design-decision",
       "prompt": "Investigate whether we should split our monolith into services, and recommend an architecture for the next two years.",
       "polarity": "negative",
-      "expected_output": "A multi-year architecture decision — distinguished-architect up the ladder. 'Investigate' is shared vocabulary, but the deliverable is a settled decision, not a cited answer.",
+      "expected_output": "A multi-year architecture decision — principal-engineer up the ladder. 'Investigate' is shared vocabulary, but the deliverable is a settled decision, not a cited answer.",
       "tags": [
         "near-miss",
         "architecture"

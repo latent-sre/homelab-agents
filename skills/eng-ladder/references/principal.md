@@ -43,8 +43,9 @@ once the plugin is installed — don't load it for inline work; on any conflict,
 - A reviewer can follow the design rationale from the change description alone.
 
 ## Escalate / hand off
-Escalating from the main loop means loading the next reference and continuing; a spawned agent
-instead reports the decision needed to its caller (per its agent file) — it never self-promotes.
+The main loop loads the matching reference and continues. A spawned principal changes between
+system and strategic depth within its assigned design remit; scope or authority changes return to
+the caller. Implementation stays with the builder.
 - Org-wide pattern, build-vs-buy, or a decision everything else must live with → the
   distinguished altitude.
 - Execution of the settled design → the builder altitude (or spawn `sde-agents:sde-fullstack`).

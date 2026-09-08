@@ -102,8 +102,10 @@ both unverified. Before "done":
 - The alert rule **fires** when you force its condition (a deliberately failing check, a test rule
   with an always-true expression, or `promtool test rules` for the arithmetic) and resolves after.
   A rule that only ever evaluated to zero is written, not verified.
-- Reloads were validated first: `promtool check rules` / `promtool check config`, `alloy fmt`, the
-  dashboard JSON imports cleanly.
+- Reloads were validated first: `promtool check rules` / `promtool check config`, and
+  `alloy validate <path>` with the deployed version and matching feature settings. `alloy fmt`
+  checks formatting, not component correctness. Dashboard JSON imports cleanly; a known signal
+  reaches its destination after reload.
 - When an alert links a runbook, the link resolves; otherwise its inline first action and owner are
   present and actionable.
 

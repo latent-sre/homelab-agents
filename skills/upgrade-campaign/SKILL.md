@@ -35,10 +35,12 @@ even then, verify each before starting the next.
    from 1.4 to 3.0 means every 2.x breaking change applies too, and the migration notes for 2.0 are
    where the "you must run this before upgrading" step lives. Note explicitly: breaking config
    changes, required migrations, minimum dependency versions, and any **one-way** step.
-3. **Order by dependency and by risk.** Upgrade the things others depend on last, not first — the
-   database, the reverse proxy, and the DNS resolver are the shared path, and breaking one turns a
-   service upgrade into an outage. Within the same tier, do the boring leaf services first: they
-   build confidence and their failures are cheap.
+3. **Order by compatibility, then risk.** Map the supported consumer/dependency versions after
+   every step, including rollback. If A2 requires B2, upgrade B first only if B2 still supports A1;
+   A-first is unsafe over B1. If neither order leaves a supported intermediate state, plan a
+   compatibility bridge or an explicit coordinated maintenance window. Among safe next steps,
+   prefer low-risk leaves; shared databases, proxies, and DNS need wider checks because their
+   failures affect more services. Verify each step before beginning the next.
 4. **Classify each step**: routine bump (same major, no notes), notable (minor with config changes),
    or major (breaking, migration required, possibly one-way). Routine leaf bumps may share the
    bounded plan above. Notable and major changes get their own decision; majors also get their own

@@ -1,0 +1,183 @@
+{
+  "kind": "manually assessed source-following exercises; not a native routing benchmark",
+  "baseline": {
+    "revision": "8d01aadd64ecf2a725ac86e4f38705d85cf3856d",
+    "files": {
+      "agents/researcher.md": {
+        "sha256": "701df8778ebfa45c836ec33db2adeac157e21469f0f387bb85b71f9d0bb3a564",
+        "characters": 8399
+      },
+      "agents/prompt-engineer.md": {
+        "sha256": "4801eabd74428c35f36fca2a937206cf379665c868909938ba2a3ddb6e1b81b0",
+        "characters": 9493
+      },
+      "skills/prompt-craft/SKILL.md": {
+        "sha256": "ea00fe123a99b5bf83c618e58ff1eacce6dd5675679908e4ed6aa292000c73aa",
+        "characters": 5461
+      },
+      "skills/prompt-craft/references/tools.md": {
+        "sha256": "5130050cf0775906f5b29c8502dbde14555a139026671f2e4930971bd929d036",
+        "characters": 3932
+      },
+      "skills/prompt-craft/references/context.md": {
+        "sha256": "fad2fe07dc53d6efd739c2959d83aa11dc5126cb22e821eaee7e9d3ee904629c",
+        "characters": 5071
+      },
+      "skills/backend-craft/references/api-design.md": {
+        "sha256": "5443e0aeb1cf4ae469ec17eb8be224667384eb7303b342b04a9a0c822e4a93ae",
+        "characters": 4710
+      },
+      "skills/frontend-craft/SKILL.md": {
+        "sha256": "50b9ea1fc289d9d63d51d1892e783a2c853171755a718ec862aa4a99b9f72a03",
+        "characters": 12475
+      },
+      "skills/frontend-craft/references/stack.md": {
+        "sha256": "3c3a2c29567071d66d643581dc2a675bfc5ac11693c8f0b85b4bf1048904f356",
+        "characters": 2491
+      },
+      "skills/postmortem/SKILL.md": {
+        "sha256": "888723891f4ae9866567dbee096371da545ad62a5f880b4de9888430067a75c7",
+        "characters": 4798
+      },
+      "skills/postmortem/assets/postmortem.md": {
+        "sha256": "05def4c85100df6bc25510cd262705328974b2d99148b424403b805ab51cf0bc",
+        "characters": 1190
+      }
+    }
+  },
+  "candidate": {
+    "base": "8d01aadd64ecf2a725ac86e4f38705d85cf3856d",
+    "files": {
+      "agents/researcher.md": {
+        "sha256": "c33680160023619f90af8e3ef33b006a91b547a061a9c78e83631a30ce550df5",
+        "characters": 8505
+      },
+      "agents/prompt-engineer.md": {
+        "sha256": "b6b0618fbd29b4f32a13be6ec11bc9820b34f0262964696817c2b9f1f227e66c",
+        "characters": 10123
+      },
+      "skills/prompt-craft/SKILL.md": {
+        "sha256": "c3dc61b241f5f257f50c81067215d0c2835c7d7e8f5dfe5e833b3a4805202cc1",
+        "characters": 6148
+      },
+      "skills/prompt-craft/references/tools.md": {
+        "sha256": "4402988a7e23c785f1163047c3dc849f2745b3b2397cfc54be30f5a5d472234a",
+        "characters": 4140
+      },
+      "skills/prompt-craft/references/context.md": {
+        "sha256": "8b6f6d634abbb3b869056ebb0858ad567caa66360c195a59a8313e7a7f8a6316",
+        "characters": 5905
+      },
+      "skills/backend-craft/references/api-design.md": {
+        "sha256": "d6647f147d4ea0309ec457f737fb0adbf77cfddfc86ae7385128e69063e0ab00",
+        "characters": 5096
+      },
+      "skills/frontend-craft/SKILL.md": {
+        "sha256": "f336181720befdeae28b544bb4be943f163ebcb3371d9719c5caa03a483bf880",
+        "characters": 12697
+      },
+      "skills/frontend-craft/references/stack.md": {
+        "sha256": "a65b1fd578508bd41897ca7e1836b86bde3fd39287959fd9191a4d1763afb9e8",
+        "characters": 2507
+      },
+      "skills/postmortem/SKILL.md": {
+        "sha256": "292da23d31d1d83f0b2205bcd6402ac860d42ea0e5d905756bde9bb168b096e4",
+        "characters": 5541
+      },
+      "skills/postmortem/assets/postmortem.md": {
+        "sha256": "c46d1a064182ffdc290da8b159c5778a9e5fb0ce3366a0f68caca7566c61b728",
+        "characters": 1573
+      }
+    }
+  },
+  "checks": [
+    {
+      "check": "validator",
+      "command": [
+        "C:\\Users\\hawkins\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "scripts/validate_fleet.py"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "unit-tests",
+      "command": [
+        "C:\\Users\\hawkins\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "whitespace",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "marketplace",
+      "command": [
+        "C:\\Users\\hawkins\\.local\\bin\\claude.EXE",
+        "plugin",
+        "validate",
+        ".",
+        "--strict"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "case_file": "selected-guidance-cases-2026-09-07.json",
+  "conditions": {
+    "host": "Codex collaboration",
+    "agent_type": "default",
+    "fork_turns": "none",
+    "model": "inherited parent; exact model identifier not independently captured",
+    "exercise_authority": "read guidance and answer; no external research, writes, or delegation",
+    "comparison": "same case tasks; baseline versus candidate guidance paths",
+    "final_pairs": [
+      {
+        "before": "/root/selected_before_2",
+        "after": "/root/selected_after_2"
+      },
+      {
+        "before": "/root/selected_before_3",
+        "after": "/root/selected_after_3"
+      }
+    ],
+    "excluded_preliminary_pair": [
+      "/root/selected_before_1",
+      "/root/selected_after_1"
+    ]
+  },
+  "assessment": {
+    "method": "parent read all responses against the case requirements; no automated grader",
+    "final_candidate": "Both final batches met all eleven case requirements",
+    "baseline": "Both batches safely worked around most source defects; both HTTPX answers abstained instead of repeating the unsupported upgrade claim",
+    "limitations": [
+      "Small correlated batches do not estimate production failure rates.",
+      "Reading guidance under the default agent does not establish native registration, routing, or per-role controls.",
+      "No claimed reduction in runtime, token use, or general task error rate.",
+      "The record supplies exact inputs and representative output excerpts, not full transcripts."
+    ]
+  },
+  "representative_excerpts": {
+    "3-before-2": "I cannot establish that 0.28.0 introduced this timeout behavior from the supplied material.",
+    "3-after-2": "explicit timeout=None already disables timeouts in HTTPX 0.27.2; 0.28.0 did not introduce that behavior",
+    "4-after-2": "No prompt edit or implementation is justified by the supplied evidence alone.",
+    "5-draft-after-3": "This is a new artifact drafted from requirements, with no prior prompt or failure baseline.",
+    "5-repair-after-3": "No comparison ran here, so improvement remains unmeasured.",
+    "6-after-3": "Retain changes only when required behavior survives and the intended benefit is measured.",
+    "7-after-3": "Treat the lost response as an unknown outcome and reconcile through operation status or authoritative evidence before replaying.",
+    "10-after-3": "Preserve the intentional Mantine-and-Tailwind integration and extend the existing Mantine form.",
+    "13-unknown-after-3": "Sam reopens root-cause investigation on recurrence with new capture or newly available discriminating evidence.",
+    "13-known-after-3": "Established root cause: the disabled required worker setting, supported by logs and configuration diff.",
+    "21-tools-after-3": "Thirty deferred tools alone does not justify splitting agents or merging tools",
+    "21-context-after-3": "A truncated response and later file changes already explain legitimate rereads; an expired token explains the late access failure."
+  }
+}

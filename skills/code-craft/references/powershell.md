@@ -27,9 +27,24 @@ function Get-Thing {
 
 ## Error handling
 
-- `$ErrorActionPreference = 'Stop'` (or `-ErrorAction Stop` per call) so failures become catchable
-  terminating errors; wrap risky work in `try/catch`. Don't rely on `$?` — a non-terminating error
-  leaves the script running with wrong state, the exact failure mode worth designing against.
+- For PowerShell cmdlets, `$ErrorActionPreference = 'Stop'` (or `-ErrorAction Stop` per call)
+  makes non-terminating errors catchable; wrap risky work in `try/catch`.
+- For native executables, check `$LASTEXITCODE` immediately and interpret the executable's exit
+  contract before another native command overwrites it. `try/catch` and `Stop` alone do not
+  reliably catch native failures on Windows PowerShell 5.1 or default PowerShell 7 settings.
+  For a command whose contract is zero-success/nonzero-failure:
+
+  ```powershell
+  & docker version
+  $commandExit = $LASTEXITCODE
+  if ($commandExit -ne 0) { throw "docker failed with exit code $commandExit" }
+  # Dependent steps begin only after this check.
+  ```
+
+  PowerShell 7.4+ can instead opt into `$PSNativeCommandUseErrorActionPreference = $true` with
+  `Stop`; the feature was experimental in 7.3. Version-gate that choice and handle programs with
+  meaningful nonzero success statuses explicitly. Neither stderr output nor a later `$?` is a
+  substitute for the command's own exit status.
 - `Write-Error` for non-terminating context; `throw` for real failures; in a `catch`, re-throw
   with `$PSCmdlet.ThrowTerminatingError($PSItem)` so the error names your cmdlet as its source.
 

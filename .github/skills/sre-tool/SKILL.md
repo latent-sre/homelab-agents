@@ -36,6 +36,14 @@ Establish before designing. Infer from context and the codebase where possible; 
   If the build may be safety-critical, settle the Phase-4 target here too: the user grants a
   source commit at a named green boundary, or the safety-critical verdict will be inconclusive —
   say which was chosen.
+- **Verification environment**: before scheduling executable verification, record the supplied
+  execution boundary and its owner in the environment card: credential/network/filesystem
+  controls, runtime and image digest when container-based, permitted effects, scratch/evidence
+  destinations, and whether it is available. No adequate boundary means affected verification
+  is inconclusive; resolve that prerequisite through its owner while independent work proceeds.
+  If the target uses a machine evidence/state system, identify its schema, validator, and
+  transition authority now. This fleet supplies none; without one, use the plan and explicit
+  verification packet rather than inventing envelopes or transitions.
 
 ## Phase 1 — Right-size the design
 
@@ -43,7 +51,9 @@ Routing rubric lives in the `eng-ladder` skill — that table is the source of t
 
 - Single component, low blast radius → design inline at SDE level: a few sentences of plan plus stated assumptions. No ceremony.
 - Multiple services, a data migration, or hard-to-reverse choices → spawn the `principal-engineer` agent for a short design doc; surface any one-way doors to the user before proceeding.
-- Platform-shaping work (many teams or systems, multi-year consequences) → spawn `distinguished-architect` first.
+- Platform-shaping work (many teams or systems, multi-year consequences) → use the same
+  `principal-engineer` engagement at strategic depth, including framing, build/buy
+  alternatives, failure domains, and revisit triggers; do not spawn a second design agent.
 
 A multi-component design must also satisfy the contract-artifact, dependency-graph, and mockup-gate rules in [`references/multi-component.md`](references/multi-component.md); the contract artifact is instantiated from [`assets/contract.template.md`](assets/contract.template.md).
 
@@ -53,7 +63,10 @@ Agents do not inherit this conversation. Pass each one full context: the Phase 0
 
 1. **Spawn** `sde-fullstack` with the requirements, the design, exact repo paths and conventions, and the success criterion. The builder requires code craft and loads layer guidance when the work requires it; supply task scope and constraints instead of copying skill bodies. For trivial scope, implement directly while holding to the same SRE-lens standards (observability, timeouts, idempotency, dry-run for destructive actions).
 2. **State a checkpoint contract in every spawn prompt**, shaped by [`assets/spawn-prompt.template.md`](assets/spawn-prompt.template.md) — every slot filled or an explicit "n/a — why": the boundary to run to, the acceptance criteria the builder self-verifies against, scope in *and out*, and the leash — reversible decisions are the builder's to make and log; it returns only at the boundary or on a material fork. What the handoff omits, the agent will improvise.
-3. **Accept a builder's review packet on its evidence** (fresh command + output): re-run declared safety proofs and one spot-check per batch, never the whole verification. In a durable-state run, accept the checkpoint only after the matching task attempt records a valid evidence envelope; prose and progress-file claims do not complete the attempt.
+3. **Accept a builder's review packet on its evidence** (fresh command, own exit status, and
+   observed output): re-run declared safety proofs and one spot-check per batch, never the whole
+   verification. Apply any caller-supplied machine-record contract identified in Phase 0; otherwise
+   record the supported result and remaining gaps in the plan. A progress claim alone is not proof.
 4. **Answer status questions from the builders' progress shards** declared in the project context (solo default `.agents/PROGRESS.md`; parallel batches: one `.agents/progress/<component>.md` per builder, one writer per file) — never interrupt a running builder to ask.
 5. **Failure path**: a packet that returns short of its checkpoint contract gets one relaunch with the gap named; a second miss escalates to the user. Fix→re-review cycles cap at two rounds, which — counting the build that failed review as the first failed attempt — is `root-cause`'s three strikes reached: the diagnosis is wrong, so switch to that skill's method rather than spending a third fix. Record these counts in the plan file next to the cadence contract — like the contract, they must survive compaction, or a mid-pipeline compaction silently resets the cap.
 
@@ -85,17 +98,19 @@ Building a **command-line** tool — the streams-and-exit-codes contract, `--jso
   why. Do not reconstruct a synthetic snapshot of uncommitted state to have it both ways: commit,
   or inconclusive.
 
-Spawn the verifier with that exact revision, the mission transaction, and the acceptance criteria as
-its named criteria, and cite its pass/fail/inconclusive verdict in the final report rather than your
+Spawn the verifier with that exact revision, the mission transaction, the acceptance criteria, and
+the environment card's available execution boundary and evidence destination. Cite its
+pass/fail/inconclusive verdict in the final report rather than your
 own run: the orchestrator that drove the build wants a green result, which is exactly the interest
 that agent exists to remove. Your own spot-checks (Phase 2.3) continue, but they are checks, not the
 verdict. If subagent spawning is unavailable, those spot-checks remain non-independent evidence only;
 the safety-critical verdict is **inconclusive**, and Phase 5 stays blocked.
 
-For a durably tracked run, the verifier's typed evidence envelope is the completion input for the
-matching attempt. Validate its run/task/attempt identifiers and immutable target revision before
-accepting it; then let the state control perform the legal transition. A Markdown packet may explain
-the verdict, but it must not manufacture, rewrite, or stand in for that envelope.
+When Phase 0 identified an existing machine evidence/state system, use its named schema and
+validator, bind its records to the matching attempt and immutable target, and leave transitions to
+its declared authority. Do not replace that system's required record with prose. Without such a
+system, the verifier's explicit packet is the completion input: record its criterion-level verdicts
+and evidence in the plan, keep gaps open, and claim no automated record validation or transition.
 
 For everything else, run the tool and execute the **mission transaction from the environment card, verbatim** — not just the test suite, and not a substitute flow that happens to work. Deploy/install docs are runbooks: every command executed as written or labeled `unverified`. Final report: what was built, how to run it, what was verified end to end, the review verdict, and known gaps.
 

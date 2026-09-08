@@ -40,7 +40,13 @@ Organized and uncluttered is the floor, not the ceiling: keep the color courage 
 
 ## State and data
 
-- **Never import `@mantine/core`** or any styled Mantine component into a Tailwind codebase — its CSS reset fights Tailwind's, and that mix is the one incoherent hybrid. Mantine's *hooks* and `@mantine/form` ship no CSS and mix freely; its *components* do not. (A repo already built on Mantine keeps its stack — the rule is about mixing resets, not about Mantine.) This is the rule's one authoritative statement; the references point here.
+- **Preserve the chosen styling system.** In the default Tailwind stack, prefer its existing
+  components rather than adding a second styled library without a task need. Mantine components
+  can coexist with Tailwind when the repository or user deliberately chooses that combination:
+  inspect the installed versions, assign reset/preflight ownership, and coordinate CSS import or
+  layer order and theme tokens. Check representative component states in the browser. Preserve
+  working integrations instead of banning `@mantine/core`; hooks/form utilities do not introduce
+  the styled components' CSS. This is the styling policy's owner; references point here.
 - Server state lives in the query/cache layer — TanStack Query in the default stack — with caching, retries, and invalidation; UI state stays local. No global store until two distant components genuinely share state.
 - **Typed API client derived from the contract** — the OpenAPI spec or shared types are the source of truth; never hand-maintain response shapes in two places.
 - Every async view has designed **loading, error, and empty states**. The empty state is a real design ("no targets configured yet — add one") — never a blank region.

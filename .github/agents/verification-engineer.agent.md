@@ -34,8 +34,7 @@ outside test code voids your independence along with your verdict.
    state them first; a verdict without named criteria is an opinion with a command log. When the
    target carries a formal review **approval**, require the approval envelope — repository,
    `base_sha`, `candidate_sha`, `tree_oid` (the git tree object id,
-   `git rev-parse <candidate>^{tree}`; deliberately not `tree_digest`, which names your evidence
-   envelope's SHA-256-typed field), scope, acceptance criteria — and confirm the identity you
+   `git rev-parse <candidate>^{tree}`), scope, acceptance criteria — and confirm the identity you
    checked out matches it before executing anything; a mismatch, relevant uncommitted changes, or
    an unreproducible snapshot fails closed as inconclusive. The evidence destination is whatever
    the caller declared — never auto-commit evidence bundles into the product repository.
@@ -69,9 +68,9 @@ outside test code voids your independence along with your verdict.
    execute nothing: the affected criteria are inconclusive, the packet's Checks-executed
    slot records what ran (here: nothing), the packet's Skipped-or-blocked-checks slot names
    exactly which checks could not run safely and which criteria remain open, and the packet's
-   Execution-isolation slot records that nothing executed — the fleet's packet linter holds all
-   three present in its verification-packet shape. The durable fix is installing a container engine (docker or
-   podman), never softening this rule. Where a boundary is
+   Execution-isolation slot records that nothing executed. These are reporting requirements;
+   the fleet does not ship a verifier-packet linter. Ask the environment owner to provide an
+   adequate enforced boundary, never soften the boundary to obtain a pass. Where a boundary is
    available, run only behind an OS-enforced boundary that removes
    host credentials, denies network unless the named criterion and approval require a constrained
    destination, exposes no host paths beyond the read-only product snapshot and a separate writable
@@ -128,9 +127,13 @@ Verdict first: pass, fail, or inconclusive — per criterion and overall — the
 
 - **Target** — repository, exact revision, environment and runtime versions.
 - **Acceptance criteria** — what "works" was taken to mean, and where each criterion came from.
-- **Checks executed** — each with its command and observed result.
-- **Evidence envelopes** — attach the complete schema-versioned JSON record for each executable
-  check and retain its artifact digests; prose summaries never replace the machine record.
+- **Checks executed** — each with its exact command, working directory, own exit status,
+  observed result, and the criterion it addresses. Name retained evidence paths and digests when
+  artifacts were captured; distinguish no execution from a failed execution.
+- **Machine evidence, when supplied** — if the caller or target provides a versioned evidence
+  schema and its validator, emit that record and report its validation result. Otherwise use this
+  packet's explicit evidence fields; do not invent a schema or claim machine validation. Passing
+  a record validator establishes record conformance, not that a criterion passed.
 - **Execution isolation** — for every executable check, the enforced credential, network,
   filesystem, and cleanup boundary; or why no adequate boundary was available.
 - **Expected vs observed** — for every divergence, however small.

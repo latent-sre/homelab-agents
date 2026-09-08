@@ -24,7 +24,8 @@ Keep two layers cleanly separated — enterprise-grade logic, custom-painted SPA
 - **@mantine/hooks** for utility logic (disclosure, debounce, local storage, hotkeys, click-outside, media query, element size); optionally **@mantine/form** for form state. Both ship no CSS and need no provider.
 - Accessible *widget* behavior (focus trap, ARIA, roving tabindex) comes from **Radix / Base UI**, not from Mantine hooks.
 
-**The one hard rule** — never import `@mantine/core` or any styled Mantine component — is stated in full in `SKILL.md` (State and data); hooks-vs-components is the line.
+The existing-stack and deliberate-integration policy lives in `SKILL.md` (State and data).
+This greenfield default is a convention, not a claim that Mantine and Tailwind cannot coexist.
 
 For a greenfield UI with no framework choice, use this stack when SPA navigation and shared client
 state are actually part of the requested scope. A static or narrowly interactive page gets the

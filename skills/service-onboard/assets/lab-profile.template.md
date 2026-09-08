@@ -46,7 +46,7 @@ because an agent will act on it.
 Agents working on this lab: **do not propose a platform change** — no migration to Kubernetes, no
 new orchestrator, no swapping the proxy or the storage layer — as part of an ordinary service or
 troubleshooting task. Those are lab-shaping decisions that go up the ladder
-(`sde-agents:principal-engineer`, or `sde-agents:distinguished-architect` for multi-year
+(`sde-agents:principal-engineer`, including multi-year
 commitments), and they arrive as a proposal for the operator, never as part of a fix. Work within
 the stack above, or hand the decision up and say why.
 

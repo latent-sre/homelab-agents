@@ -46,8 +46,12 @@ Most outages are the last change. In rough order of likelihood:
   network). Do not restart the three; find the one.
 - **A service that restarts every couple of minutes** → crash loop. Read the logs from *before* the
   most recent start; the last start's log shows the symptom, the earlier one shows the cause.
-- **Healthy container, failing route** → the proxy, its upstream address, or the shared network,
-  not the app.
+- **Healthy container, failing route** → compare the failing request through the proxy and
+  directly against the application from the proxy's network, preserving path, Host header,
+  scheme, and authentication. Check proxy and application logs for that request. A shallow
+  health check can pass while the application handler or its dependency fails; proxy routing,
+  network, application, and dependency faults remain hypotheses until these observations
+  distinguish them.
 - **Slow, then fine, then slow** → saturation or a retry storm, not a hard failure. A restart
   "fixes" it briefly and it comes back, which is the tell.
 - **Works locally on the host, not from anywhere else** → binding to `127.0.0.1`, a firewall rule,

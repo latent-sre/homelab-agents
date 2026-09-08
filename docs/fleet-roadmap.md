@@ -40,6 +40,37 @@ each item's Source.
 
 ### Ready
 
+#### DESIGN-001 — consolidate design ownership
+
+**Status:** `active` — operator-approved merger on `refactor/consolidate-design-ownership`, from main
+`8486439`; local implementation, no host installation or publication.
+
+**Outcome:** One principal agent owns system design and strategic architecture, with conditional
+depth and preserved builder ownership, document authority, and host controls.
+
+**Source:** [Design-agent merger](decisions/2026-09-07-design-agent-merge.md).
+
+**Prerequisites:** Regenerated adapters, current inventories, offline validation, and independent
+review of the surviving authority and routing contracts.
+
+**Constraints:** Keep principal's name; preserve the rejected branch and unrelated work. Do not
+treat source-following exercises as native routing or enforcement evidence.
+
+**Acceptance:** Offline checks pass; system/strategic/consult outcomes preserve the decision
+contract; paired ladder and proportionality routing and the native hook probe have fresh evidence
+with any failures or inconclusive criteria explicitly dispositioned before publication.
+
+**Evidence disposition:** The [2026-09-08 outcome trials](archive/2026-09/agent-outcomes-2026-09-08/README.md)
+passed both system and both strategic repetitions. Both embedded consults had a material partial:
+compromised deployment-access recovery in one, and CA-rollover validation order in the other.
+The source-following architecture aggregate does not pass; no source correction or native
+activation claim is implied by these observations.
+
+**Next action:** Resolve the two consult gaps and rerun the unchanged outcome cases. Verify Claude
+authentication, capture the untouched main baseline and final candidate under the decision's
+identical routing conditions, and run the native hook probe. Keep host synchronization and
+publication separate from this source-level evidence.
+
 #### LABFLOW-001 — simplify the homelab operating path
 
 **Status:** `active` — the operator selected main-review items 1, 2, 3, 5, and 6 on 2026-09-07;

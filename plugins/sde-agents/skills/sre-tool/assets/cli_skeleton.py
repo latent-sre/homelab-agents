@@ -182,7 +182,9 @@ def confirm(count: int, assume_yes: bool) -> bool:
     if not sys.stdin.isatty():
         # Failing loudly beats blocking forever in CI, and beats silently proceeding.
         raise Usage("refusing to delete without confirmation: pass --yes for non-interactive use")
-    answer = input(f"delete {count} snapshot(s)? [y/N] ").strip().lower()
+    # Confirmation is diagnostic output too: input(prompt) would corrupt --json stdout.
+    print(f"delete {count} snapshot(s)? [y/N] ", file=sys.stderr, end="", flush=True)
+    answer = input().strip().lower()
     return answer in {"y", "yes"}
 
 

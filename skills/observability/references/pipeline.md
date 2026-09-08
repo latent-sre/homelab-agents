@@ -56,8 +56,12 @@ The pipeline is receive → process → export. Two things go wrong in it, both 
 
 Other pipeline rules worth stating once: pin the agent's version like any other image; keep
 processing minimal (parse and drop, don't transform semantics — a transform is code nobody reviews);
-validate before reload (`alloy fmt`, `promtool check config`), and treat the reload as an apply under
-`sde-agents:homelab-engineer`'s tiers.
+format Alloy with `alloy fmt --test <file>` when checking style, then validate component
+configuration with `alloy validate <path>` using the deployed version and matching stability and
+community-component settings. Formatting checks syntax and layout, not component correctness.
+Use `promtool check config <file>` for Prometheus. Treat reload as an apply under
+`sde-agents:homelab-engineer`'s tiers, then observe a known signal reaching its destination and
+inspect component/export errors. Static validation does not prove ingestion.
 
 ## Traces — optional, and honest about it
 

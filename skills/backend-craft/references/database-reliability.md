@@ -13,10 +13,17 @@ This is the single most expensive misunderstanding in database work. `EXPLAIN` p
 
 | Statement | `EXPLAIN` | `EXPLAIN ANALYZE` |
 |---|---|---|
-| `SELECT` | plans only | runs it (reads only) |
+| `SELECT` | plans it; review planning-time functions | runs it, including called functions and their effects |
 | `UPDATE` / `DELETE` / `INSERT` | plans only | **performs the write** |
 
-The safe recipe, every time, on anything that isn't a plain `SELECT`:
+A `SELECT` can call a writing `VOLATILE` function or an external-effect function. Classify its
+functions and operators before execution; the statement's leading verb does not make it read-only.
+For an unknown query, begin with plain `EXPLAIN` using a trusted planning environment, or use an
+adequate isolated/read-only execution boundary if actual timing is required. Planning itself may
+evaluate constant expressions or immutable functions, so unknown extension code also needs care.
+
+For a reviewed write whose effects are confined to transactional database state, this pattern
+measures execution and rolls back those transactional writes:
 
 ```sql
 BEGIN;
@@ -24,9 +31,11 @@ EXPLAIN (ANALYZE, BUFFERS) UPDATE orders SET status = 'x' WHERE id = 42;
 ROLLBACK;   -- the write is undone; the timings are real
 ```
 
-Two caveats that surprise people even with the rollback: **sequences do not roll back** (a
+This is not a universal safe-execution recipe. **Sequences do not roll back** (a
 `nextval()` consumed inside the transaction stays consumed), and **foreign data wrappers / triggers
 that reach outside the database** may have already acted. Neither is reversible by `ROLLBACK`.
+A read-only transaction also does not isolate arbitrary external-effect code; use an environment
+that enforces the required external-effect boundary, or leave actual execution unverified.
 
 ## Migrations on a live database
 

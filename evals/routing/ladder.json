@@ -1,8 +1,8 @@
 {
   "cluster": "ladder",
-  "description": "Routing eval for the engineering-altitude ladder: sde-fullstack (builder) vs principal-engineer (cross-cutting design) vs distinguished-architect (org/platform architecture) vs eng-ladder (the routing/assessment meta-skill). Measures whether a task lands at the right altitude — a scoped change to a builder, a migration/cross-service design to principal, a build-vs-buy/org-standard question to distinguished — and whether the eng-ladder skill fires only when altitude is genuinely in question, per this session's description-narrowing (scoped work with an obvious owner and an existing pattern routes straight to its builder, not through eng-ladder).",
-  "members": ["sde-fullstack", "principal-engineer", "distinguished-architect", "eng-ladder"],
-  "notes": "Grader caveat (scripts/eval_routing.py): all four are members, so a positive passes if any expect_fires member fired and cannot cleanly flag a co-firing wrong member. The load-bearing signals are (a) a design task that fires ONLY sde-fullstack — under-escalation — surfacing as a principal positive whose rate collapses, and (b) the near-miss negatives, where a lab/review/prompt/debug near-miss must fire NONE of the ladder. The eng-ladder over-trigger the narrowing left unguarded is now UNCOVERED here: pos-builder-scoped guarded it by expecting sde-fullstack and failing if eng-ladder fired instead, and it retired with the agent-only positives on 2026-08-17 because only a delegation could score it. Nothing in this cluster replaces that assertion, so do not read a clean negative side as evidence eng-ladder is not over-firing on scoped build work (PR #145 review: this note described the retired case as still load-bearing). neg-embedded-decision-not-principal-owned is the issue #66 calibration, graded as a disambiguation negative because that is the trustworthy direction here: builder-owned work carrying one embedded builder-recordable decision (reversible, no standing authority) must not draw principal, distinguished, or eng-ladder at all — the prompt satisfies both bypass conditions (obvious owner, stated existing pattern) and answers its own altitude, so a meta-router summon is the scoped-work over-trigger the description narrowing fixed; only sde-fullstack may fire. Its fork is deliberately NOT consult-required: an enacted required consult legitimately summons principal-engineer, and firing-based grading cannot tell that from re-owning — the consult-required half belongs to pos-embedded-principal-fork-consult-required, which grades eng-ladder firing instead.",
+  "description": "Routing eval for builder ownership, one principal design owner at system or strategic depth, and eng-ladder routing/assessment. Routine lab operation, code review, prompt authoring, debugging, and reversible embedded builder choices must not draw the design ladder.",
+  "members": ["sde-fullstack", "principal-engineer", "eng-ladder"],
+  "notes": "Positives measure eng-ladder firing, not agent quality or correct ownership. Negatives measure only their named forbidden set. The two former principal-versus-distinguished negatives retired with the agent merger: both scenarios now correctly belong to principal. System and strategic reasoning remain separate outcome scenarios in the merger decision record, not firing assertions. The required-consult positive permits principal consultation without assigning the entire task to principal; firing alone cannot distinguish consult from ownership. The reversible embedded-choice negative preserves builder bypass of both principal and eng-ladder.",
   "cases": [
     {
       "id": "pos-engladder-assess",
@@ -14,10 +14,10 @@
     },
     {
       "id": "pos-engladder-growth-feedback",
-      "prompt": "Here is one engineer's merged work from the last six months. PR #1204 \"Cache tenant lookups\": added an in-process LRU in `TenantResolver`; 180 lines, tests for hit/miss/eviction; review comment \"does this need to be per-pod or shared?\" answered \"per-pod is fine for now\". PR #1230 \"Fix N+1 in invoice export\": batched the line-item query; 60 lines, one regression test; no note on the export's 30s timeout. PR #1251 \"Add retry to webhook dispatch\": three attempts, fixed 200ms backoff; reviewer asked \"what happens if the receiver is idempotent-unsafe?\", answered \"good point, following up\" \u2014 no follow-up landed. PR #1288 \"Split billing module\": moved 14 files, no behavior change, clean tests. PR #1301 \"Emit invoice.finalized event\": new publisher, no consumer contract written, no note on ordering or replay. PR #1340 \"Harden CSV import\": input validation plus 9 tests, including the malformed-header case nobody asked for. Design note \"Invoice export v2\" (2 pages): describes the chosen approach and its schema; no alternatives, no rollback, no failure modes. Design note \"Webhook reliability\" (1 page): proposes at-least-once delivery; the consumer-side duplicate question raised in PR #1251 is not mentioned. What patterns keep showing up, what are they already strong at for their level, and what single behavior should they practice to work at the next level?",
+      "prompt": "Here is one engineer's merged work from the last six months. PR #1204 \"Cache tenant lookups\": added an in-process LRU in `TenantResolver`; 180 lines, tests for hit/miss/eviction; review comment \"does this need to be per-pod or shared?\" answered \"per-pod is fine for now\". PR #1230 \"Fix N+1 in invoice export\": batched the line-item query; 60 lines, one regression test; no note on the export's 30s timeout. PR #1251 \"Add retry to webhook dispatch\": three attempts, fixed 200ms backoff; reviewer asked \"what happens if the receiver is idempotent-unsafe?\", answered \"good point, following up\" — no follow-up landed. PR #1288 \"Split billing module\": moved 14 files, no behavior change, clean tests. PR #1301 \"Emit invoice.finalized event\": new publisher, no consumer contract written, no note on ordering or replay. PR #1340 \"Harden CSV import\": input validation plus 9 tests, including the malformed-header case nobody asked for. Design note \"Invoice export v2\" (2 pages): describes the chosen approach and its schema; no alternatives, no rollback, no failure modes. Design note \"Webhook reliability\" (1 page): proposes at-least-once delivery; the consumer-side duplicate question raised in PR #1251 is not mentioned. What patterns keep showing up, what are they already strong at for their level, and what single behavior should they practice to work at the next level?",
       "polarity": "positive",
       "expect_fires": ["eng-ladder"],
-      "expected_output": "eng-ladder Mode 3 (growth feedback) over a BODY of work rather than one artifact: recurring patterns, current-level strengths, and the single highest-leverage next-level behavior. Seeded because the cluster could not witness Mode 3 at all — its three eng-ladder positives covered Mode 1 altitude, Mode 2 assess, and the embedded-consult fork, so a Mode 3 edit or trim had no case that would detect it landing or regressing (LADDER-002 prerequisite). The body of work is EMBEDDED, not referred to: the first version said 'here are the last six months' and supplied nothing, which is the dangling-referent defect this same change retires elsewhere \u2014 a session correctly asking for the missing artifacts would have scored as a routing miss (PR #145 review). Eight items are the minimum that makes Mode 3 gradeable: the pattern is there to be found (solid local implementation and tests, repeatedly silent on cross-service consequences \u2014 ordering, idempotency, rollback, timeouts), and it takes several artifacts to be a pattern rather than one miss. The body-of-work scope and the one-behavior bar are what separate Mode 3 from Mode 2's single-artifact assessment.",
+      "expected_output": "eng-ladder Mode 3 (growth feedback) over a BODY of work rather than one artifact: recurring patterns, current-level strengths, and the single highest-leverage next-level behavior. Seeded because the cluster could not witness Mode 3 at all — its three eng-ladder positives covered Mode 1 altitude, Mode 2 assess, and the embedded-consult fork, so a Mode 3 edit or trim had no case that would detect it landing or regressing (LADDER-002 prerequisite). The body of work is EMBEDDED, not referred to: the first version said 'here are the last six months' and supplied nothing, which is the dangling-referent defect this same change retires elsewhere — a session correctly asking for the missing artifacts would have scored as a routing miss (PR #145 review). Eight items are the minimum that makes Mode 3 gradeable: the pattern is there to be found (solid local implementation and tests, repeatedly silent on cross-service consequences — ordering, idempotency, rollback, timeouts), and it takes several artifacts to be a pattern rather than one miss. The body-of-work scope and the one-behavior bar are what separate Mode 3 from Mode 2's single-artifact assessment.",
       "tags": ["eng-ladder", "growth-feedback", "mode-3"]
     },
     {
@@ -32,7 +32,7 @@
       "id": "neg-lab-deploy",
       "prompt": "Deploy Immich to my home lab and put it behind the proxy.",
       "polarity": "negative",
-      "expect_not_fires": ["sde-fullstack", "principal-engineer", "distinguished-architect", "eng-ladder"],
+      "expect_not_fires": ["sde-fullstack", "principal-engineer", "eng-ladder"],
       "expected_output": "Infrastructure/service operation — homelab-engineer, which eng-ladder explicitly places OUTSIDE the ladder.",
       "tags": ["near-miss", "lab"]
     },
@@ -40,7 +40,7 @@
       "id": "neg-code-review",
       "prompt": "Review my pull request for correctness and security bugs before I merge it.",
       "polarity": "negative",
-      "expect_not_fires": ["sde-fullstack", "principal-engineer", "distinguished-architect", "eng-ladder"],
+      "expect_not_fires": ["sde-fullstack", "principal-engineer", "eng-ladder"],
       "expected_output": "Defect review of a diff — code-reviewer. The tight near-miss: 'review' is shared with eng-ladder's assess mode and principal's design review, but this is bug-finding on code.",
       "tags": ["near-miss", "code-review"]
     },
@@ -48,7 +48,7 @@
       "id": "neg-prompt-author",
       "prompt": "Write me a Claude Code agent that summarizes support tickets into a daily digest.",
       "polarity": "negative",
-      "expect_not_fires": ["sde-fullstack", "principal-engineer", "distinguished-architect", "eng-ladder"],
+      "expect_not_fires": ["sde-fullstack", "principal-engineer", "eng-ladder"],
       "expected_output": "Authoring an LLM artifact — prompt-craft. 'Write an agent' is not a ladder task.",
       "tags": ["near-miss", "prompt-tooling"]
     },
@@ -56,7 +56,7 @@
       "id": "neg-debug-prod",
       "prompt": "This request handler crashes only in production, never locally. Why?",
       "polarity": "negative",
-      "expect_not_fires": ["sde-fullstack", "principal-engineer", "distinguished-architect", "eng-ladder"],
+      "expect_not_fires": ["sde-fullstack", "principal-engineer", "eng-ladder"],
       "expected_output": "A debugging investigation — root-cause. Not a ladder-altitude routing decision.",
       "tags": ["near-miss", "debug"]
     },
@@ -69,27 +69,11 @@
       "tags": ["disambiguation", "sde-fullstack", "embedded-fork", "consult-not-ownership"]
     },
     {
-      "id": "neg-existing-platform-design-not-distinguished",
-      "prompt": "Within our existing platform strategy, design an 18-month migration across the payments and fulfillment services, including compatibility and rollback.",
-      "polarity": "negative",
-      "expect_not_fires": ["distinguished-architect"],
-      "expected_output": "Cross-service design inside an already chosen platform strategy belongs to principal-engineer. distinguished-architect is forbidden; principal-engineer firing is intentionally allowed.",
-      "tags": ["disambiguation", "principal-engineer", "existing-strategy"]
-    },
-    {
-      "id": "neg-org-five-year-standard-not-principal",
-      "prompt": "Set the organization-wide event-platform standard for the next five years across every product group, including build-vs-buy and the failure-domain model.",
-      "polarity": "negative",
-      "expect_not_fires": ["principal-engineer"],
-      "expected_output": "An organization-wide, multi-year standard is distinguished-architect altitude. principal-engineer is forbidden; distinguished-architect firing is intentionally allowed.",
-      "tags": ["disambiguation", "distinguished-architect", "org-standard"]
-    },
-    {
       "id": "neg-embedded-decision-not-principal-owned",
       "prompt": "Wire TLS verification into our API client and its config so every outbound call validates the server certificate, and add tests. The client already has a pattern for wiring config-driven connection options. One choice I have not settled inside it: validate against the system trust store, or ship a pinned CA bundle file with the app — both reversible, either can be swapped later without breaking clients.",
       "polarity": "negative",
-      "expect_not_fires": ["principal-engineer", "distinguished-architect", "eng-ladder"],
-      "expected_output": "Builder-owned work carrying one embedded, builder-recordable decision: an existing pattern is stated and both options are reversible with no standing authority, so the prompt satisfies both bypass conditions (obvious owner, existing pattern) and answers its own altitude question — it routes straight to the builder, not through the meta-router. Graded contract (the scorer checks firing only): principal-engineer, distinguished-architect, and eng-ladder must not fire — re-owning the item, being summoned to settle a fork the builder owns, and routing scoped work through eng-ladder are each the miscalibration this case catches. sde-fullstack is the right destination.",
+      "expect_not_fires": ["principal-engineer", "eng-ladder"],
+      "expected_output": "Builder-owned work carrying one embedded, builder-recordable decision: an existing pattern is stated and both options are reversible with no standing authority, so the prompt satisfies both bypass conditions (obvious owner, existing pattern) and answers its own altitude question — it routes straight to the builder, not through the meta-router. Graded contract (the scorer checks firing only): principal-engineer and eng-ladder must not fire — re-owning the item, being summoned to settle a fork the builder owns, and routing scoped work through eng-ladder are each the miscalibration this case catches. sde-fullstack is the right destination.",
       "tags": ["disambiguation", "sde-fullstack", "embedded-decision"]
     }
   ]

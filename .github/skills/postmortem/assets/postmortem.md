@@ -21,13 +21,16 @@
 |  | first bad signal | <log line / graph> |
 |  | detected — by an alert or by a person? | |
 |  | mitigated — service usable again | |
-|  | resolved — cause fixed | |
+|  | recovered — impact ended; cause status recorded below | |
 
 ## Trigger vs root cause
 
-- Trigger (the event that set it off):
-- Root cause (the condition that made it possible):
-- Diagnosis evidence: <cite the root-cause loop result or the logs that prove it>
+- Trigger and status (established / hypothesized / unknown):
+- Root cause and status (established / hypothesized / unknown):
+- Diagnosis evidence: <cite the result or observations; say what they do not establish>
+- If unresolved: competing hypotheses, missing evidence, investigation owner, and reopen trigger:
+
+Final record status does not close an unresolved investigation or its action items.
 
 ## What went well
 
@@ -45,8 +48,9 @@
 
 | Action | Type | Artifact it becomes | Proof of done |
 | --- | --- | --- | --- |
-|  | mitigative \| preventative | <runbook line / alert / drill / rule> |  |
+|  | mitigative \| preventative \| investigative | <runbook line / alert / drill / rule / evidence capture> |  |
 
 ## Runbook updated
 
-<which runbook gained the symptom → cause → fix line; "n/a — why" if none>
+<supported symptom/cause/fix or factual recovery note with unresolved cause explicit;
+"n/a — why" or evidence/destination/owner handoff when a write is not authorized>

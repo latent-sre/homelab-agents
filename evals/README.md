@@ -48,8 +48,8 @@ the narrowing rare and visible: it is a declared exemption, the runner prints th
 actually used, and every name in it must be a cluster member (a typo would forbid nothing and pass
 vacuously).
 
-**Narrowing is no longer rare, and that is a measured coverage cost** (counted 2026-08-17:
-**18** of 62 negatives narrow to a strict subset of their cluster). Each narrowing buys a correct
+**Narrowing is no longer rare, and that is a measured coverage cost** (counted 2026-09-07:
+**16** of 60 negatives narrow to a strict subset of their cluster). Each narrowing buys a correct
 verdict for one disambiguation and gives up over-trigger detection for every member it stops
 forbidding, so a cluster that narrows most of its negatives stops watching most of its members:
 `continuous-improvement` narrows **6 of 6** negatives to a single forbidden component each,
@@ -364,8 +364,8 @@ simple-stays-simple, and read-only-investigation seams:
 | `prompt-tooling.json` | prompt-craft, prompt-engineer | authoring/fixing an LLM artifact vs near-misses that share write/fix/optimize |
 | `homelab-ops.json` | homelab-engineer and eleven lab-operation skills | a lab request → the right lab component; near-miss → no lab component (the highest-risk overlap, over a live lab) |
 | `craft-vs-fullstack.json` | backend-craft, frontend-craft, sde-fullstack, code-craft, ci-actions | single-layer vs cross-layer builder routing (the layer-ownership boundary this repo re-drew) |
-| `ladder.json` | sde-fullstack, principal-engineer, distinguished-architect, eng-ladder | engineering altitude — scoped→builder, migration→principal, org/multi-year→distinguished |
-| `proportionality.json` | sre-tool, eng-ladder, principal-engineer, distinguished-architect | simple-stays-simple (negative-only): small asks must fire NO heavy component; a builder/craft firing instead is correct |
+| `ladder.json` | sde-fullstack, principal-engineer, eng-ladder | eng-ladder firing and named bypass negatives; principal owns system and strategic design, whose output quality is checked separately |
+| `proportionality.json` | sre-tool, eng-ladder, principal-engineer | simple-stays-simple (negative-only): small asks must fire NO heavy component; a builder/craft firing instead is correct |
 | `investigation.json` | researcher, repository-investigator, code-reviewer, root-cause, application-security-auditor | trust-separated investigation: external/public research vs local/private source evidence vs a diff, failure, or source-to-sink audit |
 | `agent-systems.json` | multi-agent-architect, prompt-engineer, principal-engineer | AI-agent system design and wrapper diagnosis vs one prompt or ordinary software architecture |
 | `verification-seam.json` | verification-engineer, sde-fullstack, code-reviewer, root-cause | execute verification vs implement a fix vs static review vs root-cause diagnosis |
@@ -378,8 +378,8 @@ there); the capture under `baselines/2026-07-24/` records the later 5-member / 1
 are *historical* anchors, not like-for-like comparisons with the current 12-member / 33-case
 cluster. Re-baseline whenever membership changes.
 
-**Suite size, as of 2026-09-07:** 103 routing cases across the ten clusters (41 positives, 62
-negatives), so a full sweep at the methodology's `--runs 3` is **309 sessions**. The 2026-08-23
+**Suite size, as of 2026-09-07:** 101 routing cases across the ten clusters (41 positives, 60
+negatives), so a full sweep at the methodology's `--runs 3` is **303 sessions**. The 2026-08-23
 suite had 111 cases / 333 sessions; eight automatic retro positives retired when the maintainer
 skill became explicit-only. Before starting a paired round, account for both sides: the 'before'
 and 'after' sides each cost a full sweep unless a

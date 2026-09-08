@@ -11,9 +11,13 @@ The universal backend rules live in `skills/backend-craft/SKILL.md`. On any conf
 - **URLs are plural kebab-case nouns**; ownership nests one level (`/v1/users/123/orders`). Verbs
   only for actions that genuinely aren't CRUD (`POST /v1/orders/123/cancel`) — a verb elsewhere
   (`/getUsers`) is a smell.
-- Method semantics are a contract: GET safe+idempotent, PUT full replace (idempotent), PATCH
-  partial update (send only what changes), DELETE idempotent — deleting twice is 204/404, never
-  500. POST is the only non-idempotent verb, which is why it carries idempotency keys (SKILL.md).
+- Method semantics are a contract: GET is safe and idempotent; PUT replaces the representation
+  idempotently; DELETE is idempotent in intended effect, even when repeated responses differ.
+  POST and PATCH are not guaranteed idempotent. A PATCH that sets a field can be idempotent;
+  one that increments or appends can repeat its effect. Define retry behavior per operation,
+  using server-supported idempotency keys or conditional requests such as ETag/If-Match where
+  appropriate. After a lost response, reconcile an unknown outcome rather than blindly replaying
+  a mutation. [RFC 5789 section 2](https://www.rfc-editor.org/rfc/rfc5789#section-2) owns PATCH semantics.
 
 ## Status codes carry meaning — don't flatten them
 
