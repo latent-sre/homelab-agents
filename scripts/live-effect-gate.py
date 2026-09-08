@@ -239,6 +239,14 @@ def _is_diagnostic(tokens: list[str]) -> bool:
         # No operands lists mounts. Other options may cause an effect even without operands
         # (`-a`), so the listing-only label switch is the sole supported option here.
         return all(token in ("-l", "--show-labels") for token in tokens[1:])
+    # Normalize only supported frontends for diagnostic recognition. The original argv
+    # still reaches the live matcher if no complete read path is recognized.
+    if exe == "docker-compose":
+        tokens = ["docker", "compose", *tokens[1:]]
+        exe = "docker"
+    elif exe == "k3s" and tokens[1:2] == ["kubectl"]:
+        tokens = ["kubectl", *tokens[2:]]
+        exe = "kubectl"
     path = (exe,)
     remaining = tokens[1:]
     while remaining:
@@ -255,7 +263,7 @@ def _is_diagnostic(tokens: list[str]) -> bool:
                         return False
                     remaining = remaining[1:]
                 continue
-            if token in _DIAGNOSTIC_SWITCHES.get(scope, frozenset()):
+            if flag in _DIAGNOSTIC_SWITCHES.get(scope, frozenset()):
                 continue
             # The documented single-letter value options also accept an attached value.
             if len(token) > 2 and token[:2] in values and not token.startswith("--"):

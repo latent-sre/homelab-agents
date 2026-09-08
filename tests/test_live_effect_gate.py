@@ -319,6 +319,31 @@ class DiagnosticCommands(unittest.TestCase):
                 with self.subTest(command=command, mode=mode):
                     self.assertEqual("none", decision(run_gate(bash_call(command, mode=mode))))
 
+    def test_boolean_values_and_supported_aliases_are_diagnostics(self) -> None:
+        for command in (
+            "docker --tls=false inspect restart", "docker --debug=true inspect restart",
+            "docker -D=false logs stop", "docker --tlsverify=false ps restart",
+            "docker-compose logs restart", "docker-compose -f up -p restart ps",
+            "k3s kubectl rollout status deployment/jellyfin",
+            "k3s kubectl --context restart rollout history deployment/jellyfin",
+            "ssh nuc-01 'docker-compose logs restart'",
+        ):
+            for mode in ("default", "dontAsk", "auto", "bypassPermissions", None):
+                with self.subTest(command=command, mode=mode):
+                    self.assertEqual("none", decision(run_gate(bash_call(command, mode=mode))))
+
+    def test_aliases_and_boolean_flags_do_not_exempt_live_commands(self) -> None:
+        for command in (
+            "docker --tls=false restart jellyfin", "docker --debug=true restart jellyfin",
+            "docker-compose -f logs up -d", "k3s kubectl rollout restart deployment/jellyfin",
+            "k3s kubectl rollout undo deployment/jellyfin",
+            "docker-compose logs restart && docker-compose restart jellyfin",
+            "k3s kubectl --unknown-option rollout status restart",
+        ):
+            for mode, expected in (("default", "ask"), ("dontAsk", "deny")):
+                with self.subTest(command=command, mode=mode):
+                    self.assertEqual(expected, decision(run_gate(bash_call(command, mode=mode))))
+
     def test_neighboring_effects_keep_the_managed_gate(self) -> None:
         for command in (
             "mount -a", "mount /dev/sdb1 /mnt/backup", "mount -o remount,ro /srv",

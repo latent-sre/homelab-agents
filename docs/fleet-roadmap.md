@@ -313,9 +313,6 @@ naming a GitHub issue **is** that issue's roadmap import under `docs/README.md` 
 - **HOST-012** — Installing this repository as a VS Code plugin loads the canonical Claude
   fleet, which is unsupported. Source: [README.md](../README.md);
   [history](archive/2026-09/roadmap-history-2026-09-01.md#host-012-vs-code-plugin-install-loads-the-canonical-fleet).
-- **GATE-008** — Diagnostic false-prompt correction is implemented on `fix/homelab-diagnostic-gate`;
-  offline checks and direct native read/deny checks passed; PR review and merge remain. Source:
-  [2026-09-07 correction evidence](archive/2026-09/diagnostic-gate-2026-09-07.md).
 - **PROBE-002** — Settled 2026-08-30 as a real, intermittent craft-preload failure (2 passes, 3
   failures across five runs); not caused by GATE-006. Source:
   [GATE-006 outcome](archive/2026-08/gate-006-outcome-2026-08-30.md);

@@ -102,3 +102,36 @@ This change does not certify unusual CLI extensions or arbitrary wrappers as har
 
 Rollback restores the gate and timeout source together with their tests. It restores the earlier
 false prompts and the 900-second timeout; no infrastructure operation is part of this change.
+
+## PR #176 review correction
+
+The diagnostic parser now recognizes explicit values on known Boolean switches, using the flag
+name before `=`. Supported `docker-compose` and `k3s kubectl` frontends normalize only inside the
+diagnostic recognizer; unmatched commands still reach the original live matcher unchanged.
+
+The option syntax is documented in Docker's
+[pflag reference](https://github.com/docker/cli/blob/master/vendor/github.com/spf13/pflag/README.md).
+[K3s documents its embedded kubectl frontend](https://docs.k3s.io/cli). Both alias families already
+had live entries in this gate; this correction gives their diagnostics the same treatment.
+
+Nine additional diagnostic commands across five modes reproduced **45 false denials** before the
+repair. Seven neighboring live, unknown-option, and compound commands retain ask/deny. The full
+suite passed **470 tests in 85.442 seconds, two skipped**, with Git Bash available for hook tests.
+Adapter parity, inventory, strict plugin validation, and whitespace checks passed. A bounded
+independent static review found no new live-command exemption.
+
+A fresh native Claude 2.1.263 session under `homelab-engineer` and `dontAsk` attempted exactly
+`docker --tls=false inspect restart`. Docker returned a missing local daemon error, proving that
+the diagnostic reached the CLI without a gate denial, not that Docker inspection succeeded.
+The same session attempted `docker-compose -f <absolute absent fixture> up -d probe`; its correlated
+tool result contained the gate's own `docker-compose up` denial. The fixture remained absent,
+independently preventing deployment. Capture: `.worktrees/pr176-native-review.jsonl` in the local
+parent checkout.
+
+GATE-008 is removed from the live roadmap in this landing change, and this archive is indexed as
+implementation evidence. It remains the record of verification limits; a merged tree must not send
+the next session back to a completed diagnostic fix. PROBE-002 and PROBE-006 remain separate.
+
+The correction also reran the broad probe. It was stopped after exceeding a ten-minute overall
+budget; buffered stdout yielded no completed report. This attempt is **incomplete**, not a pass,
+and does not replace the scoped tool-result evidence above or close the existing probe gaps.
