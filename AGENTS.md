@@ -246,11 +246,13 @@ changed *and* what it means, because a reviewer can only disagree with a decisio
 Fill the conditional-gates rows your change tripped — the table names the situational check each
 change type owes. Keep "Deliberately not done" honest and the whole template short.
 
-The automated review is request-triggered; opening a PR does not request it, and requesting is an
-**operator step**: the reviewer bot resolves through neither `gh` (which fails to resolve the
-login) nor the REST API (which silently leaves the request unset) — it is assigned only in the PR
-page's Reviewers box (the Codex connector follows Copilot's request). An agent opening a PR hands
-the request to its operator and says so, never reporting the PR as awaiting review.
+After opening or updating a PR, inspect the review summary, requests, and reviewed commit before
+waiting. Enabled Codex reviews can start automatically on open/ready; an empty GitHub
+`reviewRequests` list does not prove none is running. If an owed Codex pass has not started on the
+current head, request it within the operator's authorized review budget using `@codex review` or
+`@codex security review`, then confirm its start and head. Use each other reviewer's supported
+request path; hand off to the operator only when this host cannot make that request. Historical
+Copilot API failures do not establish a universal request ban — see the review-gate decision.
 
 Wait for both passes **on the current head** — a review-driven edit mints bytes the cleared
 passes never saw, so the last edit owes another wait — and disposition every comment: applied, or
