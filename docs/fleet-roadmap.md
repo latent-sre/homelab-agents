@@ -258,6 +258,8 @@ naming a GitHub issue **is** that issue's roadmap import under `docs/README.md` 
   [history](archive/2026-09/roadmap-history-2026-09-01.md#probe-006-a-probe-leg-timeout-crashes-instead-of-recording-inconclusive).
   Reproduced in the [2026-09-07 operating-flow check](decisions/2026-09-07-homelab-operating-flow.md):
   the 900-second conditional-reference timeout prevented the workflow arm and final capture write.
+  The [2026-09-07 diagnostic correction](archive/2026-09/diagnostic-gate-2026-09-07.md) uses the
+  operator's 600-second limit; timeout recovery remains separate and reproduced at that limit.
 
 ## Deferred decisions
 

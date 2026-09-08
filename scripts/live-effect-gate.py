@@ -203,6 +203,80 @@ FLAG_LIVE: dict[str, re.Pattern[str]] = {
 }
 _ANSIBLE_READ_MODULES = frozenset({"ping", "setup", "gather_facts", "debug", "stat", "slurp",
                                    "fetch"})
+# Positively bound diagnostic command paths. The live roster remains intact: a reader's operand
+# named `restart` must not be interpreted as an executable subcommand. Unknown option arity or
+# an unlisted command still uses the conservative live matcher below, never this read path.
+_DIAGNOSTIC_PATHS = frozenset({
+    ("docker", "inspect"), ("docker", "logs"), ("docker", "ps"),
+    ("docker", "compose", "ps"), ("docker", "compose", "logs"),
+    ("docker", "compose", "config"),
+    ("systemctl", "status"), ("systemctl", "show"), ("systemctl", "is-active"),
+    ("kubectl", "rollout", "status"), ("kubectl", "rollout", "history"),
+    ("terraform", "state", "list"), ("terraform", "state", "show"),
+    ("terraform", "state", "pull"),
+    ("tofu", "state", "list"), ("tofu", "state", "show"), ("tofu", "state", "pull"),
+})
+_DIAGNOSTIC_VALUE_OPTIONS = {
+    "docker": frozenset({"--context", "-c", "--host", "-H", "--config", "--log-level", "-l",
+                          "--tlscacert", "--tlscert", "--tlskey"}),
+    "compose": frozenset({"--file", "-f", "--project-name", "-p", "--project-directory",
+                           "--env-file", "--profile", "--parallel", "--progress", "--ansi"}),
+    "systemctl": frozenset({"--host", "-H", "--machine", "-M", "--root", "--image"}),
+    "kubectl": frozenset({"--context", "--namespace", "-n", "--kubeconfig", "--cluster",
+                           "--user", "--server", "-s", "--request-timeout"}),
+}
+_DIAGNOSTIC_SWITCHES = {
+    "docker": frozenset({"--debug", "-D", "--tls", "--tlsverify"}),
+    "compose": frozenset({"--compatibility", "--all-resources", "--dry-run"}),
+    "systemctl": frozenset({"--user", "--system", "--no-pager", "--no-legend", "--plain"}),
+}
+
+
+def _is_diagnostic(tokens: list[str]) -> bool:
+    """Recognize a read verb before considering its arguments; never guess option arity."""
+    exe = _base(tokens[0])
+    if exe == "mount":
+        # No operands lists mounts. Other options may cause an effect even without operands
+        # (`-a`), so the listing-only label switch is the sole supported option here.
+        return all(token in ("-l", "--show-labels") for token in tokens[1:])
+    # Normalize only supported frontends for diagnostic recognition. The original argv
+    # still reaches the live matcher if no complete read path is recognized.
+    if exe == "docker-compose":
+        tokens = ["docker", "compose", *tokens[1:]]
+        exe = "docker"
+    elif exe == "k3s" and tokens[1:2] == ["kubectl"]:
+        tokens = ["kubectl", *tokens[2:]]
+        exe = "kubectl"
+    path = (exe,)
+    remaining = tokens[1:]
+    while remaining:
+        token, *remaining = remaining
+        if token.startswith("-"):
+            scope = "compose" if path == ("docker", "compose") else exe
+            flag, equals, _ = token.partition("=")
+            if exe in ("terraform", "tofu") and flag == "-chdir" and equals:
+                continue
+            values = _DIAGNOSTIC_VALUE_OPTIONS.get(scope, frozenset())
+            if flag in values:
+                if not equals:
+                    if not remaining:
+                        return False
+                    remaining = remaining[1:]
+                continue
+            if flag in _DIAGNOSTIC_SWITCHES.get(scope, frozenset()):
+                continue
+            # The documented single-letter value options also accept an attached value.
+            if len(token) > 2 and token[:2] in values and not token.startswith("--"):
+                continue
+            return False
+        path += (token,)
+        if path in _DIAGNOSTIC_PATHS:
+            return True
+        if not any(candidate[:len(path)] == path for candidate in _DIAGNOSTIC_PATHS):
+            return False
+    return False
+
+
 # How far ahead of a compound prefix a global option's value may push it (`docker --context X
 # compose up`). Bounded deliberately: widening it trades missed live effects for false prompts.
 _OPTION_VALUE_WINDOW = 3
@@ -428,10 +502,13 @@ def _strip_options(tokens: list[str], arg_options: frozenset[str]) -> list[str]:
     return out
 
 
-def _unwrap(tokens: list[str]) -> tuple[list[str] | None, str | None]:
+def _unwrap(tokens: list[str], *, diagnostics: bool = False) -> tuple[list[str] | None, str | None]:
     """Look through wrappers; return (inner tokens, unbound reason)."""
     while tokens:
-        tokens = [token for token in tokens if not _ASSIGN_RE.match(token)]
+        # Only prefix assignments belong to the shell/env wrapper. An assignment-shaped option
+        # value (`docker --config cfg=prod restart inspect`) is an argv operand, not disposable.
+        while tokens and _ASSIGN_RE.match(tokens[0]):
+            tokens = tokens[1:]
         if not tokens:
             return [], None
         head = tokens[0]
@@ -471,10 +548,10 @@ def _unwrap(tokens: list[str]) -> tuple[list[str] | None, str | None]:
             if segments is None:
                 return None, "remote `ssh` command cannot be parsed"
             for segment in segments:
-                inner, why = _unwrap(segment)
+                inner, why = _unwrap(segment, diagnostics=diagnostics)
                 if why is not None:
                     return None, why
-                if inner and _classify(inner) is not None:
+                if inner and _classify(inner, diagnostics=diagnostics) is not None:
                     return inner, None
             return segments[-1], None
         if exe in WRAPPERS:
@@ -487,8 +564,16 @@ def _unwrap(tokens: list[str]) -> tuple[list[str] | None, str | None]:
     return [], None
 
 
-def _classify(tokens: list[str]) -> str | None:
+def _classify(tokens: list[str], *, diagnostics: bool = False) -> str | None:
     """The matched live rule for one simple command, or None for a reader/unknown."""
+    if not tokens:
+        return None
+    if diagnostics and _is_diagnostic(tokens):
+        return None
+    # Keep the legacy conservative view for live detection: preserving assignment-shaped option
+    # values must not push a formerly detected live verb out of its bounded scan window. This
+    # lossy view is never evidence for recognizing a diagnostic command above.
+    tokens = [token for token in tokens if not _ASSIGN_RE.match(token)]
     if not tokens:
         return None
     exe = _base(tokens[0])
@@ -543,11 +628,15 @@ def match(command: str) -> tuple[str | None, str | None]:
     segments = _segments(command)
     if segments is None:
         return None, "command substitution, an unbalanced quote, or an operator inside a word"
+    # shlex strips quotes before _segments discards redirection-shaped tokens. For example,
+    # quoted '>cfg' may be an option value. Do not trust shifted positions for a read shortcut;
+    # keep the pre-existing conservative matcher for any command containing that syntax.
+    diagnostics = not any(char in command for char in "<>")
     for segment in segments:
-        inner, why = _unwrap(segment)
+        inner, why = _unwrap(segment, diagnostics=diagnostics)
         if why is not None:
             return None, why
-        rule = _classify(inner or [])
+        rule = _classify(inner or [], diagnostics=diagnostics)
         if rule is not None:
             return rule, None
     return None, None

@@ -25,6 +25,7 @@ below are live. Everything else here is historical evidence.
 
 | Document | State | Read it for |
 |---|---|---|
+| [`archive/2026-09/diagnostic-gate-2026-09-07.md`](archive/2026-09/diagnostic-gate-2026-09-07.md) | Implementation evidence | Diagnostic false-prompt reproductions, conservative parsing boundary, review repair, and the ten-minute probe timeout |
 | [`archive/2026-08/agent-skill-full-audit-findings-2026-08-30.md`](archive/2026-08/agent-skill-full-audit-findings-2026-08-30.md) | Historical review evidence | The full read-only audit of all 11 canonical agents and 20 canonical skills under prompt, context, loop, graph, harness, safety, factual-accuracy, and LLM-readability lenses: confirmed findings with evidence, consequence, smallest fix and acceptance shape; existing roadmap ownership kept separate; and three tempting but contradicted recommendations explicitly rejected. This record is not a task list; the roadmap must import any selected work |
 | [`decisions/2026-09-07-homelab-operating-flow.md`](decisions/2026-09-07-homelab-operating-flow.md) | Accepted scope, under verification | Main-based simplification of routine closeout, task briefs, runbooks, approval presentation, and conditional builder guidance; compatibility, unchanged controls, and outcome checks |
 | [`fleet-roadmap.md`](fleet-roadmap.md) | Live | Every unfinished, blocked, deferred, and decision-needed item. Nothing else adds work |
