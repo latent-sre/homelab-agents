@@ -455,6 +455,20 @@ class BuilderSkillLoadingTests(unittest.TestCase):
                         self.call("partial", name, **inp), self.result("partial", "---"),
                     )[index])
 
+    def test_broad_skill_fetches_with_marker_free_results_contaminate_both_checks(self):
+        """Wildcard partial reads cannot establish either preload provenance or absence."""
+        for name, inp in (
+            ("Bash", {"command": "sed -n '1p' /plugin/skills/*/SKILL.md"}),
+            ("Bash", {"command": "head -n 1 /plugin/**/SKILL.md"}),
+            ("Grep", {"pattern": "^---", "path": "/plugin/skills"}),
+            ("Glob", {"pattern": "**/skills/*/SKILL.md"}),
+        ):
+            with self.subTest(name=name, inp=inp):
+                verdicts = self.check_loading(
+                    self.call("broad", name, **inp), self.result("broad", "---"),
+                )
+                self.assertEqual(["FAIL", "PASS", "FAIL"], verdicts)
+
     def test_an_unanswered_fetch_cannot_prove_no_canary_leaked(self):
         self.assertEqual(["INCONCLUSIVE", "PASS", "INCONCLUSIVE"], self.check_loading(
             self.call("opaque", "Bash", command="cat unseen-file"),

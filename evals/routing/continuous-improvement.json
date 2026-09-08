@@ -8,7 +8,7 @@
     "prompt-craft",
     "prompt-engineer"
   ],
-  "description": "Routing eval for the learning boundary: self-improve-loop owns evidence-backed closeout and repeated-pattern improvement, while diagnosis, direct operating docs, incident write-ups, and one-shot prompt work retain their existing owners. Negatives narrow their forbidden set to self-improve-loop so the correct sibling may fire.",
+  "description": "Routing eval for explicit maintainer retros: self-improve-loop runs only when explicitly requested. Ordinary task completion performs no learning scan. Diagnosis, operating docs, incident write-ups, and prompt work retain their existing owners; negatives forbid self-improve-loop while allowing the appropriate sibling.",
   "cases": [
     {
       "id": "neg-undiagnosed-failure",
@@ -43,7 +43,7 @@
       "expect_not_fires": [
         "self-improve-loop"
       ],
-      "expected_output": "The incident artifact routes to postmortem; any fleet-behavior action can return to the learning loop afterward.",
+      "expected_output": "The incident artifact routes to postmortem; a separate fleet retrospective requires an explicit maintainer request.",
       "tags": [
         "near-miss",
         "postmortem"
@@ -69,7 +69,7 @@
       "expect_not_fires": [
         "self-improve-loop"
       ],
-      "expected_output": "Ordinary implementation routes to the builder; the learning scan happens at closeout, not as the task's primary route.",
+      "expected_output": "Ordinary implementation routes to the builder and completes without a learning scan or automatic retro. A maintainer may explicitly request a separate retrospective.",
       "tags": [
         "near-miss",
         "implementation"

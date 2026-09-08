@@ -586,8 +586,18 @@ def _probe_builder_invocation(
         inp = call["input"]
         path = inp.get("file_path") or inp.get("path") or ""
         path = path.replace("\\", "/").rstrip("/") if isinstance(path, str) else ""
+        input_text = json.dumps(inp).lower()
+        # Broad searches and wildcard partial reads can omit every canary. Their results
+        # cannot prove either preload provenance or an unloaded layer, even when they only
+        # return a header or filename. Conservative contamination is intentional here.
+        broad_skill_fetch = (
+            call["name"] in ("Bash", "Grep", "Glob")
+            and ("skills" in input_text or "skill.md" in input_text)
+            and (any(mark in input_text for mark in ("*", "?", "["))
+                 or not any(skill in input_text for skill in requested))
+        )
         for skill in requested:
-            if path.endswith((f"skills/{skill}", f"skills/{skill}/SKILL.md")) or (
+            if broad_skill_fetch or path.endswith((f"skills/{skill}", f"skills/{skill}/SKILL.md")) or (
                 # Shell/search inputs can fetch only a fragment with no canary. Treat a
                 # named skill in any fetch input conservatively as requested guidance;
                 # even a filename-only search cannot certify that it stayed unloaded.

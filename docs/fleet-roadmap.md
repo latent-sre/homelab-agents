@@ -85,32 +85,30 @@ a routing round are the available instruments.
 **Next action:** Open a bounded spec choosing the pilot definition (`sde-fullstack` is the
 highest-density candidate) and the exact paired-measurement conditions before editing anything.
 
-#### CTX-003 — shrink the per-spawn preload footprint without hollowing the probe's proof
+#### CTX-003 — verify the implemented preload cut
 
-**Status:** `ready` — pass 2 of three; heaviest pass, runs when there is appetite for a routing
-round plus a probe re-run per affected agent.
+**Status:** `active` — narrowed on 2026-09-07 to remaining verification of LABFLOW-001.
+The old instruction to compact a routine closeout contract into `self-improve-loop` is retired:
+that skill is explicit-only maintainer work and is no longer a per-spawn consumer.
 
-**Outcome:** Per-spawn preload cost drops measurably (e.g. `sde-fullstack`'s ~12.1k preloaded
-tokens), with a routing round and the probe showing slimmed bodies still deliver what fat ones
-did — the behavioral contracts that once proved this retired 2026-09-02; references stay the
-on-demand layer.
+**Outcome:** Establish the evidence still owed for the implemented conditional preload, without
+repeating the cut or restoring automatic learning scans.
 
 **Source:**
-[2026-08-16 skill-listing investigation](archive/2026-08/skill-listing-investigation-2026-08-16.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#ctx-003-shrink-the-per-spawn-preload-footprint-without-hollowing-the-probes-proof)
+[operating-flow implementation and limits](decisions/2026-09-07-homelab-operating-flow.md) ·
+[original acceptance history](archive/2026-09/roadmap-history-2026-09-01.md#ctx-003-shrink-the-per-spawn-preload-footprint-without-hollowing-the-probes-proof)
 
-**Prerequisites:** None mechanically; `scripts/probe_plugin.py`'s craft canaries must move
-deliberately with the body, or stay in it.
+**Evidence disposition:** Adapter regeneration and validator parity passed. The bounded native
+builder capture demonstrated the requested preload/read/absence canaries; scorer regressions are
+covered by deterministic tests. Retro-boundary and continuous-improvement routing were measured,
+but they do not substitute for every affected agent's before/after routing. A complete green
+runtime probe, remaining affected-agent routing, and per-skill before/after preload byte deltas
+are still owed. Doctor listing-budget and installed-agent drift warnings remain open; no host
+installation or warning waiver is implied by publication of LABFLOW-001.
 
-**Constraints:** The conditional-reference read is measured intermittent (falsified 2026-08-30) —
-re-verify it before shrinking anything into the on-demand layer.
-
-**Acceptance:** Before/after routing runs for every agent whose preloaded set changed; probe
-green with canary assertions intact or deliberately migrated; regenerated adapters; doctor and
-validator green; byte deltas recorded per skill. No contract-graded check remains.
-
-**Next action:** Restructure `self-improve-loop` first — compact loop plus closeout contract in
-SKILL.md, full lifecycle protocol to a reference.
+**Next action:** Compare the existing LABFLOW-001 evidence with those remaining checks, bind any
+new measurement to immutable before/after plugin bytes, and run only the missing checks. Do not
+edit the explicit-only retro skill to reduce preload cost or treat an unrun check as accepted.
 
 #### CTX-004 — lock the context wins in: settings lines, validator promotion, Copilot cap
 
