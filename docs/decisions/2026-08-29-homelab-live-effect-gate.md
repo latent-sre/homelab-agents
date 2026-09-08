@@ -192,3 +192,11 @@ audience decision. The Verification section's `tests/test_packet_lint.py` and
 "paired lane" reopen trigger above (a baseline-perfect contract regressing) can no longer be
 observed by a contract-graded run; a routing round and the probe are what remain to watch for a
 regression this decision would need to answer.
+
+## Amendment 2026-09-07
+
+The operator selected the main-based operating-flow simplification in
+[the operating-flow decision](2026-09-07-homelab-operating-flow.md). It retires exact packet
+grammar, the work-order digest/receipt, and routine Learning closeout while preserving the
+permission tiers, actual execution transports, recovery evidence, and retry/reconciliation
+boundaries. Earlier grammar and probe descriptions above remain dated evidence.

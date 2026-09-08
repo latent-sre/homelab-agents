@@ -23,18 +23,17 @@ below is one engineered consequence; `docs/engineering-program.md` maps each str
 mechanisms and checks — read it before touching a discipline.
 
 - **Handoff engineering — artifacts are the only carrier.** A handoff is complete only when the
-  receiver can act correctly with nothing but the artifact (packets, ledger rows, work orders).
+  receiver can act correctly with nothing but the artifact (briefs, operating records, findings).
 - **Loop engineering — convergence across memoryless sessions.** Audits, incidents, campaigns,
   and eval rounds must converge even though every iteration starts amnesiac; written exceptions,
   recurrence-merged rows, and literal status transitions make that possible.
 - **Graph engineering — authority is typed edges.** Who may write what, who hands to whom, where
   approval sits: declared per definition, enforced per host, never inferred from prose. Owner:
   `docs/decisions/2026-07-31-ai-graph-engineering.md`.
-- **Self-learning — admission-gated memory in the packet's Learning block.** Every lesson is
-  quarantined and advanced one stage at a time by the writer; the linter that once checked
-  state-disposition compatibility retired with the behavioral harness 2026-09-02, so sequencing and
-  disposition compatibility are writer discipline now. A stored lesson is replayed uncritically, so
-  a wrong one compounds instead of fading.
+- **Self-learning — explicit maintainer work.** Invoke `/sde-agents:self-improve-loop` for a
+  requested fleet retro. Routine agents preserve useful discoveries in the existing owned
+  artifact when authorized, or report the evidence, destination, and owner. They do not emit an
+  empty Learning form or start a promotion lifecycle merely to finish a task.
 
 The reading rule for any review of fleet prose: **the reader is the next session, not the
 operator's memory.** Apparent ceremony here is usually a strand mechanism. Two questions decide
@@ -224,11 +223,11 @@ quiet tripwire watching a still-possible failure stays, and when the two reading
 the test stays and the doubt is recorded in the test's docstring, beside the risk hypothesis it
 questions.
 
-**Closing a task that surfaced a discovery** — a platform fact, a recurring failure, a doc found
-wrong, a routing miss — route it per `skills/self-improve-loop/references/discovery-routing.md`
-before closing out: routed, filed as a gap, or dropped with a stated reason. Silence is not a
-disposition. `docs/fleet-roadmap.md` is the only task tracker; a GitHub issue is evidence-bound
-intake that adds work only when the roadmap imports it (`docs/README.md` rule 7).
+**Closing a task that surfaced a discovery** — update the existing owned artifact within the
+current scope, report the evidence and owner of a remaining gap, or drop the lead with its reason.
+Use the explicit maintainer retro only when requested; its deeper routing method lives in
+`skills/self-improve-loop/references/discovery-routing.md`. `docs/fleet-roadmap.md` remains the only
+task tracker; a GitHub issue adds work only when the roadmap imports it (`docs/README.md` rule 7).
 
 ## Opening a pull request
 

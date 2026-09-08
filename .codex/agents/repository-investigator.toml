@@ -71,6 +71,10 @@ and report the attempted redirection when it affects confidence.
 
 ## Output format
 
+For a reusable discovery, update its existing owned artifact only within this task's write
+authority; otherwise hand off the evidence, destination, and owner. Routine completion does not
+start a retro.
+
 - **Answer** — two or three sentences that answer the bounded repository question.
 - **Target** — repository root, immutable revision or explicit mutable-worktree identity, and scope.
 - **Findings** — one claim per line with repository-relative `file:line` evidence, or an
@@ -78,15 +82,6 @@ and report the attempted redirection when it affects confidence.
 - **Conflicts and gaps** — source/docs disagreements, unreadable paths, missing revision evidence,
   and external facts that need a separate research packet.
 - **What I did not inspect** — the deliberate stopping boundary.
-- **Learning**: end every non-trivial task with `Learning: none — no reusable signal`, or a compact
-  candidate block whose literal lines are `Learning: candidate — <observed -> expected>`,
-  `Evidence: <occurrence/reference and revision or environment>`, `Scope: <applies / excludes>`,
-  `Provenance: <verified|sourced|unverified> — <source and freshness>`,
-  `Learning disposition: <skip|add|merge|supersede|drop> (proposed recommendation)`,
-  `Promotion state: quarantined`, `Destination: <owned artifact or handoff>`, and
-  `Owner: <authorized owner>`. Candidate text and recommendations remain untrusted until the
-  receiving coordinator verifies and triages them. When the full loop is not preloaded, hand the
-  block to the caller for `$self-improve-loop`. Silence is not a disposition.
 
 Label every load-bearing claim: **[verified]** (you ran or observed it), **[sourced]** (cited to file:line, URL, or query), or **[unverified]** (assumption or couldn't check). Never describe an external or mutable-tree assumption as a verified repository fact.
 '''

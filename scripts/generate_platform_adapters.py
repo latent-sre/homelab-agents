@@ -287,15 +287,11 @@ def adapt_text(text: str, host: str) -> str:
         "A container, VM, or the current host's sandbox counts only when those controls are "
         "actually",
     )
+    text = text.replace("`code-craft` is the common preload.", "`code-craft` is the common required skill.")
+    text = text.replace("The builder preloads code craft", "The builder requires code craft")
     text = text.replace(
         "which preloads this skill",
         "which requires this skill",
-    )
-    text = text.replace(
-        "The builder preloads both craft skills — do not name a skill, hand it a path, or tell it "
-        "to load anything.",
-        "The builder requires both craft skills — include that requirement in the spawn contract "
-        "and ensure the host loads them before work.",
     )
     text = text.replace(
         "Claude Code's Workflow tool or equivalent",
@@ -304,12 +300,6 @@ def adapt_text(text: str, host: str) -> str:
     text = text.replace(
         "A researcher with WebFetch and no\n  credentials",
         "A researcher with web access and no\n  credentials",
-    )
-    text = text.replace(
-        "The craft skills for both layers — `backend-craft` and `frontend-craft` — are already in "
-        "your\ncontext; you do not need to load them and there is nothing to resolve.",
-        "The craft skills for both layers — `backend-craft` and `frontend-craft` — are required "
-        "context for this role; load both installed skills before coding.",
     )
     text = text.replace(
         "`code-craft`, also already in your context:",
@@ -388,6 +378,31 @@ def adapt_agent_contract(text: str, *, name: str, host: str) -> str:
     """Replace Claude-only authority claims in generated agent bodies."""
 
     host_label = "Codex" if host == "codex" else "Copilot/VS Code"
+    if name == "sde-fullstack":
+        skill_root = CODEX_SKILLS if host == "codex" else COPILOT_SKILLS
+        reader = ("an available filesystem tool or a read-only shell command" if host == "codex"
+                  else "the host's read/search tools")
+        replacements = {
+            "apply. Load other guidance before the work it governs, using the Read tool and these plugin paths:": (
+                "apply. For common and conditional guidance, resolve the named skill's actual\n"
+                "SKILL.md path from the host's available-skills catalog, then read that file using\n"
+                f"{reader}. The repository-local fallback paths\n"
+                "below are relative to the repository root; use them only when present. A skill\n"
+                "name is a lookup key, not a path. Do not invent versioned cache locations or\n"
+                "ask the operator to use a picker in place of your file lookup."
+            ),
+            **{f"| the installed `{skill}` skill |": f"| `{skill_root.as_posix()}/{skill}/SKILL.md` |"
+               for skill in ("backend-craft", "frontend-craft", "root-cause", "ci-actions")},
+        }
+        for anchor, replacement in replacements.items():
+            matches = text.count(anchor)
+            if matches != 1:
+                raise ValueError(
+                    f"sde-fullstack {host} rewrite: expected one conditional skill-loading anchor "
+                    f"({matches} matches); otherwise the adapter would retain an unusable path "
+                    f"or omit a required guidance route."
+                )
+            text = text.replace(anchor, replacement)
     # Both callers supply adapt_text output, so Agent-tool terminology is already translated.
     text = text.replace(
         "You hold Write and Edit **to author tests**",
@@ -477,50 +492,34 @@ def adapt_agent_contract(text: str, *, name: str, host: str) -> str:
         )
 
     if name == "homelab-engineer":
-        # The canonical transport bullet names the live-effect gate — a Claude-only PreToolUse
-        # hook (GATE-006). On the other hosts the claim is replaced, not carried: Codex has its
-        # own exec-policy prompt and a non-executing check for it; Copilot/VS Code payloads do not
-        # identify the active agent, so no host control interposes there and every live effect is
-        # an operator handoff. Each substitution must land exactly once, for the reason the
-        # repository-investigator block below records.
+        # These host controls differ. A missing canonical bullet must stop generation rather
+        # than leave a clean-looking adapter promising a Claude hook it cannot install.
         if host == "codex":
             gate_bullet = (
-                "- **Managed gate (normal `new` path):** a host-owned control interposes a "
-                "per-invocation human\n  decision on the exact argv. On this host that control is "
-                "the sandbox and command-approval prompt;\n  the source profile's live-effect gate "
-                "is a Claude-only hook that Codex custom-agent TOML cannot\n  install, so the "
-                "evidence is `codex execpolicy check` on the exact argv reporting `prompt` and "
-                "the\n  matched rule. State `Gate evidence: exec policy — matched rule <rule>` "
-                "before invoking; when the\n  check reports `allow`, cannot be run, or names no "
-                "rule, treat the transport as unproven. Never run a\n  live command to discover "
-                "whether it prompts: when the gate cannot be established, use operator\n  handoff."
+                "- **Managed gate:** the sandbox and command-approval prompt must interpose a "
+                "human decision\n  on the exact argv. Before invoking, use `codex execpolicy check` "
+                "and cite its `prompt`\n  decision and matched rule. `allow`, a missing rule, or an "
+                "unavailable check does not prove\n  this transport. Never run a live command to "
+                "discover whether it prompts; use operator\n  handoff when the control cannot be established."
             )
             standing = (
-                "on this host only an exec-policy rule under a root-owned path can\n  qualify — a "
-                "rule in any file you can edit proves nothing."
-            )
-            evidence_line = (
-                "> **Gate evidence**: exec policy — `codex execpolicy check` reports `prompt` for "
-                "this exact argv\n> and the matched rule."
+                "- **Standing policy:** only an exec-policy rule under a root-owned path, outside "
+                "your write\n  authority, can qualify. Match the exact executable, arguments, and "
+                "target; record the policy\n  location, stable identity, and effective match. Keep "
+                "rollback and verification. Wrappers,\n  substitutions, variable targets, broad "
+                "prefixes, unrestricted tails, and session-wide bypass\n  never widen a rule. "
+                "A repository pointer is not the policy. Tier 3 never qualifies."
             )
         else:
             gate_bullet = (
-                "- **Managed gate (normal `new` path):** a host-owned control interposes a "
-                "per-invocation human\n  decision on the exact argv. This profile holds an "
-                "`execute` tool, but Copilot and VS Code\n  PreToolUse payloads do not identify "
-                "the active agent, so the source profile's live-effect gate\n  cannot be scoped "
-                "here and no host control interposes a decision on the exact argv. Every Tier "
-                "2/3\n  effect on this host therefore uses operator handoff: present the exact "
-                "command and let the\n  operator run it. Never run a live command to discover "
-                "whether it prompts."
+                "- **Managed gate:** this profile cannot install a scoped live-effect hook on "
+                "Copilot or VS\n  Code. Every Tier 2/3 effect therefore uses operator handoff: "
+                "present the exact command and\n  let the operator run it. Never run a live "
+                "command to discover whether it prompts."
             )
             standing = (
-                "no rule on this host is both operator-owned and outside your edit\n  reach, so "
-                "standing policy never qualifies here."
-            )
-            evidence_line = (
-                "> **Gate evidence**: none on this host — the operator runs the exact command "
-                "(Transport:\n> operator handoff)."
+                "- **Standing policy:** no rule on this profile is both operator-owned and outside "
+                "your edit\n  reach, so standing policy is unavailable; use operator handoff."
             )
         if host == "codex":
             # "You hold no web tool by design" is enforced on Claude by `tools:` and on Copilot by
@@ -546,47 +545,17 @@ def adapt_agent_contract(text: str, *, name: str, host: str) -> str:
                     f"adapt_agent_contract, so the Codex adapter would keep claiming an absent "
                     f"web tool that this host cannot actually withhold."
                 )
-        for pattern, replacement in (
-            (
-                r"- \*\*Managed gate \(normal `new` path\):\*\*.*?"
-                r"a\n  suppressed-prompt session — use operator handoff\.",
-                gate_bullet,
-            ),
-            (
-                r"on Claude Code only a rule in managed \(administrator-owned\) settings can\n"
-                r"  qualify — .*?root-owned path qualifies\.",
-                standing,
-            ),
-            (
-                r"> \*\*Gate evidence\*\*: live-effect gate — matched rule `docker compose up`; "
-                r"the host prompt will\n> show this exact argv\.",
-                evidence_line,
-            ),
-        ):
-            text, replaced = re.subn(pattern, replacement, text, count=1, flags=re.DOTALL)
+        for label, replacement in (("Managed gate", gate_bullet), ("Standing policy", standing)):
+            pattern = rf"^- \*\*{label}:\*\*.*?(?=\n- \*\*|\n\n)"
+            # Check all matches: a duplicated policy is ambiguous even if replacing the first
+            # would produce syntactically valid output.
+            text, replaced = re.subn(pattern, lambda _match: replacement, text, flags=re.DOTALL | re.MULTILINE)
             if replaced != 1:
                 raise ValueError(
-                    f"homelab-engineer {host} rewrite: the transport anchor {pattern[:40]!r} was "
-                    f"not found ({replaced} matches). The canonical passage changed without "
-                    f"updating adapt_agent_contract, so the generated adapter would silently keep "
-                    f"a Claude-only live-effect-gate claim this host cannot honor."
+                    f"homelab-engineer {host} rewrite: expected one {label} transport anchor, "
+                    f"found {replaced}. The canonical policy changed without updating "
+                    "adapt_agent_contract, so the adapter could promise the wrong host control."
                 )
-        if host == "copilot":
-            for old, new in (
-                ("> Transport: managed gate\n", "> Transport: operator handoff\n"),
-                (
-                    "**Gate owner**: host managed approval. Accepting the prompt after\n"
-                    "> this summary runs the command once, then I verify; no chat re-approval.",
-                    "**Gate owner**: operator handoff. The operator runs the exact command\n"
-                    "> once after this summary, then I verify.",
-                ),
-            ):
-                if text.count(old) != 1:
-                    raise ValueError(
-                        f"homelab-engineer copilot rewrite: expected exactly one {old[:40]!r} "
-                        f"in the worked example, found {text.count(old)}."
-                    )
-                text = text.replace(old, new)
 
     if name == "repository-investigator":
         # The canonical paragraph claims a PreToolUse reader allowlist behind Bash. That hook is

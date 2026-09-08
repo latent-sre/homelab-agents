@@ -24,9 +24,9 @@ conventions, for the same reason: the **three-strikes rule** is owned by `skills
 (sde-fullstack, sre-tool, and the builder reference cite it); the **finding-effect classification** (merge blocker / live-activation blocker / optional
 hardening) is owned by `agents/code-reviewer.md`, and the live-activation gate it names is
 `agents/homelab-engineer.md`'s change-authority tiers;
-the **onboarding work order** trigger, fields, manager-owned digest transfer, and authority boundary
-are owned by `agents/homelab-engineer.md` (`agents/sde-fullstack.md` carries the receipt/consumer
-paraphrase and defers on conflict);
+the **homelab task brief** contents and live-authority boundary are owned by
+`agents/homelab-engineer.md`; `agents/sde-fullstack.md` consumes those facts without requiring a
+work-order digest or receipt;
 the **shared material-risk matrix** is owned by `agents/code-reviewer.md` (verification-engineer
 carries it verbatim and defers on conflict); the
 **CLAUDE.md/`@AGENTS.md` bridge** and the **progress/plan-file layout** are owned by the

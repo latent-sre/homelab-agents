@@ -1,6 +1,6 @@
 ---
 name: "self-improve-loop"
-description: "Runs bounded, evidence-driven improvement loops and the fleet's learning closeout. After a completed non-trivial task, scan for durable learning; run a learning retro after corrections, failed verification, stale or missing guidance, or repeated friction — \"do a retro on this task\", \"run the micro-retro\", \"capture the lessons learned\", \"what did we miss\" — or decide how a learning should be captured and verified. Routes lessons to deterministic checks, agent or skill text, runbooks, or references, with add/merge/supersede/drop disposition. Not for an undiagnosed failure (use root-cause), direct operating-doc authoring (use runbook), a resolved-incident write-up (use postmortem), or a one-shot prompt fix (use prompt-craft)."
+description: "Runs explicitly requested maintainer retros on fleet behavior. Use when a maintainer asks to review a completed task, investigate recurring fleet friction, or capture lessons from agent or skill failures. Not for routine task closeout, undiagnosed failures (use root-cause), direct operating docs (use runbook), incident postmortems (use postmortem), or one-shot prompt fixes (use prompt-craft)."
 argument-hint: "[completed work, evidence, and improvement criteria]"
 ---
 
@@ -9,6 +9,7 @@ argument-hint: "[completed work, evidence, and improvement criteria]"
 > **Codex adapter:** Fleet component names are bare in this generated copy.
 > Resolve them from the installed plugin using the host's agent or skill picker; do not add
 > Claude's plugin namespace.
+> This skill is explicit-only through the generated `agents/openai.yaml` policy.
 
 # Continuous improvement and learning loops
 
@@ -16,30 +17,20 @@ Turn verified experience into the smallest durable improvement. Continuous impro
 repeatable closeout and maintenance process; it does **not** mean silently rewriting instructions,
 memory, or policy while a task is still in flight.
 
-## Two cadences
+## Explicit maintainer use
 
-### Learning scan — every non-trivial task
+Run this workflow only when the maintainer explicitly invokes it for a completed task or selected
+improvement. It is not an operating-agent preload or a prerequisite for routine completion.
+Useful operational discoveries go to their existing runbook or other owned artifact within the
+caller's authority; unresolved gaps are reported with evidence and an owner.
 
-Before the final packet, scan the task evidence:
-
-1. Was there a correction, retry, failed check, review finding, abandoned approach, or tool failure?
-2. Was an instruction, runbook, reference, or platform fact missing, stale, or contradicted?
-3. Did the task establish a new fact that is likely to matter again?
-4. Does the evidence repeat a normalized pattern from this or another task?
-
-If every answer is no, report `Learning: none — no reusable signal` and stop. No durable change is a
-successful result; an always-writing loop manufactures noise.
-
-### Full retro — evidence-triggered
-
-Run the full lifecycle when the operator requests a retro, or when the scan finds a correction,
-failed verification, stale guidance, repeated workaround, routing miss, incident action, or
-cross-task pattern. A live incident is mitigated first and written up with
-`postmortem`; only its fleet-behavior or procedure residue returns here.
+Within an invoked retro, inspect the selected evidence for corrections, failed verification,
+stale guidance, repeated workarounds, or new facts. With no reusable signal, state the reason and
+stop. Otherwise use the lifecycle below. A live incident is mitigated first and written up with
+`postmortem`; only its reusable procedure or fleet-behavior findings belong here.
 
 Use [references/retro-protocol.md](references/retro-protocol.md) for task, session, cross-task,
-round, and provider-upgrade retros. Agents are stateless, so maintenance is triggered by use,
-conflicting evidence, a completed round, or an upgrade — never claimed as a background schedule.
+round, and provider-upgrade retros. This skill starts no background work.
 
 ## Boundaries that the loop cannot cross
 
@@ -132,9 +123,9 @@ Prose never substitutes for a deterministic control. If the same mechanical fail
 enforced by reasoning, move it into a test or validator. Conversely, do not turn a judgment call
 into a brittle keyword gate merely to call it deterministic.
 
-If no owned canonical runbook, current source, local configuration, safe replay path, or operator is
-established, do not create, write, or invent operating commands. Choose a proposal that names the
-missing evidence and owner instead.
+For a runbook destination, use `runbook`'s document and procedure decisions. Missing
+ownership or edit authority requires a proposal; a missing command or replay affects that
+procedure only. Never invent commands or mark unexecuted work verified.
 
 The `runbook` destination is only for admitted service or tool operating procedures. Never route an
 agent, skill, test, validator, or learning-candidate handling change there.

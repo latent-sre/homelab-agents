@@ -369,8 +369,8 @@ simple-stays-simple, and read-only-investigation seams:
 | `investigation.json` | researcher, repository-investigator, code-reviewer, root-cause, application-security-auditor | trust-separated investigation: external/public research vs local/private source evidence vs a diff, failure, or source-to-sink audit |
 | `agent-systems.json` | multi-agent-architect, prompt-engineer, principal-engineer | AI-agent system design and wrapper diagnosis vs one prompt or ordinary software architecture |
 | `verification-seam.json` | verification-engineer, sde-fullstack, code-reviewer, root-cause | execute verification vs implement a fix vs static review vs root-cause diagnosis |
-| `retro-boundary.json` | self-improve-loop, postmortem | non-incident retros and lesson routing vs the resolved-incident write-up; "retro"/"postmortem" vocabulary collisions and a live outage must reach neither |
-| `continuous-improvement.json` | self-improve-loop, runbook, postmortem, root-cause, prompt-craft, prompt-engineer | learning intake, runbook-gap routing, lifecycle decisions, and negative boundaries against diagnosis, direct authoring, incidents, prompt repair, and ordinary builds |
+| `retro-boundary.json` | self-improve-loop, postmortem | explicit-only maintainer retro boundaries vs the resolved-incident write-up; "retro"/"postmortem" vocabulary collisions and a live outage must reach neither |
+| `continuous-improvement.json` | self-improve-loop, runbook, postmortem, root-cause, prompt-craft, prompt-engineer | explicit-only maintainer retro negative boundaries against diagnosis, direct authoring, incidents, prompt repair, and ordinary builds |
 
 `homelab-ops` is re-run and diffed whenever its membership changes. The captured baseline under
 `baselines/2026-07/` predates `postmortem` joining the cluster on 2026-07-24 (4 members / 15 cases
@@ -378,11 +378,11 @@ there); the capture under `baselines/2026-07-24/` records the later 5-member / 1
 are *historical* anchors, not like-for-like comparisons with the current 12-member / 33-case
 cluster. Re-baseline whenever membership changes.
 
-**Suite size, as of 2026-08-23:** 111 routing cases across the ten clusters (49 positives, 62
-negatives), so a full sweep at the methodology's `--runs 3` is **333 sessions** — down from 426.
-The 93 sessions came off in three retirements: 26 agent-only positives (78), three duplicate cases
-(9), and three far-misses (9), against one Mode 3 positive added back (3). This is worth knowing
-before starting a paired round: the 'before' and 'after' sides each cost a full sweep unless a
+**Suite size, as of 2026-09-07:** 103 routing cases across the ten clusters (41 positives, 62
+negatives), so a full sweep at the methodology's `--runs 3` is **309 sessions**. The 2026-08-23
+suite had 111 cases / 333 sessions; eight automatic retro positives retired when the maintainer
+skill became explicit-only. Before starting a paired round, account for both sides: the 'before'
+and 'after' sides each cost a full sweep unless a
 stored capture is checked by hand — same bytes, same recorded model, clean-room setting,
 threshold, and timeout — and found reusable.
 
@@ -405,7 +405,7 @@ not only of the description. Read the clusters accordingly:
   positives** — 26 were retired on 2026-08-17, because a case only a delegation can score measures
   the harness's reluctance to delegate rather than the description, and nothing in the scoring
   compensated: `--threshold` is one global value applied identically to every positive regardless
-  of component kind. Of the 49 positives that remain, 31 are skill-only and 18 are mixed (a skill
+  of component kind. Of the 41 positives that remain, 23 are skill-only and 18 are mixed (a skill
   route can score them). An agent's over-trigger coverage stays here regardless — cutting agent
   positives cost nothing on that axis, because a negative's forbidden set defaults to the whole
   member list, so every agent in `members` is still guarded against firing on a near-miss. The
@@ -427,3 +427,10 @@ not only of the description. Read the clusters accordingly:
   comparable with rates measured on a larger-window model, and a paired before/after run must hold
   the model — and with it the listing state — fixed. `scripts/fleet_doctor.py` reports the fleet's
   current footprint (`repository.skill-listing-budget`).
+
+## Homelab operating-flow change
+
+The automatic positives for `self-improve-loop` retired when it became explicit-only maintainer
+work. Its negative boundaries remain; routing does not measure an explicit invocation. Body changes
+to homelab closeout, task briefs, runbooks, and conditional builder loading use the outcome cases in
+`docs/decisions/2026-09-07-homelab-operating-flow.md`; routing rates alone do not prove those outcomes.
