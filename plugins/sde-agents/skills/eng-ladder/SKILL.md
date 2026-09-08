@@ -12,13 +12,17 @@ argument-hint: "[task, diff, file, or design doc]"
 
 ## The ladder
 
-| | sde-fullstack | principal-engineer | distinguished-architect |
+| | Builder | Principal | Distinguished |
 |---|---|---|---|
+| **Agent** | sde-fullstack | principal-engineer | principal-engineer |
 | **Scope** | a tool, feature, or service | a system across services/teams | platform or org, across years |
 | **Horizon** | this release | 6–18 months | 3–5 years |
 | **Core question** | does it work, and can it be operated? | is this the right design, and what's the blast radius? | is this the right problem, and will the solution survive the org? |
 | **Artifacts** | working, verified code + tests | design docs, decision records, phased plans | ADRs, north-star architecture, build/buy analyses |
 | **Failure lens** | handles errors, timeouts, retries | failure modes, rollout/rollback | failure domains, blast-radius containment |
+
+Principal and distinguished are reasoning and assessment depths of one design agent,
+`principal-engineer`; moving between them does not create another handoff.
 
 ## Mode 1 — Route a task
 
@@ -26,15 +30,15 @@ Match the task to the lowest rung whose core question it raises. Signals it need
 
 Ownership and consult are distinct outputs, and collapsing them miscalibrates in both directions (field-observed: the same task read as "mandatory principal ownership" blind and "optional escalation" in dispatch, when the accurate call was builder-owned with a required consult). The recurring shape is builder-owned work with **one** embedded higher-altitude decision — an operational change carrying a single choice that creates a standing obligation or is inherited by future services. That work stays builder-owned; route it as "builder-owned; principal consult **required** on `<the named decision>`," never by re-owning the whole item. The builder emits a scoped consult request when it hits the fork, the higher rung returns one decision record and declines ownership, and "optional" is the wrong label whenever the embedded decision is hard to reverse — a consult that would catch a shipped defect is required, not optional.
 
-Routing includes routing to yourself. Work stays in the current context when it fits the conversation you're already in; spawn the rung's agent when the work needs fresh context or runs alongside other work. For in-context work, load the matching altitude reference and work its method: [`references/builder.md`](references/builder.md), [`references/principal.md`](references/principal.md), or [`references/distinguished.md`](references/distinguished.md). Load **only** the tier that matches, and move up the moment it isn't enough — moving up means loading the next reference; a spawned agent never self-promotes, it reports the fork to its caller. The references paraphrase each rung's method and self-checks; the full bar stays the agent file (Mode 2) — on any conflict over method or bar, the agent file wins.
+Routing includes routing to yourself. Work stays in the current context when it fits the conversation you're already in; spawn the rung's agent when the work needs fresh context or runs alongside other work. For in-context work, load the matching altitude reference and work its method: [`references/builder.md`](references/builder.md), [`references/principal.md`](references/principal.md), or [`references/distinguished.md`](references/distinguished.md). Load **only** the tier that matches, and move up the moment it isn't enough — moving up means loading the next reference; a spawned principal can change between system and strategic depth within its assigned design remit; a builder reports a design fork to its caller, and any agent reports a scope or authority change. The references paraphrase each rung's method and self-checks; the full bar stays the agent file (Mode 2) — on any conflict over method or bar, the agent file wins.
 
 The `sre-tool` skill applies this routing inside its build pipeline, and each ladder agent's description and "Ladder position" section paraphrases its own rung so a spawned agent can escalate without loading this skill; the altitude references paraphrase the rungs the same way. This table is the source of truth for routing — on any conflict over which rung a task belongs to, the table wins; fix the paraphrase, not the table.
 
-Infrastructure and service-operation work (deploying, configuring, or troubleshooting the lab itself) routes to `homelab-engineer`, outside this ladder; code that *runs on* the lab routes through the ladder as usual. The exception is infrastructure that is also *architecture* — storage layout, network segmentation, a hypervisor or platform choice, anything shaping the lab for years rather than operating it today. Those are ladder questions (`principal-engineer`, or `distinguished-architect` at multi-year scale) even though the subject is infrastructure, and `homelab-engineer` routes them up rather than deciding them.
+Infrastructure and service-operation work (deploying, configuring, or troubleshooting the lab itself) routes to `homelab-engineer`, outside this ladder; code that *runs on* the lab routes through the ladder as usual. The exception is infrastructure that is also *architecture* — storage layout, network segmentation, a hypervisor or platform choice, anything shaping the lab for years rather than operating it today. Those are ladder questions (`principal-engineer` at either design depth) even though the subject is infrastructure, and `homelab-engineer` routes them up rather than deciding them.
 
 ## Mode 2 — Assess work at a bar
 
-The table above routes; it is not the bar. The full bar for each rung is that agent's definition file — `agents/<name>.md` in this repo, or the installed agent definition for the selected role once the plugin is installed (`sde-fullstack`, `principal-engineer`, `distinguished-architect`). Read the relevant one before scoring. Score the artifact against its current-level bar: **meets**, or **gaps** with cited evidence (specific lines or sections — no generic feedback). Score against the artifact's own remit: absence of work nobody asked for is not a gap, and a simple artifact done cleanly meets the bar — never invent gaps to make the assessment look rigorous. Then state the next-level delta: the two or three concrete things that would make this artifact next-rung work. Example: "The code works and is tested — the principal version would name the migration rollback plan and cut the config surface in half."
+The table above routes; it is not the bar. The builder bar is `agents/sde-fullstack.md`; both design bars are `agents/principal-engineer.md`, with its Strategic decisions section applying at distinguished depth. Installed paths are the installed `sde-fullstack` agent definition and the installed `principal-engineer` agent definition. Read the relevant file before scoring. Score the artifact against its current-level bar: **meets**, or **gaps** with cited evidence (specific lines or sections — no generic feedback). Score against the artifact's own remit: absence of work nobody asked for is not a gap, and a simple artifact done cleanly meets the bar — never invent gaps to make the assessment look rigorous. Then state the next-level delta: the two or three concrete things that would make this artifact next-rung work. Example: "The code works and is tested — the principal version would name the migration rollback plan and cut the config surface in half."
 
 ## Mode 3 — Growth feedback
 

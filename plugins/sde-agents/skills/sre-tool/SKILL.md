@@ -43,7 +43,9 @@ Routing rubric lives in the `eng-ladder` skill — that table is the source of t
 
 - Single component, low blast radius → design inline at SDE level: a few sentences of plan plus stated assumptions. No ceremony.
 - Multiple services, a data migration, or hard-to-reverse choices → spawn the `principal-engineer` agent for a short design doc; surface any one-way doors to the user before proceeding.
-- Platform-shaping work (many teams or systems, multi-year consequences) → spawn `distinguished-architect` first.
+- Platform-shaping work (many teams or systems, multi-year consequences) → use the same
+  `principal-engineer` engagement at strategic depth, including framing, build/buy
+  alternatives, failure domains, and revisit triggers; do not spawn a second design agent.
 
 A multi-component design must also satisfy the contract-artifact, dependency-graph, and mockup-gate rules in [`references/multi-component.md`](references/multi-component.md); the contract artifact is instantiated from [`assets/contract.template.md`](assets/contract.template.md).
 

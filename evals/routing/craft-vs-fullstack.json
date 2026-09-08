@@ -176,7 +176,7 @@
         "code-craft",
         "ci-actions"
       ],
-      "expected_output": "A build-vs-adopt decision record \u2014 distinguished-architect / principal-engineer, not a builder.",
+      "expected_output": "A build-vs-adopt decision record \u2014 principal-engineer, not a builder.",
       "tags": [
         "near-miss",
         "adr"

@@ -9,7 +9,7 @@ that turn "read-only" and "ask first" from promises into controls.
 ## Fleet
 
 <!-- fleet-inventory:start -->
-- **Agents (11):** `application-security-auditor`, `code-reviewer`, `distinguished-architect`, `homelab-engineer`, `multi-agent-architect`, `principal-engineer`, `prompt-engineer`, `repository-investigator`, `researcher`, `sde-fullstack`, `verification-engineer`
+- **Agents (10):** `application-security-auditor`, `code-reviewer`, `homelab-engineer`, `multi-agent-architect`, `principal-engineer`, `prompt-engineer`, `repository-investigator`, `researcher`, `sde-fullstack`, `verification-engineer`
 - **Skills (20):** `backend-craft`, `ci-actions`, `code-craft`, `eng-ladder`, `frontend-craft`, `host-onboard`, `lab-audit`, `lab-incident`, `observability`, `onboarding-map`, `postmortem`, `prompt-craft`, `restore-drill`, `root-cause`, `runbook`, `security-audit`, `self-improve-loop`, `service-onboard`, `sre-tool`, `upgrade-campaign`
 <!-- fleet-inventory:end -->
 
@@ -41,7 +41,7 @@ a new machine or a new service into the lab runs `host-onboard` and `service-onb
 `ci-actions` as its reference shelf. `code-reviewer` reviews a diff read-only. `researcher` is the
 only agent with web access, kept away from files that hold your secrets.
 
-**Design and meta.** `principal-engineer` and `distinguished-architect` think through a change
+**Design and meta.** `principal-engineer` thinks through a change
 before it is built. `prompt-engineer`, `prompt-craft`, `multi-agent-architect`, and
 `self-improve-loop` are for people editing agents and skills, this fleet's included.
 
@@ -53,7 +53,7 @@ directly with its namespaced name.
 Two `PreToolUse` hooks ship with the plugin and register session-wide. Each scopes itself to the
 agent making the call and does nothing for anyone else, so your own shell is never inspected.
 
-- **The read-only guard.** `code-reviewer`, `principal-engineer`, `distinguished-architect`, and
+- **The read-only guard.** `code-reviewer`, `principal-engineer`, and
   `repository-investigator` hold `Bash` for inspection only. The guard permits an enumerated set
   of read-only commands (`git diff`, `rg`, `cat`, and their kin) and denies everything else,
   including any interpreter. If the guard cannot run, those agents lose Bash rather than gaining

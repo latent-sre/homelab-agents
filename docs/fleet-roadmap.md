@@ -40,6 +40,29 @@ each item's Source.
 
 ### Ready
 
+#### DESIGN-001 — consolidate design ownership
+
+**Status:** `active` — operator-approved merger on `refactor/consolidate-design-ownership`, from main
+`8486439`; local implementation, no host installation or publication.
+
+**Outcome:** One principal agent owns system design and strategic architecture, with conditional
+depth and preserved builder ownership, document authority, and host controls.
+
+**Source:** [Design-agent merger](decisions/2026-09-07-design-agent-merge.md).
+
+**Prerequisites:** Regenerated adapters, current inventories, offline validation, and independent
+review of the surviving authority and routing contracts.
+
+**Constraints:** Keep principal's name; preserve the rejected branch and unrelated work. Do not
+treat source-following exercises as native routing or enforcement evidence.
+
+**Acceptance:** Offline checks pass; system/strategic/consult outcomes preserve the decision
+contract; paired ladder and proportionality routing and the native hook probe have fresh evidence
+with any failures or inconclusive criteria explicitly dispositioned before publication.
+
+**Next action:** Restore Claude authentication, capture the untouched main baseline and final
+candidate under the decision's identical routing conditions, and run the native hook probe.
+
 #### LABFLOW-001 — simplify the homelab operating path
 
 **Status:** `active` — the operator selected main-review items 1, 2, 3, 5, and 6 on 2026-09-07;

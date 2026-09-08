@@ -699,34 +699,6 @@ def adapt_agent_contract(text: str, *, name: str, host: str) -> str:
             flags=re.DOTALL,
         )
 
-    if name == "distinguished-architect":
-        if host == "copilot":
-            inspection = (
-                "This profile has no execute tool; use read/search for inspection and name "
-                "evidence the host cannot expose."
-            )
-        else:
-            inspection = (
-                "Codex still exposes shell execution inside the workspace sandbox, but this role "
-                "must not run builds, tests, or scripts; use read/search for inspection and name "
-                "evidence the host cannot expose."
-            )
-        replacement = (
-            "Your edit authority covers exactly those document classes in the repository's "
-            "documentation home — never source files, configs, tests, or scripts. "
-            f"{inspection} The document-only edit boundary remains cooperative, so when an "
-            "engagement pushes you toward writing code, hand it down the ladder instead."
-        )
-        text = re.sub(
-            r"Your Write grant covers exactly those document classes,.*?"
-            r"The Write mandate stays cooperative — no tool boundary distinguishes a doc from "
-            r"code — so when an engagement pushes you toward writing code, hand it down the "
-            r"ladder instead\.",
-            replacement,
-            text,
-            flags=re.DOTALL,
-        )
-
     if name == "prompt-engineer":
         text = text.replace(
             "**Tools are authority.** When authoring agents, scope the tool list to the mandate "

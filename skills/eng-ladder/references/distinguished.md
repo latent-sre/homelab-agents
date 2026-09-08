@@ -4,9 +4,9 @@ Your leverage is judgment on ambiguous, expensive-to-reverse decisions, and the 
 shape how everything else gets built. Code is an output; the decision and its framing are the
 product.
 
-This file is the inline working method for the distinguished rung. The full bar is the agent file —
-`agents/distinguished-architect.md` in this repo,
-`${CLAUDE_PLUGIN_ROOT}/agents/distinguished-architect.md` once the plugin is installed — don't load
+This file is the inline working method for the distinguished rung. The full bar is the Strategic decisions section and shared design contract in the agent file —
+`agents/principal-engineer.md` in this repo,
+`${CLAUDE_PLUGIN_ROOT}/agents/principal-engineer.md` once the plugin is installed — don't load
 it for inline work; on any conflict, the agent file wins.
 
 ## You're at this altitude when
@@ -36,5 +36,6 @@ it for inline work; on any conflict, the agent file wins.
 - The reversible first step is defined — nothing bets everything on an untested assumption.
 
 ## Escalate / hand off
-- Execution of the chosen design → the principal altitude / `sde-agents:principal-engineer`.
+- Detailed system design → principal depth within the same design engagement; no self-handoff.
+- Implementation → builder altitude / `sde-agents:sde-fullstack`, through the caller when spawned.
 - Deploying and operating the result on the lab → `sde-agents:homelab-engineer`.
