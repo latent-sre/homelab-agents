@@ -10,20 +10,38 @@ argument-hint: "[what to create or fix]"
 > Resolve them from the installed plugin using the host's agent or skill picker; do not add
 > Claude's plugin namespace.
 
-For quick jobs, apply this method inline. For anything needing iterative testing or a full agent/skill suite, spawn the `prompt-engineer` agent with the target file, the observed failure, and the success criteria.
+For quick jobs, apply this method inline. For iterative testing or a full agent/skill suite,
+spawn `prompt-engineer` with the target file, task mode, success criteria, and the
+applicable requirements, established defect, or tuning hypothesis plus available baseline evidence.
 
 ## Method
 
 Capturing a live workflow ("turn what we just did into a skill")? Extract the method from the conversation first — tools used, step order, corrections made — and confirm the gaps before drafting.
 
 1. **Success criteria first.** Define what a correct output looks like, measurably, before touching the prompt.
-2. **Baseline.** Reproduce the failure with the current prompt. No edit without an observed failure to pin it to.
-3. **Minimal change.** Fix the observed failure; don't rewrite everything you'd have phrased differently.
-4. **Retest fresh.** Spawn a clean-context subagent with a realistic task; check it triggers and complies. Multiple reps — variance is a metric. **If the repo ships an eval harness, run it instead of eyeballing** — in this fleet that is `scripts/eval_routing.py` for a description change (run the overlapping cluster before *and* after and diff the rates; a near-miss that starts firing is a defect at any rate). Measuring after only tells you the current number; the diff is the finding.
+2. **Match the evidence to the task.** A new draft starts from requirements and representative
+   inputs; no previous failure is required. A repair starts from observed behavior or a verified
+   source contradiction: check loaded instructions, context, tool errors and runtime limits
+   before blaming prose. Measured tuning starts from a captured configuration and metric.
+3. **Make the smallest useful change.** Draft the required behavior, fix the established defect,
+   or test one tuning hypothesis; preserve unrelated working instructions.
+4. **Check the result at the appropriate depth.** Exercise a draft on a representative input;
+   retest a repair's failure and a nearby valid case. Use fresh context when prior instructions
+   could contaminate the result. Report checks actually performed; an unexecuted draft is
+   "written but not behavior-tested." Measured tuning uses paired cases and repeated fresh runs
+   under matching conditions, through `prompt-engineer` when that loop is needed.
+   Description edits still owe the overlapping `scripts/eval_routing.py` cluster before and after;
+   use its firing rates for routing, not as proof of output quality. A new near-miss firing is a
+   defect at any rate. Existing equivalent evidence may be reused under the repository's rules.
 
-## The two rules that fix most agent/skill failures
+## Two prompt-shaping rules
 
-**1. Description = trigger, not workflow.** The frontmatter description states only *when* to use the thing — the words a user would actually say. Never summarize the internal process: agents given a workflow summary execute the summary and skip the body. Diagnosis: "never triggers" → description doesn't match real user phrasing; "fires too often" → description is topic-shaped ("helps with documents") instead of action-shaped ("extracts form fields from PDFs").
+**1. Description = trigger, not workflow.** State when to use the component in words a user would
+say; keep its procedure in the body. A workflow-heavy description can encourage acting on the
+summary without loading that body. For routing failures, first confirm registration, visibility,
+and actual invocation. Then test
+whether user phrasing mismatches the description or a topic-shaped description ("helps with
+documents") over-fires compared with an action-shaped one ("extracts form fields from PDFs").
 
 **2. Match the form to the failure.**
 
@@ -38,20 +56,20 @@ Prohibitions backfire on shaping problems; recipes leave nothing to negotiate. A
 
 ## When a new model generation lands
 
-Try **removing instructions first** — each generation needs less scaffolding (Anthropic cut over
-80% of Claude Code's system prompt for the Claude 5 models with no measured loss). Audit absolute
-bans into contextual judgment ("never write multi-paragraph docstrings" → "match the surrounding
-code's comment density") — but **only stylistic and workflow bans**. Security, privacy, permission,
+Treat simplification as an experiment on the new model, not an automatic consequence of upgrading.
+Capture representative outcomes, try removing redundant stylistic or workflow instructions, and
+compare under matched conditions. Keep a change only when it preserves the required behavior.
+Security, privacy, permission,
 and destructive-action invariants stay absolute through every generation: no secrets in prompts,
 untrusted content never selects a tool or widens a permission, no irreversible action without
 authorization (`references/agent-security.md` owns that list). The pressure-discipline row above
 stays absolute for the same reason. And when trimming a body, keep the gotchas — hard-won failure
 points are the highest-signal content a definition carries; generic workflow prose is what goes.
 
-One recorded conflict (stamped 2026-07): the official skill-authoring doc still recommends worked
-input/output examples, while the Claude 5-era context-engineering guidance reports examples can
-constrain exploration. The fleet keeps its compressed worked examples — re-decide when the docs
-page moves.
+Keep compact canonical examples that demonstrate required behavior. Test adding, changing, or
+removing examples against distinct task cases; do not infer a universal rule from one model or
+benchmark. [Anthropic's context guidance](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
+recommends representative examples and a minimal sufficient context.
 
 ## Load the reference for what you're working on
 

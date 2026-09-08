@@ -49,10 +49,12 @@ than the risk it removes. Say which, rather than drifting.
 
 ## Tool sprawl
 
-Every tool definition sits in context on every turn. Past roughly a dozen, selection accuracy drops
-and the schemas themselves become the dominant cost. When a surface grows past that: group related
-operations behind one tool with an enum action, load tool sets by task type rather than all at once,
-or split the work across agents that each carry a coherent subset.
+Tool definitions consume context when the host exposes them; deferred discovery can change what
+is loaded. There is no fleet-wide tool count at which selection must fail or schemas dominate cost.
+Measure the actual loaded schema size, selection errors, and task outcomes before changing the
+surface. A larger well-separated set may work better than a smaller ambiguous one.
 
-Measure it rather than guessing: if the model picks the wrong tool, the fix is usually a sharper
-description or a merged pair, not another tool.
+If traces show overlap, test sharper descriptions or consolidation of equivalent operations. If
+unused schemas dominate context, test task-scoped discovery. Split roles only for a demonstrated
+context or authority need; an enum merger must not widen permissions. Compare the same tasks and
+failure paths before calling any option an improvement.

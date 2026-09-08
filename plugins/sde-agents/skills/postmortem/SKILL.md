@@ -23,8 +23,11 @@ holds with one operator exactly as it does with forty.
 
 Two boundaries before writing:
 
-- **Diagnosis is not this skill's job.** If the root cause is still unknown, run
-  `root-cause` first and cite its result — a postmortem over a guess documents the guess.
+- **Separate the record from the investigation.** Cite established diagnosis. If cause remains
+  unknown, write the factual recovery record now: label hypotheses, missing evidence, and the
+  owner and trigger for further investigation through `root-cause`. Do not invent a
+  cause or restart an exhausted investigation merely to fill the template. A final factual
+  write-up may retain an unresolved cause and open follow-up actions.
 - **The incident must be over.** Mid-outage, mitigation outranks documentation; capture timestamps
   as they happen if you can, write prose only after recovery.
 
@@ -39,9 +42,10 @@ for:
 - **Timeline** — first bad signal → detected → mitigated → resolved, timestamped from evidence,
   each row citing its source. Name the detection source: a *person* noticing is a detection gap,
   and the gap is a finding.
-- **Trigger vs root cause** — the event that set it off vs the condition that made it possible
-  (the reboot vs the service that was never enabled to start on boot). Fixing the trigger is not
-  fixing the cause; a postmortem that stops at the trigger schedules the sequel.
+- **Trigger vs root cause** — distinguish the observed event from the condition that made the
+  failure possible. Label each as established, hypothesized, or unknown with supporting evidence.
+  Recovery does not prove cause removal. For an unresolved cause, record competing hypotheses,
+  evidence needed to distinguish them, an investigation owner, and a concrete reopen trigger.
 - **What went well / what went poorly** — two honest lists, one line each. "The backup restored
   cleanly" is as load-bearing as any failure.
 - **Where we got lucky** — luck is a preventative action item waiting to be written. If the outage
@@ -49,9 +53,11 @@ for:
   "happened to".
 - **Actions** — split **mitigative** (shrinks the next occurrence: faster detection, smaller blast
   radius, a rehearsed recovery) from **preventative** (stops the recurrence: the config fix, the
-  guardrail). Every action names the **artifact** it becomes — a runbook line, an alert, a drill,
+  guardrail), with **investigative** actions for unresolved questions. Do not claim that a
+  hypothesis-driven action prevents recurrence. Every action names the **artifact** it becomes — a runbook line, an alert, a drill,
   a validator rule — and a **proof-of-done** check. An action with no artifact will not happen.
-- **Runbook updated** — which runbook gained the symptom → cause → fix line, or "n/a — why". Last
+- **Runbook updated** — which runbook gained a supported symptom/cause/fix or factual recovery
+  note, with unresolved cause explicit, or "n/a — why". Last
   slot in the template because it is the one that most often goes unwritten; see Feed it forward.
 
 Label load-bearing claims `[verified]`, `[sourced]`, or `[unverified]` per the fleet evidence
@@ -61,9 +67,11 @@ convention — a timeline entry you reconstructed rather than read is `[unverifi
 
 A postmortem that ends as a document changed nothing. Before closing out:
 
-- The distilled **symptom → likely cause → fix** line lands in the affected service's runbook under
-  Common failures, and any command the incident proved wrong gets corrected there now
-  (`runbook`). The postmortem is not done while its cheapest action is unwritten.
+- Carry established **symptom → cause → fix** knowledge into the affected runbook under the
+  `runbook` admission and write-authority rules. If cause is unknown, preserve the
+  observed symptom, verified recovery (or that recovery was spontaneous), evidence gaps, and
+  investigation owner without turning a hypothesis into a runnable fix. Correct commands proved
+  wrong when authorized; otherwise hand the evidence and destination to the runbook's owner.
 - Systemic findings (unmonitored service, undrilled restore, single point of failure) become checks
   for the next `lab-audit` sweep.
 - If a contributing cause was **fleet behavior** — a stale runbook trusted, an apply without its

@@ -104,24 +104,26 @@ Answer first, evidence under it. Never make the caller read the search to find t
 
 Label every load-bearing claim: **[verified]** (you ran or observed it), **[sourced]** (cited to file:line, URL, or query), or **[unverified]** (assumption or couldn't check). Never let an [unverified] claim read as fact — in research, the [unverified] lines are the most important ones on the page, because they are where a decision would rest on nothing.
 
-### Worked example (the shape, compressed)
+### Worked example (version-pinned; caller evidence is illustrative)
 
-> **Answer**: `httpx` is actively maintained and supports HTTP/2, but its 0.28 release changed the
-> default timeout behavior in a way that affects our retry wrapper. Upgrading needs one call-site
-> change, not a rewrite.
+> **Question**: Does upgrading HTTPX from 0.27.2 to 0.28.0 make an explicit `timeout=None`
+> start disabling timeouts? A hypothetical caller packet says its wrapper passes that value.
+>
+> **Answer**: No. Explicit `None` already disables timeouts in 0.27.2; this is not a new
+> timeout semantic introduced by that upgrade. Omitting the request argument uses the client's
+> configured default, which may itself disable timeouts.
 >
 > **Findings**
-> - Latest release 0.28.1, published within the last two months [sourced: PyPI release page].
-> - HTTP/2 requires the `http2` extra; it is not on by default [sourced: docs, "HTTP/2" page].
-> - 0.28 made `timeout=None` mean "no timeout" rather than "use the default" [sourced: CHANGELOG
->   0.28.0, "Breaking changes"]. A separate local evidence packet says the caller's wrapper passes
->   that value explicitly [sourced: caller packet `repo-httpx-17`, revision and file:line bound], so
->   the upgrade review needs that local call site checked by its owner.
-> - No open advisories for 0.28.x [sourced: GitHub advisory database query].
+> - The distinction between an omitted argument and explicit `None` is documented in
+>   [0.27.2 source](https://github.com/encode/httpx/blob/0.27.2/httpx/_client.py#L68-L85)
+>   and retained in [0.28.0 source](https://github.com/encode/httpx/blob/0.28.0/httpx/_client.py)
+>   [sourced].
+> - The wrapper's reported call belongs to the caller's local evidence packet, not this public
+>   research. Its owner must check the exact revision and intended timeout behavior before
+>   deciding whether the wrapper needs a change [unverified here].
 >
-> **Conflicts and gaps**: two tutorials still describe the pre-0.28 timeout semantics [sourced]; the
-> changelog is authoritative and they are stale. I could not establish whether our proxy supports
-> HTTP/2 [unverified] — that determines whether the extra buys anything.
+> **Conflicts and gaps**: a tutorial claiming that `None` selects the default conflicts with
+> the tagged implementation. Compare its version and example before describing it as stale.
+> The wrapper's intended policy and runtime behavior remain unverified.
 >
-> **What I did not check**: performance under our actual concurrency, and the `anyio` version
-> interaction.
+> **What I did not check**: other upgrade changes, current advisories, or the caller's code.

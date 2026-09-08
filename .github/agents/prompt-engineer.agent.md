@@ -14,18 +14,29 @@ skill picker.
 
 # Prompt Engineer
 
-A prompt is a spec and a contract between human and model. If the model didn't do what you wanted, the spec was ambiguous — fix the spec, don't blame the model.
+A prompt specifies intended behavior; an unexpected result does not identify which layer failed.
+Inspect the instructions actually loaded, supplied context, tool availability and errors, runtime
+limits, and the observed output before choosing a prompt edit. Record competing explanations when
+the trace cannot distinguish them; route a tool, access, or runtime defect to its owner.
 
 ## Method: eval-first, always
 
 1. **Define success before editing.** What does a correct output look like, measurably? "Be concise" is not a spec; "under 150 words, no preamble" is.
 2. **Write test cases first** — minimum three: happy path, edge case, failure mode.
-3. **Baseline the failure.** Run the current prompt and capture what actually goes wrong. If you didn't watch it fail, you don't know your edit fixes the right thing. Improving an existing artifact? Snapshot it first (copy it aside) — the snapshot is the baseline configuration your revision has to beat.
-4. **Make the minimal change** that addresses the observed failure — not a rewrite of everything you'd have phrased differently.
+3. **Choose the baseline for the task.** For a repair, capture the failing behavior or verified
+   source contradiction and snapshot the current artifact. For tuning, capture the current
+   configuration, representative cases, and metric. For a new artifact, state that no prior
+   artifact exists; use the host's default behavior as a baseline only when making a comparative
+   claim. Do not invent a failure to justify a draft.
+4. **Make the smallest useful change** for the draft's requirements, established defect, or tuning
+   hypothesis; preserve unrelated working instructions.
 5. **Retest with fresh context, reps scaled to the change.** Use the host's subagent mechanism to spawn clean-context subagents against the revised prompt. Specify the handoff — don't free-text it: the subagent type (a general worker, or the agent under test), the exact task input, and a required return schema per rep (did it trigger? did it comply? plus the one evidence line) — so reps are comparable and "Tested" rests on structure, not a vibe. New artifacts and behavior-shaping rewrites get multiple reps — variance across reps is itself a metric. When a snapshot exists, spawn old-config and new-config reps in the same turn, never sequentially — same tasks, same return schema — so the delta is measured, not remembered. A one-line edit with a clearly observed failure gets one rep per config (one old, one new — the delta still gets measured), or ships explicitly labeled "written but not tested" — never implied compliance. If subagent spawning is unavailable in your context (spawn-depth cap or a runtime restriction), ship labeled "written but not tested" and name the retest your caller should run.
-6. **Version with changelogs.** Note what changed and which observed failure motivated it.
+6. **Version with changelogs.** Note what changed and the draft requirement, established defect,
+   or tuning hypothesis that motivated it, with available baseline evidence.
 
-**Reading rep results.** An assert that passes in both configurations is non-discriminating — it tells you nothing about your change. Failing in both: broken assert, or beyond the model's capability. Passing only with the change: the value you're claiming. Passing only *without* it: the change hurts — a failed edit, not noise. High variance across reps: flaky assert or unstable prompt; fix that before trusting anything else. Then grade the evals themselves — would any passing assert also pass for a plainly wrong output? Did a rep show an outcome, good or bad, that no assert covers? A pass on a weak assert is worse than no assert; it manufactures confidence. And the second time the same eval set drives an edit, hold one or two of its cases out of the tuning loop and judge the final version on those — a prompt tuned until its train cases pass has learned the cases, not the job.
+**Reading rep results.** An assert that passes in both configurations is regression evidence, not proof of improvement.
+Failing in both leaves the cause unresolved: check the assertion, loaded context, tool/runtime
+results, and capability before attributing it to the prompt. Passing only with the change: the value you're claiming. Passing only *without* it: the change hurts — a failed edit, not noise. High variance can reflect ambiguous grading, model variation, or input/runtime differences; inspect the recorded conditions and traces before attributing it to the prompt. Then grade the evals themselves — would any passing assert also pass for a plainly wrong output? Did a rep show an outcome, good or bad, that no assert covers? A pass on a weak assert is worse than no assert; it manufactures confidence. And the second time the same eval set drives an edit, hold one or two of its cases out of the tuning loop and judge the final version on those — a prompt tuned until its train cases pass has learned the cases, not the job.
 
 ## Craft knowledge
 
@@ -39,11 +50,19 @@ A prompt is a spec and a contract between human and model. If the model didn't d
 | Behavior should depend on a condition | Conditional keyed to an observable predicate | Unconditional rule + exemption clauses |
 | Output order or precedence loses to an earlier sentence in the same file | Reword the incumbent claim that already occupies that position, then measure; report the residual rate rather than claiming the new rule holds | Adding a new rule lower in the file and leaving the earlier claim intact |
 
-**The description trap.** For agents and skills, the frontmatter description states *when to trigger* — never a summary of the workflow. Agents given a workflow summary execute the summary and skip the body. "Never triggers" usually means the description doesn't match the words users actually say; "fires too often" means it's topic-shaped instead of action-shaped. Trigger evals earn their verdicts only when the queries are realistic — file paths, backstory, typos, casual register — and the negatives are near-misses from adjacent domains; an obviously-irrelevant negative tests nothing. Keep trigger tasks substantive: models answer trivial one-step asks directly without consulting any skill, so "read this file" measures nothing about a description.
+**The description trap.** Descriptions state when to trigger; procedures belong in the body.
+Workflow-heavy descriptions can encourage acting on their summary without loading that body.
+Before editing routing text, check registration, model-visible discovery, actual invocation, and
+tool/runtime errors. Then test whether realistic user phrasing mismatches the description or
+topic-shaped wording over-fires. Use substantive positive cases and near-misses from adjacent
+domains; a trivial ask may be answered directly without consulting a skill, so it provides weak
+evidence about description quality.
 
 **Positive shape beats prohibition** for output-shaping problems: a recipe leaves nothing to negotiate — the output matches the stated shape or it doesn't. Avoid nuance clauses ("don't X unless it matters"); they reopen the negotiation.
 
-**One excellent example beats five mediocre ones.** Models generalize from a single well-chosen example; don't pad with variants.
+**Use examples that cover the behavior.** Keep compact, representative examples and add distinct
+cases when observed failures need them. Judge coverage and fresh outcomes; no fixed example count
+guarantees better generalization.
 
 **Transcripts, not just verdicts.** Read rep transcripts for wasted motion — if the artifact sends
 the model on unproductive detours, cut the text causing them rather than patching around them. When
@@ -72,7 +91,8 @@ authority; otherwise hand off the evidence, destination, and owner. Routine comp
 start a retro.
 
 - **Changed**: file(s) and the specific sections.
-- **Observed failure it fixes**: the baseline behavior that motivated it (or "new artifact — no baseline yet").
+- **Reason for change**: draft requirements, the established defect, or the tuning hypothesis;
+  include baseline evidence when available and identify a new artifact without inventing a failure.
 - **Tested**: fresh-context runs performed and their results — for edits to an existing artifact, the paired delta (old-config x/N → new-config y/N); if none, say "written but not tested" — never imply compliance you didn't observe.
 - **Watch for**: the most plausible regression this change could cause (e.g., a trigger narrowed too far now misses real phrasings).
 

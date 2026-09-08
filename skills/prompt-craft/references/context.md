@@ -3,9 +3,9 @@
 Read when an agent's problem is what it knows, when to load it, or that long runs degrade. The
 universal method lives in `skills/prompt-craft/SKILL.md`. On any conflict, SKILL.md wins.
 
-Context is the scarce resource, and quality degrades as it fills — earlier instructions get
-"forgotten", mistakes increase. Most agent failures that look like reasoning failures are context
-failures.
+Context can be a limiting resource, but an error alone does not establish context exhaustion.
+Inspect the actual inputs, loaded instructions, tool results, and runtime conditions. Treat missing,
+stale, conflicting, or excessive context as hypotheses alongside tool and task-capability failures.
 
 ## Just-in-time beats up-front
 
@@ -47,11 +47,10 @@ constraints at every hop; a schema (or a required slot list) survives.
   must survive: the plan, decisions and their reasons, counts and caps, file paths in flight.
 - **Compact at a boundary, never mid-debug.** A summary taken halfway through an investigation keeps
   the conclusions and loses the evidence, which is exactly backwards.
-- **Rewind beats correcting.** Two failed corrections on the same point means the context now holds
-  the failed approaches, and every further attempt is reasoning against that noise. Start clean with
-  a better prompt that incorporates what you learned. A fresh context with a good prompt reliably
-  beats a long one full of corrections — this is also why a fresh-context reviewer catches more than
-  self-critique in the same context.
+- **Repeated failed corrections need diagnosis.** Check whether the cause is contradictory
+  history, missing evidence, a tool/runtime failure, or an incorrect hypothesis. When accumulated
+  context is implicated, try a fresh context carrying the goal, constraints, findings, and remaining
+  uncertainty. Compare outcomes; restarting alone does not establish or repair the cause.
 - **Isolate exploration.** Reading twenty files to answer one question should happen in a subagent
   whose context you can throw away; the parent keeps the answer, not the twenty files.
 - **A new task gets a new session.** Compaction manages a long run; it does not make a finished
@@ -65,12 +64,15 @@ decisions belong in the repository. A context window is working memory; the repo
 unattended loop that keeps its state in files can be restarted at any point, and one that keeps it in
 context cannot be restarted at all.
 
-## Diagnosing a context problem
+## Diagnosing a possible context problem
 
-| Symptom | Likely cause |
-|---|---|
-| Ignores an instruction it followed earlier | Context filled; the instruction is far back and diluted. Move it into the output contract, or shorten the run. |
-| Re-reads the same file repeatedly | No durable notes; it is rediscovering. Write findings to a file. |
-| Confidently wrong about a fact that changed | A stale early read is still in context. Re-read explicitly, or rewind. |
-| Worker does a subtly different job | The handoff prompt, not the worker's definition. |
-| Degrades only in long sessions | Compaction dropped something load-bearing. Move it to a file. |
+| Symptom | Discriminating check | Act on the evidence |
+|---|---|---|
+| Ignores an instruction it followed earlier | Was the instruction loaded, contradicted, truncated, or superseded? Did a tool or permission fail? | Repair the identified loading/conflict/tool issue; shorten context only if implicated. |
+| Re-reads a file repeatedly | Did the file change, did the earlier read truncate, or are usable notes absent? | Refresh changed or incomplete evidence; persist a concise finding when repeated discovery is the cause. |
+| Confidently wrong about a changed fact | Compare the supplied source/version and any retrieval cache with current authority. | Refresh the stale source or correct interpretation; don't assume a context reset is needed. |
+| Worker does a different job | Compare the handoff, worker definition, effective tools, and inputs actually received. | Fix the mismatched contract or missing input at its owner. |
+| Errors appear late in a session | Compare preserved constraints and earlier traces; check tool expiry, truncation, changing state, and task difficulty. | Restore a missing fact or resolve the external failure; test compaction or a fresh handoff when context is the supported cause. |
+
+A symptom chooses the next observation, not the diagnosis. A successful short-session comparison
+is evidence for that comparison's conditions, not a universal context-length rule.
