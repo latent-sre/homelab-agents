@@ -60,8 +60,16 @@ treat source-following exercises as native routing or enforcement evidence.
 contract; paired ladder and proportionality routing and the native hook probe have fresh evidence
 with any failures or inconclusive criteria explicitly dispositioned before publication.
 
-**Next action:** Restore Claude authentication, capture the untouched main baseline and final
-candidate under the decision's identical routing conditions, and run the native hook probe.
+**Evidence disposition:** The [2026-09-08 outcome trials](archive/2026-09/agent-outcomes-2026-09-08/README.md)
+passed both system and both strategic repetitions. Both embedded consults had a material partial:
+compromised deployment-access recovery in one, and CA-rollover validation order in the other.
+The source-following architecture aggregate does not pass; no source correction or native
+activation claim is implied by these observations.
+
+**Next action:** Resolve the two consult gaps and rerun the unchanged outcome cases. Verify Claude
+authentication, capture the untouched main baseline and final candidate under the decision's
+identical routing conditions, and run the native hook probe. Keep host synchronization and
+publication separate from this source-level evidence.
 
 #### LABFLOW-001 — simplify the homelab operating path
 

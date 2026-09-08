@@ -1,0 +1,61 @@
+{
+  "frozen_utc": "2026-09-08T05:45:37.3326736Z",
+  "source_sha256": "e6f5ae1d78170340ae8dc36458f6976ac135e8366975f8ac43a356be94014b6f",
+  "rubric_sha256": "b2f54ace2c93a9d09c3fef8d46ce6b0b6329782e72e4a0677e11f962dd5282ad",
+  "runs": [
+    {
+      "run": "system-design-r1",
+      "task_sha256": "fa42eee40cfd3dfbd638cd124e25be5fcbba6b0b43fb60ef32df4a79bac59e01",
+      "actor_id": "/root/architecture_outcomes/system_r1",
+      "started_utc": "2026-09-08T05:46:38.4382287Z",
+      "completed_utc": "2026-09-08T05:52:43.3489546Z",
+      "status": "graded",
+      "answer_sha256": "8537935ffc82e219dd7c9a366d4f0a76e1ed86c75364b90a8d7e11811909424a"
+    },
+    {
+      "run": "system-design-r2",
+      "task_sha256": "fa42eee40cfd3dfbd638cd124e25be5fcbba6b0b43fb60ef32df4a79bac59e01",
+      "actor_id": "/root/architecture_outcomes/system_r2",
+      "started_utc": "2026-09-08T05:46:38.4411114Z",
+      "completed_utc": "2026-09-08T05:53:52.1732978Z",
+      "status": "graded",
+      "answer_sha256": "68b71309c43d028b56e6aaeb5baf5f68a7385b976b7318dfb06c9ef92df2cf8e"
+    },
+    {
+      "run": "strategic-direction-r1",
+      "task_sha256": "d8e4b3c1055df20b3aaa1112a349b0bc7c4d55fa2b2240bc9d01b8ad42e478e2",
+      "actor_id": "/root/architecture_outcomes/strategic_r1",
+      "started_utc": "2026-09-08T05:52:43.3636065Z",
+      "completed_utc": "2026-09-08T05:57:32.1674469Z",
+      "status": "graded",
+      "answer_sha256": "d01bf507f76ff9664fe209f1fa4f5ea11af316daacc379e0aede1c2f8599a5f8"
+    },
+    {
+      "run": "strategic-direction-r2",
+      "task_sha256": "d8e4b3c1055df20b3aaa1112a349b0bc7c4d55fa2b2240bc9d01b8ad42e478e2",
+      "actor_id": "/root/architecture_outcomes/strategic_r2",
+      "started_utc": "2026-09-08T05:57:32.1795555Z",
+      "completed_utc": "2026-09-08T06:01:52.1313283Z",
+      "status": "graded",
+      "answer_sha256": "c4cc3347f6959e9791688a7dcc6183df16b87aba121592f3169851af437c87da"
+    },
+    {
+      "run": "embedded-consult-r1",
+      "task_sha256": "115c57dc54f033d9ab5ed03dda43f3ce2d5156762c9e47aa7afdbadbe90203b5",
+      "actor_id": "/root/architecture_outcomes/consult_r1",
+      "started_utc": "2026-09-08T06:01:52.1457558Z",
+      "completed_utc": "2026-09-08T06:05:34.8654054Z",
+      "status": "graded",
+      "answer_sha256": "5663c64358fbcce8b5f9efc1f1a853616537d8a5964998c4e3cbe15d5e0690be"
+    },
+    {
+      "run": "embedded-consult-r2",
+      "task_sha256": "115c57dc54f033d9ab5ed03dda43f3ce2d5156762c9e47aa7afdbadbe90203b5",
+      "actor_id": "/root/architecture_outcomes/consult_r2",
+      "started_utc": "2026-09-08T06:05:34.8778215Z",
+      "completed_utc": "2026-09-08T06:07:57.5409932Z",
+      "status": "graded",
+      "answer_sha256": "a97e2e1de95ebf3bdf6a27a5f06c26be6dfc9220c0effdf4b1a656268b1b30ed"
+    }
+  ]
+}

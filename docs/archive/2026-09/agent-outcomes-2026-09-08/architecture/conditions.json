@@ -1,0 +1,23 @@
+{
+  "kind": "final-source capability outcome trials",
+  "source_revision": "81fc08572b3eab529fb0b9f741c3f88330aab230",
+  "source_path": "C:\\Users\\hawkins\\agent-outcomes-2026-09-08\\definitions\\principal-engineer.md",
+  "source_sha256": "e6f5ae1d78170340ae8dc36458f6976ac135e8366975f8ac43a356be94014b6f",
+  "source_git_blob": "dbc87316274319ccea749578836dd5fc4c6bf17f",
+  "actor_type": "default",
+  "fork_turns": "none",
+  "requested_model_override": null,
+  "observed_model": "unknown: runtime has not supplied a model identity",
+  "reasoning_override": null,
+  "actor_repetitions_per_case": 2,
+  "maximum_concurrent_actors": 2,
+  "rubric_frozen_before_actor_launch": true,
+  "runtime": "Codex collaboration.spawn_agent; generic host instructions may remain ambient",
+  "clean_context_boundary": "No parent-turn fork; no memory, repository, other answers, rubric or grading results permitted",
+  "transport": "One bootstrap shell read limited to the exact source and case files; answer written using apply_patch in own isolated non-git directory. No shell use after bootstrap, no implementation or external research.",
+  "permissions": "Inherited full filesystem access; narrow read/write/tool boundary is cooperative, not a sandbox",
+  "explicit_token_or_time_budget": null,
+  "sampling_seed": "not exposed",
+  "grader": "/root/architecture_outcomes; rubric authored before runs; decision-level manual grading with exact quotes",
+  "claims_excluded": ["pre/post improvement", "native routing", "activation", "installed/generated artifact behavior", "live implementation correctness", "broad reliability"]
+}

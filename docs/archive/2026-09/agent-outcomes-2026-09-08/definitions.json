@@ -1,0 +1,14 @@
+[
+  {
+    "path": "agents/principal-engineer.md",
+    "revision": "81fc08572b3eab529fb0b9f741c3f88330aab230",
+    "sha256": "e6f5ae1d78170340ae8dc36458f6976ac135e8366975f8ac43a356be94014b6f",
+    "git_blob": "dbc87316274319ccea749578836dd5fc4c6bf17f"
+  },
+  {
+    "path": "agents/verification-engineer.md",
+    "revision": "81fc08572b3eab529fb0b9f741c3f88330aab230",
+    "sha256": "069300f75be5d74bca89c0bc0fcc8682a932801a970e3c92b0c2cb577c237ee0",
+    "git_blob": "b2f1a86436e47afbfd943ffee623e7286e489e93"
+  }
+]
