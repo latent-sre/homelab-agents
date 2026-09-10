@@ -8,7 +8,7 @@ adjudication. This record's distinct contributions were absorbed rather than dis
 (roadmap GRAPH-004, trigger-bound), the by-construction ledger/checkpoint argument, and the
 generated-prompt provenance control (both folded into the accepted record). Every local claim
 verified during adjudication held exactly; verification evidence in the
-`adjudication record` (retired to Git history). This record
+[`adjudication record`](../archive/2026-08/graph-003-adjudication-2026-08-01.md). This record
 carries no implementation authority; its absorbed items are governed by the accepted record and
 the roadmap
 **Date:** 2026-08-01

@@ -6,7 +6,7 @@ by an independent cross-model review
 **Date:** 2026-07-31
 **Evidence snapshot:** `c02d8e12cb2c3d086890b884942908d18bcdbd17`
 **Review evidence:**
-`graph decision independent review` (retired to Git history)
+[`graph decision independent review`](../archive/2026-07/graph-decision-independent-review-2026-07-31.md)
 
 Git history retains the initial same-day proposal at `b950e43`. This revision keeps every claim of
 that proposal that independent verification confirmed, adds the Claude 5-generation counterevidence

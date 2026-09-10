@@ -222,6 +222,6 @@ That selection supersedes CTX-005's earlier contract-preserving diet, including 
 on mixing policy changes into that experiment. CTX-005 closes as **superseded**, not accepted:
 its failed candidate remains historical no-go evidence, and its missing acceptance evidence is
 not converted into a pass. LABFLOW-001 owns the newly authorized scope and its explicit verification
-limits. The original outcome (retired to Git history) and
+limits. The [original outcome](../archive/2026-08/gate-006-outcome-2026-08-30.md) and
 [CTX-005 history](../archive/2026-09/roadmap-history-2026-09-01.md#ctx-005-shrink-homelab-engineers-always-loaded-body)
 retain the failed results. No old candidate or capture was reused as the new implementation.
