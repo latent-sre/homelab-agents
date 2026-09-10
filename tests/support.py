@@ -264,14 +264,6 @@ def run_main(main: Callable[[list[str]], int], *argv: str) -> tuple[int, str]:
     return code, out.getvalue()
 
 
-def git(root: Path, *args: str, date: str | None = None) -> None:
-    """Run git against a test repo. `date` pins both author and committer dates.
-
-    Both dates are pinned so history display and deliberately backdated graph fixtures stay
-    deterministic across machines and over time.
-    """
-    env = dict(os.environ)
-    if date is not None:
-        env["GIT_AUTHOR_DATE"] = date
-        env["GIT_COMMITTER_DATE"] = date
-    subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, env=env)
+def git(root: Path, *args: str) -> None:
+    """Run git against a test repo, capturing output and failing on a nonzero exit."""
+    subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)

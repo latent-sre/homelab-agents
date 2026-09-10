@@ -251,7 +251,7 @@ def _skill_listing_budget_check(root: Path) -> Check:
                 ".claude-plugin/plugin.json 'name' is not a non-empty string: "
                 f"{plugin_name!r}"
             )
-        records = fleet_records.collect(root, plugin_name)
+        records = fleet_records.collect(root)
         unreadable = sorted(
             path.relative_to(root).as_posix()
             for path in records.unparseable

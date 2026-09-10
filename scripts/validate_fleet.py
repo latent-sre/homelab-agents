@@ -1321,10 +1321,9 @@ def validate_plugin(root: Path, agent_names: list[str], skill_names: list[str]) 
     if plugin_name:
         agents = set(agent_names)
         skills = set(skill_names)
-        # One shared extraction, consumed here and by the capability graph. Deduping per file to
+        # One shared extraction. Deduping per file to
         # (slash, target) keeps one message per distinct reference however many times a file
-        # repeats it; the records themselves stay per-occurrence so the graph can still cite a
-        # line.
+        # repeats it; the records retain each occurrence's source location.
         by_path: dict[Path, set[tuple[bool, str]]] = {}
         for record in fleet_records.collect_references(root, plugin_name):
             by_path.setdefault(record.path, set()).add((record.is_slash_command, record.target))

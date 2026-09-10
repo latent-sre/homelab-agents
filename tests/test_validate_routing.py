@@ -144,7 +144,9 @@ class RoutingClusterTests(unittest.TestCase):
             case = next(c for c in doc["cases"] if c["id"] == "pos-ci-actions-harden")
             case["expect_fires"].append("code-reviewer")
             path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
-            issues, _, _ = validate_fleet.validate_repo(dst, check_inventory=False)
+            issues, _, _ = validate_fleet.validate_repo(
+                dst, check_inventory=False, check_adapters=False
+            )
         self.assertTrue(
             any("pos-ci-actions-harden" in i and "outside the cluster's members" in i
                 for i in issues),

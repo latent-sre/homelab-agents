@@ -896,7 +896,7 @@ def run_once(prompt: str, plugin_dir: Path, timeout: int = 180, model: str | Non
         note = f"run failed: {exc}"
 
     if returncode is not None:
-        raise_for_auth_failure(stdout, returncode, stderr)
+        raise_for_auth_failure(stdout, stderr)
 
     stats = transcript_stats(stdout)
     tokens = ((stats["input_tokens"] or 0) + (stats["output_tokens"] or 0)) or None
@@ -965,11 +965,11 @@ def _load_clean_room():
     return _CLEAN_ROOM_MODULE
 
 
-def raise_for_auth_failure(transcript: str, returncode: int, stderr: str = "") -> None:
+def raise_for_auth_failure(transcript: str, stderr: str = "") -> None:
     """Translate the shared clean-room classifier into a runner-stable batch exception."""
     clean_room = _load_clean_room()
     try:
-        clean_room.raise_if_auth_failed(transcript, returncode, stderr)
+        clean_room.raise_if_auth_failed(transcript, stderr)
     except clean_room.AuthUnavailable as exc:
         raise EvalAuthUnavailable(str(exc)) from exc
 
