@@ -2,16 +2,17 @@
 
 This repository packages one fleet for Claude Code, Codex, and VS Code: `agents/` and `skills/` are
 the only authored source, loaded directly by Claude Code; the other hosts load generated adapters.
-Edit canonical files and regenerate — never a generated
-copy, never a fleet definition resolved under `~/.claude` (the shipped plugin does not live
-there). Every script under `scripts/` states its contract in its docstring — read it before
+Edit canonical files and regenerate — never a generated copy, never a fleet definition resolved
+under `~/.claude`: the plugin installed there is a cached copy that a reinstall replaces, and older
+versions linger beside it, so an edit made there changes neither this repository nor the next
+session. Every script under `scripts/` states its contract in its docstring — read it before
 touching or invoking one.
 
-Where this file paraphrases `README.md` or a script's docstring, the source wins — fix the
-paraphrase here, never the source. The validator pins the checkable facts (the `@AGENTS.md`
-bridge in `CLAUDE.md`, concrete multi-segment repo paths, the model-alias list) and fails them
-on drift. This file is written for the LLM session that loads it on every task: when editing
-it, lead each rule with its trigger and imperative, compress rationale to a clause or a
+Where this file paraphrases `README.md`, `docs/engineering-program.md`, or a script's docstring,
+the source wins — fix the paraphrase here, never the source. The validator pins the checkable facts
+(the `@AGENTS.md` bridge in `CLAUDE.md`, concrete multi-segment repo paths, the model-alias list)
+and fails them on drift. This file is written for the LLM session that loads it on every task: when
+editing it, lead each rule with its trigger and imperative, compress rationale to a clause or a
 citation, and keep incident narration in its archive or decision record — never here.
 
 ## The engineering program
@@ -49,14 +50,16 @@ red check is fixed if trivial, else recorded in `docs/fleet-roadmap.md`.
 
 - **T0 — edit loop** (seconds): `python3 scripts/validate_fleet.py` (byte-compares every
   generated adapter, so no separate `--check` run) + the owning test module
-  (`python3 -m unittest discover -s tests -p test_<area>.py`); regenerate via
-  `generate_platform_adapters.py --write` after canonical edits.
-- **T1 — before push/PR**: `python3 -m unittest discover -s tests` + `claude plugin validate . --strict`
-  (missing CLI defers to CI) + `python3 scripts/fleet_doctor.py`. CI reruns the first two,
-  never fleet_doctor (host drift stays invisible). Exit 1 failed, 2 not computed (a clean
-  report isn't evidence), 3 warnings. Repair via
-  `python3 scripts/install_codex_agents.py --user`; clear warnings before measuring (issue
-  #126).
+  (`python3 -m unittest discover -s tests -p test_<area>.py`). After **any** canonical agent or
+  skill edit, regenerate the host adapters with
+  `python3 scripts/generate_platform_adapters.py --write`; after adding, renaming, or removing a
+  component, also refresh the README inventory with
+  `python3 scripts/validate_fleet.py --write-inventory`.
+- **T1 — before push/PR**: `python3 -m unittest discover -s tests` +
+  `claude plugin validate . --strict` (missing CLI defers to CI) +
+  `python3 scripts/fleet_doctor.py`. CI reruns the first two, never fleet_doctor (host drift stays
+  invisible). Exit 1 failed, 2 not computed (a clean report isn't evidence), 3 warnings. Repair via
+  `python3 scripts/install_codex_agents.py --user`; clear warnings before measuring (issue #126).
 - **T2 — merge/weekly** (CI-owned, nothing to run locally): three-OS matrix on push to
   main, weekly, or dispatch — see the matrix comment in
   `.github/workflows/validate.yml`.
@@ -71,18 +74,6 @@ Static review converges or stops: at most two deep-review rounds for prose-behav
 sentences the prior fix introduced. Close with a behavioral instrument (a routing round
 or executed verification); a round past the cap needs an explicit operator ruling.
 
-After **any** canonical agent or skill edit, regenerate the host adapters:
-
-```bash
-python3 scripts/generate_platform_adapters.py --write
-```
-
-After adding, renaming, or removing a component, also refresh the README inventory:
-
-```bash
-python3 scripts/validate_fleet.py --write-inventory
-```
-
 ## Development loop
 
 Load the plugin from the working tree — `/plugin install` runs from a cached copy, which is the
@@ -96,7 +87,7 @@ The VS Code and Codex local loops are owned by `README.md`'s Install section.
 Standalone Codex agent sync — including the exact-match adoption contract — is owned by the
 `scripts/install_codex_agents.py` docstring.
 
-Three checks are manual and on demand, deliberately not CI gates (all drive real model sessions):
+Two checks are manual and on demand, deliberately not CI gates (both drive real model sessions):
 
 - `python3 scripts/probe_plugin.py` — proves the fleet *loads*, `${CLAUDE_PLUGIN_ROOT}` expands,
   the guard fires for the guarded agents and only them, and the live-effect gate denies the gated
@@ -107,8 +98,7 @@ Three checks are manual and on demand, deliberately not CI gates (all drive real
 - `python3 scripts/eval_routing.py evals/routing/<cluster>.json --runs 3` — routing evals, owed
   before **and** after any description edit (the description playbook owns the recipe). Read
   `evals/README.md` first — it owns the negative-case and narrowing semantics and the headless
-  caveat. The behavioral evaluator that once ran deterministic contract evals alongside it retired
-  2026-09-02.
+  caveat.
 
 ## Change playbooks
 
