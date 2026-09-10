@@ -6,7 +6,7 @@ verification-execution authority question (ROLE-003) was accepted later the same
 test-authoring verifier contract recorded below
 **Date:** 2026-07-28
 **Reviewed revision:** `be2af4c87a3ecd53286fbcda84863d507ee47ac4`
-**Compared design:** [`2026-07-27 roster expansion`](../archive/2026-07/roster-expansion-design.md)
+**Compared design:** `2026-07-27 roster expansion` (retired to Git history)
 **Implementation status:** Implemented in full — ROLE-001, ROLE-002, and LABSEC-001 landed
 2026-07-29 (PRs #37–#42), and ROLE-003's accepted contract with ROLE-004's
 `verification-engineer` landed the same day (PR #43). This record holds no open work; anything

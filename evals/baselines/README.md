@@ -53,11 +53,11 @@ capture must not retire yet, the raw stays until that condition is met.
 - **`2026-08-10-rel-173/conditions.md`** — cited by `evals/README.md` for the pre-correction `1.7.3`
   skill-inventory count. Unrelated to the 2026-09-02 closures.
 - **`2026-08-13-prop-001/README.md`** — already summary-only; unrelated to the 2026-09-02 closures.
-- **`2026-08-14-ladder/`** — kept whole (`benchmark.json` and `decisions.md`), named by exact
-  directory path in `docs/README.md`'s inventory row for
-  `archive/2026-08/ladder-001-outcome-2026-08-14.md` ("stored at
-  `evals/baselines/2026-08-14-ladder/`"). That citation is independent of LADDER-002, which closed
-  2026-09-02 (won't-do) and no longer pins this directory on its own account.
+- **`2026-08-14-ladder/`** — kept whole (`benchmark.json` and `decisions.md`) as the stored
+  LADDER-001 capture. Both former external pins are gone: `docs/README.md`'s inventory row naming
+  this exact directory path went with that record's retirement to Git history, and LADDER-002
+  closed 2026-09-02 (won't-do). The directory is retained on its own account as capture evidence —
+  delete it only against a fresh reading of what still cites it.
 - **`2026-08-18-ctx-002/`** — `before/`, `after/`, `after-repair/`, and `decisions.md` stay:
   `decisions.md`'s own retirement trigger requires **both** CTX-002 and LANE-001 closed before this
   raw retires, and LANE-001 is still `ready` on `docs/fleet-roadmap.md`. CTX-002 itself closed

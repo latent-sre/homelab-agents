@@ -10,7 +10,7 @@
   consolidation; [`2026-08-20-effect-transport-policy.md`](2026-08-20-effect-transport-policy.md)
   for what "managed gate" means on Claude Code
 - **Supersedes**: the `Effect class:` declaration field and the five-class list that GATE-001
-  landed (`../archive/2026-08/gate-001-outcome-2026-08-10.md`); the finding-effect classification
+  landed (`../archive/2026-08/gate-001-outcome-2026-08-10.md`, retired to Git history); the finding-effect classification
   survives in `agents/code-reviewer.md`
 - **Closes**: roadmap item GATE-006
 

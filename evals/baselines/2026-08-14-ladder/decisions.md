@@ -52,7 +52,7 @@ altitude question 3/3, the assess-at-a-bar phrasing 0/3 (also failing in the 202
 two-capture recurrence), and the embedded-consult-fork shape 0/3 (first measurement; the case
 postdates the old anchor). Two of the three modes the description advertises never draw the skill
 in headless capture. *(Routing updated 2026-08-14, same day: the follow-up investigation —
-`docs/archive/2026-08/ladder-002-investigation-2026-08-14.md` — superseded this note's original
+`docs/archive/2026-08/ladder-002-investigation-2026-08-14.md` (retired to Git history) — superseded this note's original
 "repair goes to the description" direction: the assess failure needs an inline-diff case repair,
 the consult calibration a behavioral-contract port, and a description rewrite is explicitly not
 indicated. LADDER-002 on the roadmap carries the current options. This capture is **not** the

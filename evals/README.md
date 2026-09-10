@@ -173,7 +173,7 @@ Each run is a fresh headless `claude -p … --plugin-dir .` session — a fresh 
 is **not** configuration isolation: the session still inherits everything under the user's
 `CLAUDE_CONFIG_DIR` (personal agents, skills, plugins, global CLAUDE.md), and a junction
 deployment makes the fleet register twice, bare and namespaced, in every run (measured in the
-[archived 2026-07-29 isolation outcome](../docs/archive/2026-07/verification-round-outcomes-2026-07-29.md)).
+archived 2026-07-29 isolation outcome (retired to Git history)).
 `--clean-room` relocates the configuration to a temporary
 directory holding only credentials (`scripts/eval_clean_room.py`) and is recorded in `conditions`
 — artifacts that differ on it measured different routing competitions and must not be diffed

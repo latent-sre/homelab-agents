@@ -185,7 +185,7 @@ supply the active-agent identity used for scoping. Preserve the host-specific to
 controls instead. Keep a non-Claude host away from the hooks **structurally** — no file at that
 host's own hook-config path, which is why `plugins/sde-agents/` has no `hooks/`. A manifest field
 naming an empty override does not do it
-(`docs/archive/2026-08/vscode-discovery-investigation-2026-08-18.md`).
+(`docs/superpowers/specs/2026-08-18-multi-host-plugin-architecture-design.md`).
 
 **Changing validator behavior** — add a fixture under `tests/fixtures/` that violates exactly the
 rule you are adding — or, for an invariant about this repo's real wiring, a mutation test in

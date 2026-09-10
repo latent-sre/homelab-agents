@@ -28,7 +28,7 @@ defined one continuation — stop and hand the command to the operator.
 
 The mandate was never argued on its own merits. `f4741c7` is a batch sweep landing nine controls at
 once; the broker is one clause in a six-item bullet. Its rationale lives in
-`docs/archive/2026-07/p0-p1-safety-controls-outcomes-2026-07-31.md:33` (SAFE-P1-005), and the same
+`docs/archive/2026-07/p0-p1-safety-controls-outcomes-2026-07-31.md:33` (SAFE-P1-005, retired to Git history), and the same
 document records two limits that decide this question:
 
 - `:134` — "No live home-lab effect was brokered. Broker tests use temporary helper executables,

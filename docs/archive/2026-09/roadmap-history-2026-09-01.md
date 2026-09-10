@@ -114,7 +114,7 @@ with no measurement behind it is a hypothesis, not a result.
 the three ORACLE small items this round closed (005, 006, 007 — their roadmap lines are deleted,
 as a closed small item's are), the ten graded-pattern and four `packet_lint` repairs, and their
 paired mutation-proof tests:
-[`learn-002-offline-repairs-2026-08-17`](../2026-08/learn-002-offline-repairs-2026-08-17.md).
+`learn-002-offline-repairs-2026-08-17` (retired to Git history).
 Two consequences a later session must not miss: **the 2026-08-15 rates are no longer the before
 side for anything here** (evaluator bytes moved; the next batch is a fresh baseline), and
 **several cases now measure something different** because item 6 made `allowed_tools: []` actually
@@ -185,7 +185,7 @@ drift), and two contracts improved between 2026-08-10 and this round on drift al
 **Rides this item (PROP-002 deferrals, 2026-08-13).** Three proportionality trims sit in files
 this item already pays to re-measure, so they ride its runs instead of buying their own — full
 list, file paths, and rationale in
-[`prop-002-scan-findings-2026-08-13.md`](../2026-08/prop-002-scan-findings-2026-08-13.md).
+`prop-002-scan-findings-2026-08-13.md` (retired to Git history).
 Optional to this item's acceptance, but must not be made *without* its measurement, and
 **closing this item owes each ride-along a disposition** (worked, re-homed to a named live item,
 or dropped with reason) — a silent close would strand them in archive evidence outside this
@@ -222,11 +222,11 @@ or has a grammar/text repair with a recorded rationale — the first-contact sin
 `evals/baselines/history/2026-08-10-learn-002.md` are diagnostic only and do not close this
 half. Closing the original seven without settling these six is not closing LEARN-002.
 
-**Source:** [`LEARN-001 outcome record`](../2026-08/learn-001-outcome-2026-08-02.md);
+**Source:** `LEARN-001 outcome record` (retired to Git history);
 live rates in `evals/baselines/2026-08-01-self-improve/final-live/`; the six contracts' first
 contact and ownership handoff in the
-[LOOP-001](../2026-08/loop-001-outcome-2026-08-10.md) and
-[REV-001](../2026-08/rev-001-outcome-2026-08-10.md) outcome records.
+LOOP-001 (retired to Git history) and
+REV-001 (retired to Git history) outcome records.
 
 **Prerequisites:** None — the behavioral harness and pinned conditions are ready. Description
 edits, if any emerge, owe the overlapping routing cluster before/after per standing law.
@@ -290,7 +290,7 @@ records that the published claim did not transfer to this artifact class.
 [`AI graph engineering decision`](../../decisions/2026-07-31-ai-graph-engineering.md) (accepted work),
 grounded in the 2026-07-24 context-engineering rules; measurement basis (~190 prohibition-style
 lines across the fleet, `sde-fullstack` leading at 24) in the
-[`2026-07-31 independent review`](../2026-07/graph-decision-independent-review-2026-07-31.md).
+`2026-07-31 independent review` (retired to Git history).
 
 **Prerequisites:** EVAL-003's grading evidence governs the measurement design: agent-expecting
 routing positives under-fire in headless mode, so grade with negatives, clean-room conditions, and
@@ -369,7 +369,7 @@ trimming alone cannot guarantee full survival where the bundled share is large (
 descriptions at the default budget) — the settings-side completion and the enforcement
 promotion are CTX-004's remit, gated on this trim landing first.
 
-**Source:** [2026-08-16 skill-listing investigation](../2026-08/skill-listing-investigation-2026-08-16.md)
+**Source:** 2026-08-16 skill-listing investigation (retired to Git history)
 (CLI 2.1.233 binary constants; live listing state by model; behavioral routing A/B — the
 `continuous-improvement` positive fired 0/2 with a bare name and 2/2 with the description
 restored; mitigation calibration — fraction 0.02 measured partial, 0.05 full; trim simulation).
@@ -460,7 +460,7 @@ references arriving when their predicate trips. Re-verify before shrinking anyth
 on-demand layer; a slimmed body plus a reference that loads two times in three is a net loss of
 guidance the fat body delivered every time.
 
-**Source:** [2026-08-16 skill-listing investigation](../2026-08/skill-listing-investigation-2026-08-16.md),
+**Source:** 2026-08-16 skill-listing investigation (retired to Git history),
 "Preload and body footprint" — byte counts, the redundancy of the preloaded Learning protocol
 against the agents' inline closeout stanzas, and the probe-canary constraint.
 
@@ -499,7 +499,7 @@ warns before GitHub's 30,000-character `.agent.md` hard cap — `homelab-enginee
 24,019 chars (80%, re-measured 2026-08-17) and the fleet's fastest-growing body, so today the
 first signal would be a host rejecting the profile. Three small-item review passes there netted
 **-39 chars** overall (detail:
-[`learn-002-offline-repairs-2026-08-17`](../2026-08/learn-002-offline-repairs-2026-08-17.md))
+`learn-002-offline-repairs-2026-08-17` (retired to Git history))
 — nobody measured until the number was asked for, which is the point of the tripwire.
 
 ### Source
@@ -530,10 +530,10 @@ warns before GitHub's 30,000-character `.agent.md` hard cap — `homelab-enginee
 24,019 chars (80%, re-measured 2026-08-17) and the fleet's fastest-growing body, so today the
 first signal would be a host rejecting the profile. Three small-item review passes there netted
 **-39 chars** overall (detail:
-[`learn-002-offline-repairs-2026-08-17`](../2026-08/learn-002-offline-repairs-2026-08-17.md))
+`learn-002-offline-repairs-2026-08-17` (retired to Git history))
 — nobody measured until the number was asked for, which is the point of the tripwire.
 
-**Source:** [2026-08-16 skill-listing investigation](../2026-08/skill-listing-investigation-2026-08-16.md)
+**Source:** 2026-08-16 skill-listing investigation (retired to Git history)
 (mitigation calibration table; the Copilot cap under "Preload and body footprint").
 
 **Prerequisites:** CTX-002 for the promotion step only.
@@ -575,7 +575,7 @@ inventory, external lanes, edit rounds, and exact no-go evidence.
 
 ### Prerequisites (narration)
 GATE-006 landed 2026-08-30 (PR #164, merge `5dda85d`;
-[outcome](../2026-08/gate-006-outcome-2026-08-30.md)). **Its after-side lane is NOT available
+outcome (retired to Git history)). **Its after-side lane is NOT available
 as this diet's before side** — the lane was deliberately stopped at 20 of 265 sessions, so the
 planned baseline does not exist and must be captured fresh. Do not mix another policy change into
 the diet.
@@ -611,17 +611,17 @@ further review-response rounds fixed deterministic contract defects only (final 
 review-response tree**, so neither supersedes the exact-hash 60/130 no-go result or establishes an
 accepted compact floor. Full round-by-round sizes, the rejected initial candidate, and every
 fixed defect:
-[CTX-005 discipline audit](../2026-08/ctx-005-engineering-discipline-audit-2026-08-23.md).
+CTX-005 discipline audit (retired to Git history).
 
 **Source:**
 [Homelab proportional operations decision](../../decisions/2026-08-23-homelab-proportional-operations.md),
 whose operator ruling explicitly defers the body reduction to the next round; CTX-004 owns the
 separate cap tripwire; and the
-[CTX-005 discipline audit](../2026-08/ctx-005-engineering-discipline-audit-2026-08-23.md),
+CTX-005 discipline audit (retired to Git history),
 which records the corpus, consumer inventory, external lanes, edit rounds, and exact no-go evidence.
 
 **Prerequisites:** GATE-006 landed 2026-08-30 (PR #164, merge `5dda85d`;
-[outcome](../2026-08/gate-006-outcome-2026-08-30.md)). **Its after-side lane is NOT available
+outcome (retired to Git history)). **Its after-side lane is NOT available
 as this diet's before side** — the lane was deliberately stopped at 20 of 265 sessions, so the
 planned baseline does not exist and must be captured fresh. Do not mix another policy change into
 the diet. **EVAL-011 gates this item**: 25 of the 27 cases in that lane declare `allowed_tools: []`,
@@ -669,7 +669,7 @@ lab secrets with web access. Both checklists now exist — LABSEC-001 landed 202
 item is purely the enforcement shell.
 
 **Source:** Archived
-[`roster expansion design`](../2026-07/roster-expansion-design.md), reconciled by the role
+`roster expansion design` (retired to Git history), reconciled by the role
 decision.
 
 **Prerequisites:** Satisfied: LABSEC-001, DEPLOY-001, GOV-001, and EVAL-001 landed. The implementation
@@ -772,7 +772,7 @@ capture be proposed. Do not compare Claude results with the archived Terra appro
 **Status:** `active` — Claude manager-owned amendment authorized by the operator 2026-08-11;
 original spec approved 2026-08-09. The REV-001 sequencing condition is met: that round closed
 2026-08-10
-([outcome record](../2026-08/rev-001-outcome-2026-08-10.md)) with the envelope idiom
+(outcome record retired to Git history) with the envelope idiom
 settled — `candidate_sha`/`base_sha`/`tree_oid` and the six-field approval envelope.
 
 **Outcome:** Onboarding work delegates through one manager-owned, digest-bound work order whose
@@ -1001,9 +1001,9 @@ operator's ruling.
 **Outcome:** Each of the LADDER-001 capture's two under-firing modes has its measured repair, or
 a recorded decision not to buy one — with the instrument fixed to measure what it claims.
 
-**Source:** [`LADDER-001 outcome record`](../2026-08/ladder-001-outcome-2026-08-14.md) —
+**Source:** `LADDER-001 outcome record` (retired to Git history) —
 eng-ladder's three modes fired 3/3 (altitude), 0/3 (assess), 0/3 (consult-fork) — diagnosed by the
-[2026-08-14 investigation](../2026-08/ladder-002-investigation-2026-08-14.md): schema
+2026-08-14 investigation (retired to Git history): schema
 cleared by probe, the assess 0/3 is an **eval-case artifact** (dangling referent in the runner's
 empty cwd), and the consult-fork 0/3 is provisionally attributed to **do-the-work bias** —
 provisional either way, since half (b)'s behavioral port validates the *verdict's content*, not
@@ -1138,7 +1138,7 @@ the branch-final-gate and convergence-signal lines landed in the workflow descri
 import.
 
 **Prerequisites:** None — LOOP-001's capture-to-released lifecycle closed 2026-08-10
-([outcome record](../2026-08/loop-001-outcome-2026-08-10.md)); this item sits upstream of
+(outcome record (retired to Git history)); this item sits upstream of
 that lifecycle's first state and can now be designed without a concurrent edit to the same
 skill text. The 1.7.3 release-tail evidence now lives in that archived closeout, not in this
 live tracker.
@@ -1451,10 +1451,10 @@ reference, the postmortem causal-method and instrumentation clauses, the 2026 la
 refresh, and — as its own slice — the observability refresh with an offline dashboard-hygiene
 check. No twin this fleet already leads on is touched, and provenance is recorded twice.
 
-**Source:** [`save-toolkit delta scoping`](../2026-08/save-toolkit-delta-scoping-2026-08-29.md)
+**Source:** `save-toolkit delta scoping` (retired to Git history)
 — donor read at `2a04d357` (2026-08-28); every candidate carries its donor path, target, the grep
 that proved the gap on our side, and its scrub list. Governed by the July adjudication's Killed
-list ([`sre-agents adaptation backlog`](../2026-07/sre-agents-adaptation-backlog.md)) and
+list (`sre-agents adaptation backlog`, retired to Git history) and
 the PORT-001 porting method (`README.md`, "Importing from another fleet"). The flow is now
 bidirectional — the donor imported from this fleet on 2026-08-05 — so the record's per-pair diffs,
 not the donor's commit log, say what is genuinely new.
@@ -1506,7 +1506,7 @@ failing: neither `backend-craft` (`req_8f3a2c`) nor `frontend-craft` ("color cou
 in `sde-fullstack`'s own spawn result, though both are listed in its `skills:`. Preloading is an
 undocumented guarantee this fleet depends on, so the failure is either a real regression or the
 oracle failing to consume an async agent launch — the
-[2026-07-30 audit's F-03](../2026-07/sde-fullstack-agent-audit-2026-07-30.md) reproduced
+2026-07-30 audit's F-03 (retired to Git history) reproduced
 that exact both-canaries-absent signature. **Still open: only a probe run can settle it, and one
 now will.** As of 2026-08-17 the two outcomes no longer render alike — an uncorrelated spawn
 reports INCONCLUSIVE naming the correlation gap, while a result the oracle DID observe with no
@@ -1531,7 +1531,7 @@ it needs a cause.
   in `sde-fullstack`'s own spawn result, though both are listed in its `skills:`. Preloading is an
   undocumented guarantee this fleet depends on, so the failure is either a real regression or the
   oracle failing to consume an async agent launch — the
-  [2026-07-30 audit's F-03](../2026-07/sde-fullstack-agent-audit-2026-07-30.md) reproduced
+  2026-07-30 audit's F-03 (retired to Git history) reproduced
   that exact both-canaries-absent signature. **Still open: only a probe run can settle it, and one
   now will.** As of 2026-08-17 the two outcomes no longer render alike — an uncorrelated spawn
   reports INCONCLUSIVE naming the correlation gap, while a result the oracle DID observe with no
@@ -1655,20 +1655,20 @@ host-neutral typed contract, with `contract_digest` resolving to it — extendin
 schemas from workflow-edge validation to a ledger-bound contract, under the accepted record's
 retained node/edge design.
 
-**Source:** [`GRAPH-003 adjudication`](../2026-08/graph-003-adjudication-2026-08-01.md);
+**Source:** `GRAPH-003 adjudication` (retired to Git history);
 governed by the accepted
 [`AI graph engineering decision`](../../decisions/2026-07-31-ai-graph-engineering.md), including its
 absorbed generated-prompt provenance control. When the pilot opens, read the sibling's
 `workflow-graph-engineering` skill (save-toolkit `2a04d357`; see the
-[`PORT-002 scoping record`](../2026-08/save-toolkit-delta-scoping-2026-08-29.md)) as a
+`PORT-002 scoping record`, retired to Git history) as a
 design source: its cancellation, reset, late-arrival, and explicit-`UNKNOWN` semantics are the
 ones schema v1 excludes.
 
 **Prerequisites:** A demonstrated consumer, per the accepted record's discipline. Reopen
 triggers: a second workflow conversion is decided (the pilot economics in the
-[`WF-001 outcome record`](../2026-08/wf-001-outcome-2026-08-01.md)'s pilot-acceptance-run
+`WF-001 outcome record` (retired to Git history)'s pilot-acceptance-run
 section are the baseline for that call). SAFE-003 (closed 2026-08-10,
-[outcome record](../2026-08/safe-003-outcome-2026-08-10.md)) is no longer a trigger: its
+outcome record retired to Git history) is no longer a trigger: its
 2026-08-09 ruling chose document-and-enforce over the resolver path, so nothing there now needs
 a contract document to resolve to.
 
@@ -1706,7 +1706,7 @@ item closed 2026-07-29 and is not a gate.)
    the case design — or grade agent members differently — before spending a full-suite capture.
 3. **Configuration contamination is measured — and refuted as the agent-positive suppressor**
    (2026-07-29, phase 1 of this item). The
-   [archived isolation outcome](../2026-07/verification-round-outcomes-2026-07-29.md) showed every eval session had
+   archived isolation outcome (retired to Git history) showed every eval session had
    been inheriting 134 operator-side entries, with the fleet registered twice (9 bare via the
    junction deployment + 9 namespaced via `--plugin-dir`). Under `--clean-room`
    (`scripts/eval_clean_room.py`; namespaced-only fleet, one plugin) the auditor's two agent
@@ -1775,7 +1775,7 @@ changelog, tag, publication, and release rollback without absorbing merge verdic
 or deployment authority.
 
 **Source:** Archived
-[`roster expansion design`](../2026-07/roster-expansion-design.md).
+`roster expansion design` (retired to Git history).
 
 **Prerequisites:** A real plugin or repository release task demonstrates the consumer. Keep
 pipeline implementation with `ci-actions`, merge readiness with `code-reviewer`, and running
@@ -1806,7 +1806,7 @@ manufacture a component solely to close this item.
 accessibility guidance and supplies keyboard-pass evidence.
 
 **Source:** Combined
-[`ECC import review`](../2026-07/ecc-import-review.md), Batch 1 accessibility residue.
+`ECC import review` (retired to Git history), Batch 1 accessibility residue.
 
 **Prerequisites:** A real task involving a form, modal, drawer, custom widget, toast, or async
 status. Do not manufacture a component solely to close this item.
