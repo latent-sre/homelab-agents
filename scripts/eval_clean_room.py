@@ -210,7 +210,7 @@ def result_event(transcript: str) -> dict | None:
     return result
 
 
-def raise_if_auth_failed(transcript: str, returncode: int, stderr: str = "") -> None:
+def raise_if_auth_failed(transcript: str, stderr: str = "") -> None:
     """Raise AuthUnavailable when this failed CLI run carries an authentication signature.
 
     Authentication classification stays separate from runner completion policy so routing can

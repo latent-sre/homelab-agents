@@ -21,7 +21,9 @@ class WorkflowEvidenceEnumTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            issues, _, _ = validate_fleet.validate_repo(dst, check_inventory=False)
+            issues, _, _ = validate_fleet.validate_repo(
+                dst, check_inventory=False, check_adapters=False
+            )
         self.assertTrue(any("canonical" in i and "deep-review" in i for i in issues), issues)
 
 class WorkflowMetaContractTests(unittest.TestCase):
@@ -35,7 +37,9 @@ class WorkflowMetaContractTests(unittest.TestCase):
                 "const SCOPE_MODEL = 'sonnet'\n" + wf.read_text(encoding="utf-8"),
                 encoding="utf-8",
             )
-            issues, _, _ = validate_fleet.validate_repo(dst, check_inventory=False)
+            issues, _, _ = validate_fleet.validate_repo(
+                dst, check_inventory=False, check_adapters=False
+            )
         self.assertTrue(
             any("first statement" in i and "deep-review" in i for i in issues), issues
         )
@@ -51,7 +55,9 @@ class WorkflowMetaContractTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            issues, _, _ = validate_fleet.validate_repo(dst, check_inventory=False)
+            issues, _, _ = validate_fleet.validate_repo(
+                dst, check_inventory=False, check_adapters=False
+            )
         self.assertTrue(
             any("pure literal" in i and "SCOPE_MODEL" in i for i in issues), issues
         )
@@ -80,7 +86,9 @@ class WorkflowMetaContractTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            issues, _, _ = validate_fleet.validate_repo(dst, check_inventory=False)
+            issues, _, _ = validate_fleet.validate_repo(
+                dst, check_inventory=False, check_adapters=False
+            )
         self.assertTrue(
             any("first statement" in i and "deep-review" in i for i in issues), issues
         )
@@ -97,7 +105,9 @@ class WorkflowMetaContractTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            issues, _, _ = validate_fleet.validate_repo(dst, check_inventory=False)
+            issues, _, _ = validate_fleet.validate_repo(
+                dst, check_inventory=False, check_adapters=False
+            )
         self.assertTrue(
             any("pure literal" in i and "SCOPE_PHASE" in i for i in issues), issues
         )
@@ -114,7 +124,9 @@ class WorkflowMetaContractTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            issues, _, _ = validate_fleet.validate_repo(dst, check_inventory=False)
+            issues, _, _ = validate_fleet.validate_repo(
+                dst, check_inventory=False, check_adapters=False
+            )
         self.assertTrue(
             any("template literal" in i and "deep-review" in i for i in issues), issues
         )
@@ -143,7 +155,9 @@ class WorkflowMetaContractTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            issues, _, _ = validate_fleet.validate_repo(dst, check_inventory=False)
+            issues, _, _ = validate_fleet.validate_repo(
+                dst, check_inventory=False, check_adapters=False
+            )
         self.assertTrue(
             any("not in scope at execution" in i and "deep-review" in i for i in issues),
             issues,
@@ -243,7 +257,9 @@ class WorkflowLineEndingTests(unittest.TestCase):
         with repo_copy() as dst:
             wf = dst / "workflows" / "deep-review.js"
             wf.write_bytes(wf.read_bytes().replace(b"\n", b"\r\n"))
-            issues, _, _ = validate_fleet.validate_repo(dst, check_inventory=False)
+            issues, _, _ = validate_fleet.validate_repo(
+                dst, check_inventory=False, check_adapters=False
+            )
         self.assertTrue(
             any("carriage returns" in i and "deep-review" in i for i in issues), issues
         )
@@ -289,7 +305,9 @@ class WorkflowHostBoundaryTests(unittest.TestCase):
                 + "\nRun /sde-agents:deep-review before merging.\n",
                 encoding="utf-8",
             )
-            issues, _, _ = validate_fleet.validate_repo(dst, check_inventory=False)
+            issues, _, _ = validate_fleet.validate_repo(
+                dst, check_inventory=False, check_adapters=False
+            )
         self.assertTrue(any("no workflow runtime" in i for i in issues), issues)
 
     def test_generated_script_resource_referencing_workflow_is_reported(self) -> None:
@@ -315,18 +333,21 @@ class WorkflowHostBoundaryTests(unittest.TestCase):
         # boundary reading as enforced across all hosts while enforcing it on one. Plant the same
         # unusable instruction in each generator-owned tree and require the scan to name it. The
         # validator now reads this same tuple directly, so no equality tripwire is needed.
-        for tree in generate_platform_adapters.GENERATED_ROOTS:
-            with self.subTest(tree=tree), repo_copy() as dst:
+        with repo_copy() as dst:
+            planted_paths = []
+            for tree in generate_platform_adapters.GENERATED_ROOTS:
                 base = dst / tree
                 self.assertTrue(base.is_dir(), f"{tree} is declared but absent from the tree")
                 planted = base / "boundary-probe.md"
                 planted.write_text(
                     "Run /sde-agents:deep-review before merging.\n", encoding="utf-8"
                 )
-                issues = validate_fleet.validate_workflow_host_boundary(dst)
+                planted_paths.append(planted)
+            issues = validate_fleet.validate_workflow_host_boundary(dst)
+            for planted in planted_paths:
                 self.assertTrue(
-                    any("no workflow runtime" in i and "boundary-probe.md" in i for i in issues),
-                    f"{tree}: declared adapter tree is not scanned; issues={issues}",
+                    any("no workflow runtime" in i and str(planted) in i for i in issues),
+                    f"{planted}: declared adapter tree is not scanned; issues={issues}",
                 )
 
     def test_adapter_roots_come_from_the_tree_under_validation(self) -> None:
