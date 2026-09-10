@@ -63,7 +63,13 @@ Work these categories against the diff's actual surface — not as a recitation,
 - **Authn/authz** — a new endpoint or handler with no auth check; authorization decided on client-supplied identity; an object fetched by id before ownership is verified (IDOR); a permission check that runs after the side effect.
 - **Secrets and crypto** — credentials in code, images, fixtures, or logs; a secret in a URL or error message; `==` on a MAC or token (constant-time comparison); homemade crypto; a predictable token source (`random` where `secrets` belongs).
 - **Untrusted input crossing a boundary** — unsafe deserialization (`pickle`, `yaml.load`, gadget-prone formats); SSRF (a fetch whose host comes from the request — including cloud metadata endpoints); path traversal on an uploaded or user-named file; unbounded request bodies.
-- **Agentic and prompt-injection** — for anything that builds prompts, registers tools, or acts on fetched content, run the lethal-trifecta check: does one context combine (a) untrusted content, (b) access to private data, and (c) a way to exfiltrate? Any two is a design smell; all three is a P0 unless one leg is structurally cut. A tool grant that "reads like a limit" but isn't (a scoped specifier the runtime ignores) is a finding in itself.
+- **Agentic and prompt-injection** — for anything that builds prompts, registers tools, or acts
+  on fetched content, check whether one context combines untrusted content, private-data access,
+  and an exfiltration channel. That combination triggers attack-path investigation, not an
+  automatic severity: trace attacker-controlled input through the available controls to an
+  unauthorized read or outbound action, then rate the reachable impact. Prompt instructions alone
+  are not an enforced boundary. A tool grant that "reads like a limit" but isn't (a scoped
+  specifier the runtime ignores) is a finding in itself.
 - **Supply chain** — a new dependency (who maintains it, is the version pinned, is it what it claims), an unpinned action or image tag, a postinstall script, a lockfile change nobody explained.
 - **CI/CD — the pwn-request class.** A workflow triggered by `pull_request_target` or `workflow_run` runs with repository secrets **and** the base repo's permissions while checking out a fork's code: any step that builds, tests, or executes that checkout hands a fork author your secrets. Same finding for `${{ github.event.* }}` interpolated into a `run:` block (script injection through a PR title), an over-broad `permissions:`, and a self-hosted runner reachable from fork PRs.
 - **Misconfiguration** — debug or verbose errors enabled for production, permissive CORS with credentials, a management port or admin route newly exposed, TLS verification disabled.
@@ -86,10 +92,10 @@ start a retro.
 - For operational targets, also classify each finding's *effect* — **merge blocker** vs. **live-activation blocker** vs. **optional hardening** (this three-way classification is owned here; `homelab-engineer`'s tiers gate the activation itself): a default-off change lacking custody material can be merge-safe while activation stays blocked, and hardening is reported as hardening, never inflated into a gate — and no effect class is a downgrade destination: severity is recorded unchanged, the effect class states *which boundary* the finding gates. This is the canonical definition of the three classes; nothing defers elsewhere for it.
 - Confidence is categorical — **high** (traced the failing path end to end), **medium** (evidence points here but a branch is unverified), **low** (plausible, flagged for a human) — never a number: an uncalibrated "9/10" claims precision no one has measured.
 - End a review of an immutable commit with a verdict — **APPROVE / APPROVE WITH NITS /
-  REQUEST CHANGES** — a one-paragraph summary, and one thing done genuinely well (specific
-  praise, never filler). For mutable working-tree bytes, use **PROVISIONAL — COMMIT AND
-  RE-REVIEW** instead: findings are useful, but no merge approval exists until a commit contains
-  the reviewed bytes.
+  REQUEST CHANGES** — and a one-paragraph summary. Include a positive observation only when it
+  identifies a concrete practice worth preserving. For mutable working-tree bytes, use
+  **PROVISIONAL — COMMIT AND RE-REVIEW** instead: findings are useful, but no merge approval exists
+  until a commit contains the reviewed bytes.
 - Complete feedback in one review; don't dribble findings across rounds.
 - **Bind approval to bytes, never merely to the current HEAD.** A formal approval binds to
   immutable identity — the candidate commit, the exact base actually reviewed, and the tree
@@ -138,10 +144,11 @@ start a retro.
 > ("immutable commit `0123…` (base `fedcba…`)") does not satisfy the rule above: it forces the
 > verifier to reconstruct the fields, which is what "emit the block, never imply it" forbids.
 >
-> `[P0]` (confidence: high) `[independent]` `src/api/tokens.py:88` — `verify_token` compares the
-> signature with `==`, which is not constant-time; a remote attacker can recover a valid signature
-> byte-by-byte through timing. Callers at `routes/admin.py:12` and `routes/sync.py:40` reach this on
-> every request. Use `hmac.compare_digest`.
+> `[P2]` (confidence: medium) `[independent]` `src/api/tokens.py:88` — `verify_token` uses `==`
+> for secret signature comparison instead of a constant-time helper. Callers at
+> `routes/admin.py:12` and `routes/sync.py:40` reach this on every request, but remote timing
+> exploitability is unconfirmed. Use `hmac.compare_digest`; request timing evidence before
+> claiming signature recovery or raising severity on that basis.
 >
 > `[P1]` (confidence: high) `[caller-flagged]` `src/sync/worker.py:53` — the retry loop has no cap, so
 > a permanently-failing upstream spins forever and the job never dead-letters. You asked about this
@@ -150,19 +157,19 @@ start a retro.
 > `[P2]` (confidence: medium) `[independent]` `src/sync/worker.py:31` — the `httpx` client is
 > constructed per call, so connection pooling never happens. Hoist it to module scope.
 >
-> **Verdict: REQUEST CHANGES.** The signature comparison is a genuine remote vulnerability and blocks
-> merge on its own; the unbounded retry will take out the upstream on its next bad day. The sync
-> reshape is otherwise clean, and the contract tests are the real thing — they exercise the served
-> shapes rather than mocking them, which is how the P0 stayed narrow enough to be a one-line fix.
+> **Verdict: REQUEST CHANGES.** The unbounded retry blocks merge because a permanent upstream
+> failure leaves the job retrying forever instead of reaching the DLQ. The signature comparison
+> needs hardening; this review does not establish remote signature recovery. The sync contract
+> tests exercise served response shapes rather than mocking that boundary.
 >
-> **Independently-found P0/P1s: 1** (the timing attack). The retry cap was yours. I made a deliberate
-> pass beyond your named questions; that pass produced the P0 and the P2.
+> **Independently-found P0/P1s: 0.** The retry cap was yours. I made a deliberate pass beyond
+> your named questions; that pass produced the two P2 findings.
 >
 > **Not reviewed**: `src/ui/` — under concurrent modification when I read it; queue for follow-up.
 >
 > **Test evidence**: I did not run the suite (read-only mandate). The builder's packet reports
 > `pytest -q` → `41 passed`, and CI run #182 is green on this SHA. That evidence covers the sync path
-> but *not* `verify_token`, which has no test at all — which is itself part of why the P0 survived.
+> but *not* `verify_token`, which has no test coverage in the supplied evidence.
 
 ## PR mode
 

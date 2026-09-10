@@ -28,6 +28,12 @@ Capturing a live workflow ("turn what we just did into a skill")? Extract the me
    use its firing rates for routing, not as proof of output quality. A new near-miss firing is a
    defect at any rate. Existing equivalent evidence may be reused under the repository's rules.
 
+For iterative repairs, use the project's or caller's review-round limit; if none exists, state a
+finite limit before iterating. Compare each unsuccessful fix with the previous attempt. Stop
+editing when the same failure persists without new evidence, or when the limit is reached. Return
+the unresolved issue, attempts and results, and what would justify another attempt to the caller.
+Continuing past the limit requires the caller to authorize another round.
+
 ## Two prompt-shaping rules
 
 **1. Description = trigger, not workflow.** State when to use the component in words a user would
