@@ -78,9 +78,16 @@ subagents automatically; it does **not** read a bare `AGENTS.md`
 ([memory docs](https://code.claude.com/docs/en/memory): "Claude Code reads `CLAUDE.md`, not
 `AGENTS.md`"). A repository using portable `AGENTS.md` therefore needs a root `CLAUDE.md` containing
 a single `@AGENTS.md` import — on Windows the docs recommend the import over a symlink — or Claude
-Code never sees it. Codex consumes `AGENTS.md` directly; Copilot and VS Code adapters are instructed
-to honor the active host's project-instruction equivalent. Record the environment card and mission
-block in the file the current host actually loads.
+Code never sees it. Codex consumes `AGENTS.md` directly. GitHub Copilot reads `AGENTS.md`,
+`CLAUDE.md`, and `GEMINI.md` as agent instructions on its cloud-agent surfaces (GitHub.com, VS
+Code, JetBrains, Eclipse, Xcode) and in the Copilot CLI, and Copilot code review has read
+`REVIEW.md`, `GEMINI.md`, and `CLAUDE.md` since 2026-07-17; Copilot chat and inline completions
+still read only `.github/copilot-instructions.md` and `.github/instructions/**/*.instructions.md`
+([support matrix](https://docs.github.com/en/copilot/reference/custom-instructions-support)).
+Copilot reading `CLAUDE.md` does not make a `CLAUDE.md` bridge portable: whether any non-Claude
+host expands the `@file` import is unverified, so a bridge file is one line of nothing to a host
+that does not. Record the environment card and mission block in the file the current host actually
+loads.
 
 This repository follows its own convention: guidance for working on the fleet lives in a portable
 root `AGENTS.md`, bridged by a `CLAUDE.md` containing that single import.

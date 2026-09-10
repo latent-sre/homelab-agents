@@ -130,8 +130,8 @@ a bare backticked name is only for content already in context, such as a preload
 
 **Adding an agent** — the checklist the validator will hold you to:
 
-- kebab-case `name:` equal to the filename; description ≤ 1024 chars, with trigger phrasings and
-  negative routing ("Not for X — use `sde-agents:Y`").
+- kebab-case `name:` (`^[a-z0-9]+(-[a-z0-9]+)*$`) equal to the filename; description ≤ 1024
+  chars, with trigger phrasings and negative routing ("Not for X — use `sde-agents:Y`").
 - An explicit `tools:` list. Omitting it is not a harmless default — the agent **inherits every
   tool**. No parenthesized specifiers: `Bash(git diff:*)` and `Agent(worker)` are silently ignored
   by the runtime while reading as limits, so the validator rejects them. New built-in tools outside
@@ -152,14 +152,14 @@ a bare backticked name is only for content already in context, such as a preload
 - Regenerate every host adapter and refresh the README inventory; seed or extend a routing cluster
   if the remit overlaps an existing member (overlap is fine — unmeasured overlap is not).
 
-**Adding a skill** — directory name equals `name:`; every path a SKILL.md mentions under
-`references/`, `assets/`, or `scripts/` must exist, and every file under `references/` must be
-linked from SKILL.md by a **skill-relative** path (an unlinked reference file is dead knowledge
-that looks shipped — the orphan check fails it). A skill with side effects sets
+**Adding a skill** — directory name equals `name:` and is kebab-case; every path a SKILL.md
+mentions under `references/`, `assets/`, or `scripts/` must exist, and every file under
+`references/` must be linked from SKILL.md by a **skill-relative** path (an unlinked reference file
+is dead knowledge that looks shipped — the orphan check fails it). A skill with side effects sets
 `disable-model-invocation: true`, which also removes it from `Skill`-tool reach and from agent
-preloading — route to it via a slash command or an agent that works its checklist.
-Regenerate afterward: Copilot retains that explicit-invocation frontmatter, while Codex expresses
-the same policy through each skill's generated OpenAI agent-policy file.
+preloading — route to it via a slash command or an agent that works its checklist. Regenerate
+afterward: Copilot retains that explicit-invocation frontmatter, while Codex expresses the same
+policy through each skill's generated OpenAI agent-policy file.
 
 **Editing a workflow** — files under `workflows/`. The Workflow runtime wraps the body, so a
 whole-file `node --check` (or equivalent syntax parse) fails identically on committed and edited
@@ -264,51 +264,46 @@ waits. Provenance: `docs/decisions/2026-08-16-pr-review-gate.md`.
 
 ## Hard rules with no playbook exceptions
 
-- **Standard library only.** Fleet Python — validators, generators, installers, guard, tests —
-  imports only the Python standard library. Never add a dependency, a requirements file, or an
-  install step.
 - **Never hand-edit a generated adapter.** The generated trees are `.github/agents/`,
-  `.github/skills/`, `.codex/agents/`, and `plugins/sde-agents/skills/`. Edit the
-  canonical file or the generator and regenerate — byte-drift validation proves the result. Adding
-  or retiring a tree edits `generate_platform_adapters.py`'s `GENERATED_ROOTS`; the validator
-  derives its scan targets from that tuple.
-- **One parser per fact.** A script that needs frontmatter, `tools:` values, or namespaced
-  references builds on the records from `scripts/fleet_records.py`; to read a new fact, extend
-  the records. A second parser lets two reports about the same tree disagree with nothing to
-  arbitrate them.
-- **Authority is the host's own control, never prose.** Claude's guard, VS Code's
-  omission of `execute`, and Codex's `sandbox_mode` are distinct controls — express an agent's
-  authority with the target host's control. Never port a Claude hook (the payload cannot be
-  scoped elsewhere; see the hook playbook) and never reference `workflows/` from another host
-  (no runtime exists there, so the reference reads as available and fails silently).
-- **Never add `hooks:`, `mcpServers:`, or `permissionMode:` to a plugin agent.** Claude Code
-  silently ignores them there — a guard declared in frontmatter looks like armor and is
-  nothing. The validator rejects these and every unknown key, because the runtime is not
-  guaranteed to fail loudly on a typo.
-- **Proportionality gates both directions.** Before adding a check, confirm no existing check
-  proves the same fact — reuse its evidence. Before claiming an optimization, measure it
-  before/after on the same machine — or ship the change without the claim. Before building a
-  new mechanism — abstraction, config surface, component, gate — name the task that consumes it
-  now; with none, record it trigger-bound in `docs/fleet-roadmap.md` instead of building it.
-- **One writer per checkout.** Concurrent work — a second session, a background job — gets its
-  own git worktree, and a measurement (an eval capture, the probe, the test suite) runs only
-  against a tree nothing else is writing: a benchmark against a moving tree or an overwritten
-  edit never announces itself (learn-001 outcome, 2026-08-02). The parallel test runner is
-  sanctioned — its workers assert against isolated copies (`tests/support.py`) — but two
-  adapter tests touch the live checkout, so the suite itself obeys the same rule. Read a named
-  revision as that revision's bytes (`git show <rev>:<path>`), not a working tree standing in
-  for it: HEAD identity is not byte identity, and `git status` does not report every divergence
-  (untracked-but-ignored paths; tracked paths with assume-unchanged or skip-worktree). A tree
-  read records that it was tree-based so a later reader knows which guarantee it carries.
-- **The source wins on drift.** When a deliberate paraphrase disagrees with its owner, fix the
-  paraphrase; a defect in the source is fixed at the source and re-propagated to its copies.
-  The ownership list lives in `docs/fleet-development.md` under "Working on the fleet itself".
+  `.github/skills/`, `.codex/agents/`, and `plugins/sde-agents/skills/`; edit the canonical file or
+  the generator, because byte-drift validation erases anything else. Adding a tree edits
+  `generate_platform_adapters.py`'s `GENERATED_ROOTS`; retiring one **moves** it to
+  `RETIRED_GENERATED_ROOTS`, because only a still-declared root makes `--write` delete the obsolete
+  copies instead of leaving a second plausible fleet.
+- **One parser per fact.** Frontmatter, `tools:` values, and namespaced references come from
+  `scripts/fleet_records.py`; extend the records to read a new fact. A second parser re-derives the
+  bugs this one already fixed, and lets two reports about the same tree disagree with nothing able
+  to arbitrate them.
+- **Authority is the host's own control, never prose.** Claude's guard, VS Code's omitted
+  `execute`, and Codex's `sandbox_mode` are distinct controls; use the target host's. Never port a
+  Claude hook — its payload cannot be scoped elsewhere — and never reference `workflows/` from
+  another host, where no runtime exists and the reference fails silently.
+- **Never put `hooks:`, `mcpServers:`, or `permissionMode:` in a plugin agent's frontmatter.**
+  Claude Code silently ignores all three there, so a guard declared in frontmatter is armor that
+  is not — worse than none, because nobody checks it. They belong at the plugin level, where
+  `hooks/hooks.json`, `.mcp.json`, and `plugin.json` are read normally. The validator rejects these
+  and every unknown key; the rationale is in `scripts/validate_fleet.py`.
+- **Proportionality gates both directions.** No check that re-proves an existing fact; no
+  optimization claim without a before/after on one machine; no new mechanism without a task
+  consuming it now — with none, record it trigger-bound in `docs/fleet-roadmap.md`. Nothing
+  enforces this one: surplus passes every test here, and its cost lands on the next maintainer.
+- **One writer per checkout.** Concurrent work gets its own git worktree, and a measurement (an
+  eval capture, the probe, the test suite) runs only against a tree nothing else is writing,
+  because a benchmark on a moving tree never announces itself. The parallel runner is sanctioned —
+  its workers assert against isolated copies (`tests/support.py`) — but some adapter tests write to
+  the live checkout, so the suite obeys the rule too.
+- **Read a revision as bytes, never a working tree standing in for it.** `git show <rev>:<path>`.
+  HEAD identity is not byte identity, and `git status` misses untracked-but-ignored paths and
+  assume-unchanged or skip-worktree entries. Record that a read was tree-based, so a later reader
+  knows which guarantee it carries.
+- **The source wins on drift.** Fix the paraphrase, not its owner; fix a real defect at the source
+  and re-propagate it. The ownership list is in `docs/fleet-development.md` under "Working on the
+  fleet itself".
 
 ## Style
 
 - Wrap new or edited Markdown prose at roughly 100 columns where practical. Existing files contain
   legacy longer lines, so this is a forward-looking target rather than a current-tree invariant.
-- Agent and skill names are kebab-case (`^[a-z0-9]+(-[a-z0-9]+)*$`).
 - Comments in the scripts explain *why* an invariant exists, not what the next line does — match
-  that register when editing them. Descriptions lead with capability, then triggers, then negative
-  routing.
+  that register when editing them.
+- Descriptions lead with capability, then triggers, then negative routing.
