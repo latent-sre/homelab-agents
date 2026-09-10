@@ -40,8 +40,9 @@ a new machine or a new service into the lab runs `host-onboard` and `service-onb
 
 **Writing what runs on it.** `sde-fullstack` builds scripts, services, and small tools, with
 `code-craft` (Bash and PowerShell pitfalls included), `backend-craft`, `frontend-craft`, and
-`ci-actions` as its reference shelf. `code-reviewer` reviews a diff read-only. `researcher` is the
-only agent with web access, kept away from files that hold your secrets.
+`ci-actions` as its reference shelf. `code-reviewer` reviews a diff read-only. `researcher` handles
+dedicated external-source investigations; `principal-engineer` and `multi-agent-architect` can
+also consult the web for design work.
 
 **Design and meta.** `principal-engineer` thinks through a change
 before it is built. `prompt-engineer`, `prompt-craft`, `multi-agent-architect`, and

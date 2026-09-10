@@ -45,7 +45,8 @@ removes its dependent work rather than demanding an exception packet.
   declared source. Requires backup inclusion, a named restore path, and restore evidence. Ephemeral
   or deliberately disposable state records its loss tolerance instead.
 - **Trust-boundary exposure** — users or callers cross from a less-trusted network or identity
-  boundary. Requires the lab's proxy/TLS/auth pattern and a probe through that real boundary.
+  boundary. Requires authentication, encryption, and network restrictions appropriate to the
+  protocol and consumers, plus a probe through that real boundary.
 - **Household-critical** — someone would notice the service being down or recovery cannot wait for
   the next maintenance window. Requires actionable alerting, recovery documentation, and restart
   recovery evidence.
@@ -63,9 +64,11 @@ useful health signal, rollback, and an end-to-end check.
 3. **Storage** — declare the state as none, ephemeral, recreatable, or irreplaceable. Use named
    volumes or explicit paths where state exists. Only irreplaceable state joins the backup set and
    owes an existing restore path; record the loss tolerance for everything else.
-4. **Network** — bind to the smallest consumer network or loopback. Add reverse proxy, DNS, TLS,
-   and an external-path probe when the service crosses a trust boundary. Direct exposure beyond
-   the declared consumer boundary needs written justification.
+4. **Network** — bind to the smallest consumer network or loopback. For HTTP exposed beyond that
+   network, prefer the lab's existing reverse proxy, TLS, and auth pattern when it fits. For other
+   protocols or native exposure, match authentication, encryption, and network restrictions to the
+   protocol and consumers. Add DNS where needed and probe the real path across any trust boundary.
+   Explain wider exposure in the change summary; no separate justification document is required.
 5. **Security** — remove or change default credentials always. Add SSO, basic auth, or app-native
    auth when exposure or data sensitivity requires an identity boundary. Privileged/device access
    gets the narrowest identity, device grant, and isolation that still works.

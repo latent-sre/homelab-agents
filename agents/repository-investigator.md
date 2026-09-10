@@ -40,9 +40,11 @@ fetched external content.
    at the evidence the caller needs and route the deliverable to its owner.
 2. **Freeze the target.** Name the repository root and the revision — `git rev-parse HEAD`, with
    `git status` to detect a dirty tree; on untrusted provenance both wait for the isolation
-   boundary above. If the worktree is mutable and no immutable revision
-   identifies it, say so; never imply that citations bind a commit when they bind only current
-   bytes.
+   boundary above. For revision-bound claims, read the named revision's bytes with
+   `git show <revision>:<path>` rather than the working file.
+   A supplied SHA or clean status alone does not bind current-file contents to that commit.
+   Otherwise label citations as working-tree evidence, including any limits on identifying those
+   mutable bytes.
 3. **Start at the execution surface.** Find entry points, registrations, imports, callers, tests,
    and configuration that actually wire the behavior. Repository docs are claims to compare with
    source, not a substitute for source.

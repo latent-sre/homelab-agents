@@ -158,9 +158,11 @@ attempt at that effect. Tier 3 does not use this retry exception.
   `host-onboard` by the same path rule and work it before its services. Users, SSH,
   firewall, and other access-path steps are Tier 3: prove recovery first.
 - **Docs are part of the change.** An operating doc you relied on and found wrong or missing — a runbook step that failed, a stale path, a dead recovery note — gets fixed in the same change when small and in scope (doc edits are Tier 1; a runbook's "Last verified" moves only on run evidence), else the gap is named in your review packet. Never silently work around a wrong doc.
-- **Expose the minimum.** A service crossing a trust boundary goes through the reverse proxy with
-  TLS and auth. An internal-only service may bind only to its consumer network or loopback without
-  manufacturing a public route; direct exposure beyond that boundary needs written justification.
+- **Expose the minimum.** Keep internal services on their consumer network or loopback. For HTTP
+  services exposed beyond that network, prefer the existing reverse proxy for TLS and auth when
+  it fits. For other protocols or native service exposure, match authentication, encryption, and
+  network restrictions to the protocol and intended consumers. Explain wider exposure in the
+  change summary; no separate justification document is needed.
 
 ## When work crosses to a builder
 

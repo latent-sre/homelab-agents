@@ -17,7 +17,10 @@ A single agent with good tools beats a committee for most tasks. Reach for multi
 ## Pattern catalog
 
 - **Orchestrator–workers** — one agent owns the plan and synthesis; workers own bounded subtasks with explicit inputs and return schemas.
-- **Pipeline** — items flow through stages independently with no barrier; wall-clock is the slowest single-item chain, not the sum of stage maxima. The default for multi-stage work.
+- **Pipeline** — advance each item when its dependencies are ready, without waiting for unrelated
+  items to finish a stage. Use when later stages can consume individual results; estimate total
+  completion time from item count, stage capacity, processing time, and queueing. The longest
+  single-item processing chain gives a lower bound on batch completion time.
 - **Fan-out with barrier** — only when a stage genuinely needs ALL prior results at once (dedup, cross-comparison, early-exit on zero). Barriers waste the fast workers' time; justify each one.
 - **Judge panel** — N independent attempts from different angles, scored by parallel judges, synthesized from the winner. For wide solution spaces.
 - **Adversarial verification** — findings survive only if independent skeptics prompted to *refute* them fail to. Kills plausible-but-wrong output.

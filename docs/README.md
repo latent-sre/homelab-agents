@@ -25,6 +25,7 @@ below are live. Everything else here is historical evidence.
 
 | Document | State | Read it for |
 |---|---|---|
+| [`archive/2026-09/pr178-repair-budget-check-2026-09-10.md`](archive/2026-09/pr178-repair-budget-check-2026-09-10.md) | Behavioral evidence | Paired fresh-context repair-budget decisions and return packets; four synthetic cases, with real delegation and repeated-run reliability unmeasured |
 | [`fleet-roadmap.md`](fleet-roadmap.md) | Live | Every unfinished, blocked, deferred, and decision-needed item. Nothing else adds work |
 | [`engineering-program.md`](engineering-program.md) | Live | The durable map from each program strand — handoff, loop, graph, self-learning — to the mechanisms implementing it and the checks keeping it honest. Mechanism-anchored by rule: no live item IDs, counts, or episodes, and the validator resolves every path it names |
 | [`fleet-development.md`](fleet-development.md) | Live | The maintainer's page: which file owns which convention, the porting method, host-specific authority, the Codex lane in detail, how the two hooks are wired and why, workflows, the validation tiers, and the host probe — the long-form material the root README no longer carries |

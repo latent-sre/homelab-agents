@@ -13,6 +13,8 @@ argument-hint: "[what to create or fix]"
 For quick jobs, apply this method inline. For iterative testing or a full agent/skill suite,
 spawn `prompt-engineer` with the target file, task mode, success criteria, and the
 applicable requirements, established defect, or tuning hypothesis plus available baseline evidence.
+Include the remaining review-round limit, stopping conditions, and prior attempts and results;
+delegation does not reset the repair budget.
 
 ## Method
 
@@ -33,6 +35,12 @@ Capturing a live workflow ("turn what we just did into a skill")? Extract the me
    Description edits still owe the overlapping `scripts/eval_routing.py` cluster before and after;
    use its firing rates for routing, not as proof of output quality. A new near-miss firing is a
    defect at any rate. Existing equivalent evidence may be reused under the repository's rules.
+
+For iterative repairs, use the project's or caller's review-round limit; if none exists, state a
+finite limit before iterating. Compare each unsuccessful fix with the previous attempt. Stop
+editing when the same failure persists without new evidence, or when the limit is reached. Return
+the unresolved issue, attempts and results, and what would justify another attempt to the caller.
+Continuing past the limit requires the caller to authorize another round.
 
 ## Two prompt-shaping rules
 
