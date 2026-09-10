@@ -20,8 +20,10 @@ that turn "read-only" and "ask first" from promises into controls.
 /plugin install sde-agents@latent-sre
 ```
 
-That installs the agents, the skills, and the two hooks together. Nothing is copied into
-`~/.claude`. Components are namespaced by the plugin: `sde-agents:homelab-engineer`,
+That installs the agents, the skills, and the two hooks together. Nothing is copied into the
+`~/.claude/agents` or `~/.claude/skills` discovery roots — Claude Code keeps its own cached copy of
+the plugin, which a reinstall replaces, so the fleet you edit here is never the fleet a normal
+session loads. Components are namespaced by the plugin: `sde-agents:homelab-engineer`,
 `/sde-agents:lab-incident`, and so on.
 
 To load the plugin from a checkout instead of the marketplace copy, run `claude --plugin-dir .`

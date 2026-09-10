@@ -100,6 +100,7 @@ recorded as not transferring.
 
 **Source:**
 [AI graph engineering decision](decisions/2026-07-31-ai-graph-engineering.md) ·
+[2026-07-31 independent review](archive/2026-07/graph-decision-independent-review-2026-07-31.md) ·
 [history](archive/2026-09/roadmap-history-2026-09-01.md#ctx-001-modernize-fleet-definitions-for-claude-5-generation-context-rules)
 
 **Prerequisites:** EVAL-003's grading design (negatives, clean-room); one pilot definition before
@@ -150,6 +151,7 @@ settings, the doctor's listing-budget warning promoted to a hard validator rule,
 generated-adapter size tripwire ahead of GitHub's 30,000-char cap.
 
 **Source:**
+[2026-08-16 skill-listing investigation](archive/2026-08/skill-listing-investigation-2026-08-16.md) ·
 [history](archive/2026-09/roadmap-history-2026-09-01.md#ctx-004-lock-the-context-wins-in-settings-lines-validator-promotion-copilot-cap)
 
 **Prerequisites:** None — CTX-002 closed 2026-09-02.
@@ -171,6 +173,7 @@ denial, and exclusion.
 this item is purely the enforcement shell.
 
 **Source:**
+[roster expansion design](archive/2026-07/roster-expansion-design.md) ·
 [history](archive/2026-09/roadmap-history-2026-09-01.md#labsec-002-add-a-guard-enforced-lab-inspector)
 
 **Prerequisites:** None — LABSEC-001, DEPLOY-001, GOV-001, EVAL-001 landed.
@@ -245,6 +248,8 @@ as capped grafts inside the skills that already own the ground, with no twin thi
 touched and provenance recorded twice.
 
 **Source:**
+[save-toolkit delta scoping](archive/2026-08/save-toolkit-delta-scoping-2026-08-29.md) ·
+[sre-agents adaptation backlog](archive/2026-07/sre-agents-adaptation-backlog.md) ·
 [history](archive/2026-09/roadmap-history-2026-09-01.md#port-002-second-mining-round-from-save-toolkit-the-siblings-delta-since-2026-07-24)
 
 **Prerequisites:** The operator's pick (Next action); each slice then runs PORT-001's three
@@ -276,9 +281,11 @@ naming a GitHub issue **is** that issue's roadmap import under `docs/README.md` 
   [history](archive/2026-09/roadmap-history-2026-09-01.md#host-012-vs-code-plugin-install-loads-the-canonical-fleet).
 - **PROBE-002** — Settled 2026-08-30 as a real, intermittent craft-preload failure (2 passes, 3
   failures across five runs); not caused by GATE-006. Source:
+  [GATE-006 outcome](archive/2026-08/gate-006-outcome-2026-08-30.md);
   [history](archive/2026-09/roadmap-history-2026-09-01.md#probe-002-craft-preload-canaries-missing-in-sde-fullstack-spawn).
 - **PROBE-006** — A probe leg timeout raises `TimeoutExpired` instead of recording INCONCLUSIVE,
   discarding every later check. Source:
+  [GATE-006 outcome](archive/2026-08/gate-006-outcome-2026-08-30.md);
   [history](archive/2026-09/roadmap-history-2026-09-01.md#probe-006-a-probe-leg-timeout-crashes-instead-of-recording-inconclusive).
   Reproduced in the [2026-09-07 operating-flow check](decisions/2026-09-07-homelab-operating-flow.md):
   the 900-second conditional-reference timeout prevented the workflow arm and final capture write.
@@ -295,6 +302,7 @@ naming a GitHub issue **is** that issue's roadmap import under `docs/README.md` 
 with `contract_digest` resolving to it.
 
 **Source:**
+[GRAPH-003 adjudication](archive/2026-08/graph-003-adjudication-2026-08-01.md) ·
 [AI graph engineering decision](decisions/2026-07-31-ai-graph-engineering.md) ·
 [history](archive/2026-09/roadmap-history-2026-09-01.md#graph-004-typed-edge-contract-pilot)
 
@@ -336,6 +344,7 @@ changelog, tag, publication, and rollback, without absorbing merge verdicts, CI 
 deployment authority.
 
 **Source:**
+[roster expansion design](archive/2026-07/roster-expansion-design.md) ·
 [history](archive/2026-09/roadmap-history-2026-09-01.md#release-001-add-repository-release-discipline)
 
 **Prerequisites:** A real plugin or repository release task demonstrates the consumer.
@@ -355,6 +364,7 @@ tag --dry-run` and build around what it does not cover.
 accessibility guidance and supplies keyboard-pass evidence.
 
 **Source:**
+[ECC import review](archive/2026-07/ecc-import-review.md) ·
 [history](archive/2026-09/roadmap-history-2026-09-01.md#eval-004-verify-the-accessibility-imports-behaviorally)
 
 **Prerequisites:** A real task involving a form, modal, drawer, custom widget, toast, or async
@@ -375,6 +385,7 @@ evidence; two observed misses trigger a dedicated behavioral contract and defini
 covering pinned image, restart, health, resource, and storage slots.
 
 **Source:**
+[skills modernization plan](archive/2026-07/skills-modernization-plan.md) ·
 [history](archive/2026-09/roadmap-history-2026-09-01.md#lab-001-provide-a-fallback-service-compose-asset)
 
 **Prerequisites:** An onboarding task demonstrates the target lab lacks a reusable pattern.
@@ -396,10 +407,10 @@ EVAL-003, EVAL-004, LABSEC-002, RELEASE-001) or, for LABSEC-001, recorded landed
 - **Quality and deep-review findings** — nearly all landed:
   `archive/2026-07/fleet-quality-review.md` (retired to Git history).
 - **Modernization and adaptation items** — landed except LAB-001, EVAL-003 above:
-  `archive/2026-07/skills-modernization-plan.md` (retired to Git history).
+  [`archive/2026-07/skills-modernization-plan.md`](archive/2026-07/skills-modernization-plan.md).
 - **ECC residue** — landed except EVAL-004 above:
-  `archive/2026-07/ecc-import-review.md` (retired to Git history).
+  [`archive/2026-07/ecc-import-review.md`](archive/2026-07/ecc-import-review.md).
 - **Role and governance review** — all six candidates landed:
   [`decisions/2026-07-28-fleet-role-expansion.md`](decisions/2026-07-28-fleet-role-expansion.md).
 - **Roster-expansion design branch** — landed/rejected except LABSEC-002, RELEASE-001 above:
-  `archive/2026-07/roster-expansion-design.md` (retired to Git history).
+  [`archive/2026-07/roster-expansion-design.md`](archive/2026-07/roster-expansion-design.md).

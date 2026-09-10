@@ -3,10 +3,10 @@
 This repository packages one fleet for Claude Code, Codex, and VS Code: `agents/` and `skills/` are
 the only authored source, loaded directly by Claude Code; the other hosts load generated adapters.
 Edit canonical files and regenerate — never a generated copy, never a fleet definition resolved
-under `~/.claude`: the plugin installed there is a cached copy that a reinstall replaces, and older
-versions linger beside it, so an edit made there changes neither this repository nor the next
-session. Every script under `scripts/` states its contract in its docstring — read it before
-touching or invoking one.
+under `~/.claude`: the discovery roots there hold no fleet, and Claude Code's own cached copy of
+the plugin is replaced by the next reinstall, so an edit in either never reaches this repository or
+the fleet's checks (`README.md` owns the install detail). Every script under `scripts/` states its
+contract in its docstring — read it before touching or invoking one.
 
 Where this file paraphrases `README.md`, `docs/engineering-program.md`, or a script's docstring,
 the source wins — fix the paraphrase here, never the source. The validator pins the checkable facts

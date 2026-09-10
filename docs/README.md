@@ -12,7 +12,7 @@ review silently starts governing the current fleet.
 | `decisions/` | Proposed or accepted architecture decisions, rejected alternatives, and reopen triggers | An accepted record governs its decision; a proposed record carries no implementation authority |
 | `superpowers/specs/` | Scope and acceptance boundaries for a round; each spec's Status header says whether it is drafted or approved | Approved: governs what its paired plan may implement. Drafted: awaiting operator approval, no implementation authority |
 | `superpowers/plans/` | Branch-specific execution instructions and exact payloads | Operational only while that round is active |
-| `archive/` | Dated reviews, donor adjudication, and completed-plan evidence | Historical evidence only; never a task list |
+| [`archive/`](archive/README.md) | Dated reviews, donor adjudication, and completed-plan evidence | Historical evidence only; never a task list |
 
 The roadmap became authoritative after the 2026-07-28 current-tree reconciliation. Historical
 files may retain dated “open” sections as evidence of what was believed then; those sections do
