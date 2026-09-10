@@ -59,7 +59,9 @@ and remaining limit across delegation; do not reset either when work changes han
 unsuccessful fix with the previous attempt. Stop editing
 when the same failure persists without new evidence, or when the limit is reached. Return the
 unresolved issue, attempts and results, and what would justify another attempt to the caller.
-Continuing past the limit requires the caller to authorize another round.
+The caller may extend its own lower limit only within the project's cap. Crossing a project cap
+requires the authority and extension size that project names; when it requires an operator ruling,
+another agent cannot supply it. Without a project cap, the caller may authorize another round.
 
 **Reading rep results:**
 
