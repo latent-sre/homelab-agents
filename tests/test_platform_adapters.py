@@ -421,6 +421,24 @@ class PlatformAdapterTests(unittest.TestCase):
                         name="repository-investigator",
                         host=host,
                     )
+        # A missing method anchor must also fail after the boundary rewrite succeeds;
+        # otherwise the no-shell host could retain an instruction to execute Git.
+        _, body, _ = generate_platform_adapters._definition_parts(
+            REPO / "agents/repository-investigator.md"
+        )
+        for anchor in (
+            "Name the repository root and the revision",
+            "For revision-bound claims, read the named revision's bytes",
+            'When the question is "how did it get this way"',
+        ):
+            with self.subTest(anchor=anchor):
+                self.assertIn(anchor, body)
+                with self.assertRaisesRegex(ValueError, "method-step anchor"):
+                    generate_platform_adapters.adapt_agent_contract(
+                        body.replace(anchor, "missing method anchor", 1),
+                        name="repository-investigator",
+                        host="copilot",
+                    )
 
     def test_homelab_host_rewrite_fails_loudly_when_its_anchor_is_missing(self) -> None:
         # Same rule for the live-effect gate (GATE-006): the canonical transport bullet names a
@@ -560,6 +578,8 @@ class PlatformAdapterTests(unittest.TestCase):
         self.assertIn("arrived", codex_body)
         self.assertIn("no git commands at all", codex_body)
         self.assertIn("core.fsmonitor", codex_body)
+        self.assertIn("git show <revision>:<path>", codex_body)
+        self.assertIn("label citations as working-tree evidence", codex_body)
 
         copilot_body = " ".join(
             (REPO / ".github" / "agents" / "repository-investigator.agent.md")
@@ -570,6 +590,9 @@ class PlatformAdapterTests(unittest.TestCase):
         # named one would be an instruction this host cannot honor and a boundary it cannot keep.
         self.assertNotIn("git rev-parse", copilot_body)
         self.assertNotIn("git log", copilot_body)
+        self.assertNotIn("git show", copilot_body)
+        self.assertIn("read/search view explicitly bound to the named revision", copilot_body)
+        self.assertIn("label any current-file citations as working-tree evidence", copilot_body)
 
     def test_codex_adapters_do_not_claim_overridable_defaults_are_controls(self) -> None:
         for path in sorted((REPO / ".codex" / "agents").glob("*.toml")):

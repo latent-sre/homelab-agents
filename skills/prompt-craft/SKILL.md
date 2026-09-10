@@ -7,6 +7,8 @@ argument-hint: [what to create or fix]
 For quick jobs, apply this method inline. For iterative testing or a full agent/skill suite,
 spawn `sde-agents:prompt-engineer` with the target file, task mode, success criteria, and the
 applicable requirements, established defect, or tuning hypothesis plus available baseline evidence.
+Include the remaining review-round limit, stopping conditions, and prior attempts and results;
+delegation does not reset the repair budget.
 
 ## Method
 
