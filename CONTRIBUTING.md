@@ -39,11 +39,11 @@ updating a PR, inspect the review summary, requests, and reviewed commit **befor
 supported triggers, and an enabled Codex review can start automatically on open or ready. Request it
 within the operator's authorized review budget, then confirm its start and its head.
 
-**Copilot — only the operator can request it.** The reviewer is `copilot-pull-request-reviewer[bot]`,
-which `suggestedActors` does not list: `gh pr edit --add-reviewer Copilot` fails to resolve the
-login, and a REST `requested_reviewers` post silently leaves `reviewRequests` empty. The PR page's
-Reviewers box is the only path that works, so hand this request to the operator and say that you
-did.
+**Copilot — use a supported request path available to the host.** Confirm that the request starts
+a review of the intended head. The 2026-08-16 `gh` login-resolution and REST request failures are
+historical observations, not a ban on another supported integration. If the host cannot request
+the pass, hand the operator the PR and the Reviewers-box action, and say that the request remains
+unmade.
 
 **An empty `reviewRequests` list proves nothing on its own.** An automatic Codex pass leaves it
 empty while running; a missing Copilot request leaves it empty because nobody asked. Same list,

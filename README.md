@@ -80,12 +80,16 @@ subagents automatically; it does **not** read a bare `AGENTS.md`
 ([memory docs](https://code.claude.com/docs/en/memory): "Claude Code reads `CLAUDE.md`, not
 `AGENTS.md`"). A repository using portable `AGENTS.md` therefore needs a root `CLAUDE.md` containing
 a single `@AGENTS.md` import — on Windows the docs recommend the import over a symlink — or Claude
-Code never sees it. Codex consumes `AGENTS.md` directly. GitHub Copilot reads `AGENTS.md`,
-`CLAUDE.md`, and `GEMINI.md` as agent instructions on its cloud-agent surfaces (GitHub.com, VS
-Code, JetBrains, Eclipse, Xcode) and in the Copilot CLI, and Copilot code review has read
-`REVIEW.md`, `GEMINI.md`, and `CLAUDE.md` since 2026-07-17; Copilot chat and inline completions
-still read only `.github/copilot-instructions.md` and `.github/instructions/**/*.instructions.md`
-([support matrix](https://docs.github.com/en/copilot/reference/custom-instructions-support)).
+Code never sees it. Codex consumes `AGENTS.md` directly. GitHub's
+[support matrix](https://docs.github.com/en/copilot/reference/custom-instructions-support)
+(checked 2026-09-10) distinguishes Copilot surfaces:
+
+- The cloud agent and CLI support `AGENTS.md`, `CLAUDE.md`, or `GEMINI.md` agent instructions.
+- GitHub.com code review supports `AGENTS.md`, repository-wide, and path-specific instructions.
+- VS Code Chat supports `AGENTS.md`, repository-wide, and path-specific instructions; VS Code
+  code review lists only `.github/copilot-instructions.md`.
+
+The matrix does not list `REVIEW.md`; use its per-surface entries for other hosts and features.
 Copilot reading `CLAUDE.md` does not make a `CLAUDE.md` bridge portable: whether any non-Claude
 host expands the `@file` import is unverified, so a bridge file is one line of nothing to a host
 that does not. Record the environment card and mission block in the file the current host actually
@@ -128,8 +132,8 @@ descriptions.
 
 `AGENTS.md` is the rulebook every editing session loads: what to validate before pushing, the
 change playbooks, and the hard rules. `CONTRIBUTING.md` owns the pull-request procedure: branch
-naming, the template, and how each review pass is requested — Codex you may trigger, Copilot only
-the operator can. `docs/fleet-development.md` holds the long-form material: which file owns which
+naming, the template, and supported reviewer triggers, with operator handoff when the host cannot
+request a pass. `docs/fleet-development.md` holds the long-form material: which file owns which
 convention, how the hooks are wired and why, how the fleet is validated and probed, and how to
 import from another fleet. `docs/fleet-roadmap.md` is the only task tracker. After any agent or
 skill edit, regenerate the host adapters; after adding, renaming, or removing a component, refresh

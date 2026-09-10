@@ -189,12 +189,16 @@ in `docs/fleet-roadmap.md`) unless an explicit operator ruling buys one further 
 one-round escape as the deep-review bound's round past the cap. The cap bounds edits, never waits.
 
 `CONTRIBUTING.md` owns the procedure and is read before opening or updating a PR: branch naming,
-the pull-request template and its conditional gates, and how each review pass is requested — Codex
-you may trigger, Copilot only the operator can. Provenance:
+the pull-request template and its conditional gates, and supported reviewer triggers, with operator
+handoff when the host cannot request a pass. Provenance:
 `docs/decisions/2026-08-16-pr-review-gate.md`.
 
 ## Hard rules with no playbook exceptions
 
+- **Keep isolated hooks dependency-free.** `hooks/hooks.json` launches `scripts/readonly-guard.py`
+  and `scripts/live-effect-gate.py` with `python -I -S`; keep their imports in the standard library.
+  A missing dependency makes the read-only guard deny and the live-effect gate ask or deny every
+  scoped Bash call. This runtime constraint does not impose a dependency ban on other tooling.
 - **Never hand-edit a generated adapter.** The generated trees are `.github/agents/`,
   `.github/skills/`, `.codex/agents/`, and `plugins/sde-agents/skills/`; edit the canonical file or
   the generator, because byte-drift validation erases anything else. Adding a tree edits
