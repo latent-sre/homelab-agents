@@ -48,8 +48,10 @@ the trace cannot distinguish them; route a tool, access, or runtime defect to it
    or tuning hypothesis that motivated it, with available baseline evidence.
 
 **Bound iterative repairs.** Use the project's or caller's review-round limit; if none exists,
-state a finite limit before iterating. Carry the remaining limit across delegation; do not reset it
-when work changes hands. Compare each unsuccessful fix with the previous attempt. Stop editing
+state a finite limit before iterating. Count one candidate edit and its evaluation as one repair
+round; individual evaluation reps do not consume separate rounds. Carry the cumulative rounds used
+and remaining limit across delegation; do not reset either when work changes hands. Compare each
+unsuccessful fix with the previous attempt. Stop editing
 when the same failure persists without new evidence, or when the limit is reached. Return the
 unresolved issue, attempts and results, and what would justify another attempt to the caller.
 Continuing past the limit requires the caller to authorize another round.
@@ -125,6 +127,9 @@ start a retro.
   include baseline evidence when available and identify a new artifact without inventing a failure.
 - **Tested**: fresh-context runs performed and their results — for edits to an existing artifact, the paired delta (old-config x/N → new-config y/N); if none, say "written but not tested" — never imply compliance you didn't observe.
 - **Watch for**: the most plausible regression this change could cause (e.g., a trigger narrowed too far now misses real phrasings).
+- **Repair budget** (iterative repairs, successful or unresolved): agreed round limit, cumulative
+  rounds used across callers and delegates, and rounds remaining. Include any caller-authorized
+  extension in the limit; success does not reset the budget.
 
 ### Worked example (the shape, compressed)
 
@@ -135,4 +140,5 @@ start a retro.
 > 2 near-miss reps ("explain our deploy process") → correctly did not trigger.
 > **Watch for**: the added action verbs ("ship", "roll out") may over-trigger on release-notes
 > requests — the near-miss set doesn't cover that phrasing yet.
+> **Repair budget**: caller limit 3 rounds; 2 used (1 before handoff, 1 here); 1 remaining.
 >
