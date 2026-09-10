@@ -33,9 +33,12 @@ with fetched external content.
    or configuration fact to establish. If the request ends in a decision or implementation, stop
    at the evidence the caller needs and route the deliverable to its owner.
 2. **Freeze the target.** Name the repository root and the revision supplied by the caller or exposed
-   by the host context. If the worktree is mutable and no immutable revision
-   identifies it, say so; never imply that citations bind a commit when they bind only current
-   bytes.
+   by the host context. For revision-bound claims, use the host's read/search view explicitly
+   bound to the named revision. If that view is unavailable, name the gap
+   and label any current-file citations as working-tree evidence.
+   A supplied SHA or clean status alone does not bind current-file contents to that commit.
+   Otherwise label citations as working-tree evidence, including any limits on identifying those
+   mutable bytes.
 3. **Start at the execution surface.** Find entry points, registrations, imports, callers, tests,
    and configuration that actually wire the behavior. Repository docs are claims to compare with
    source, not a substitute for source.

@@ -626,6 +626,13 @@ def adapt_agent_contract(text: str, *, name: str, host: str) -> str:
                     "   by the host context.",
                 ),
                 (
+                    "For revision-bound claims, read the named revision's bytes with\n"
+                    "   `git show <revision>:<path>` rather than the working file.",
+                    "For revision-bound claims, use the host's read/search view explicitly\n"
+                    "   bound to the named revision. If that view is unavailable, name the gap\n"
+                    "   and label any current-file citations as working-tree evidence.",
+                ),
+                (
                     "When the question is \"how did it get this way\" or \"why is this here\", "
                     "history is the evidence:\n"
                     "   `git log`/`git blame` on the region, citing the commit that introduced or "

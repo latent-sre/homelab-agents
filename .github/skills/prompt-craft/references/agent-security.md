@@ -10,7 +10,7 @@ The fleet authors agents constantly and has a review method for code but none fo
 
 ## The lethal trifecta
 
-An agent is dangerous when one context combines all three of:
+Investigate prompt-injection exposure when one context combines all three of:
 
 1. **Untrusted content** — a fetched page, a repository it didn't write, an issue body, a log line,
    a tool result from someone else's service.
@@ -18,10 +18,11 @@ An agent is dangerous when one context combines all three of:
 3. **A way to exfiltrate** — an outbound request, a write to somewhere published, a commit, a
    comment, a message.
 
-Any two is a design smell worth naming. **All three is the vulnerability**, and no amount of prompt
-wording fixes it: the model cannot reliably distinguish an instruction embedded in data from one
-given by its principal, so "ignore malicious instructions" is a mitigation, never a control. Cut a
-leg structurally instead — that is the only fix that holds.
+**All three warrants an attack-path investigation, not an automatic vulnerability or severity.**
+Trace attacker-controlled content through private-data access to an outbound action, identify the
+controls on that path, and state any unverified bypass. Rate a finding by its reachable impact and
+preconditions. "Ignore malicious instructions" is a prompt mitigation, not an enforced control;
+remove an unnecessary capability or constrain its use through controls outside the model.
 
 Ways to cut a leg, in descending robustness:
 
@@ -74,7 +75,7 @@ Prose can't be the control, but it should still be right:
 
 ## The review, in five questions
 
-1. Which of the three legs does this agent hold, and which one did I cut structurally?
+1. Which of the three legs does this agent hold, and what enforced boundary prevents their misuse?
 2. Does the host configuration grant exactly the authority the role needs, with no plausible-looking but inert
    restriction?
 3. What structural capability, sandbox, or isolation boundary enforces every limit the

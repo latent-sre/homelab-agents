@@ -22,7 +22,10 @@ the trace cannot distinguish them; route a tool, access, or runtime defect to it
 ## Method: eval-first, always
 
 1. **Define success before editing.** What does a correct output look like, measurably? "Be concise" is not a spec; "under 150 words, no preamble" is.
-2. **Write test cases first** — minimum three: happy path, edge case, failure mode.
+2. **Write test cases first** — minimum three: happy path, edge case, failure mode. For iterative
+   tuning, reserve final-evaluation cases before the first edit and keep them out of tuning
+   feedback. If all existing cases have already influenced edits, add fresh final-evaluation cases
+   and disclose the prior exposure; removing used cases later does not make them a holdout.
 3. **Choose the baseline for the task.** For a repair, capture the failing behavior or verified
    source contradiction and snapshot the current artifact. For tuning, capture the current
    configuration, representative cases, and metric. For a new artifact, state that no prior
@@ -30,13 +33,42 @@ the trace cannot distinguish them; route a tool, access, or runtime defect to it
    claim. Do not invent a failure to justify a draft.
 4. **Make the smallest useful change** for the draft's requirements, established defect, or tuning
    hypothesis; preserve unrelated working instructions.
-5. **Retest with fresh context, reps scaled to the change.** Use the host's subagent mechanism to spawn clean-context subagents against the revised prompt. Specify the handoff — don't free-text it: the subagent type (a general worker, or the agent under test), the exact task input, and a required return schema per rep (did it trigger? did it comply? plus the one evidence line) — so reps are comparable and "Tested" rests on structure, not a vibe. New artifacts and behavior-shaping rewrites get multiple reps — variance across reps is itself a metric. When a snapshot exists, spawn old-config and new-config reps in the same turn, never sequentially — same tasks, same return schema — so the delta is measured, not remembered. A one-line edit with a clearly observed failure gets one rep per config (one old, one new — the delta still gets measured), or ships explicitly labeled "written but not tested" — never implied compliance. If subagent spawning is unavailable in your context (spawn-depth cap or a runtime restriction), ship labeled "written but not tested" and name the retest your caller should run.
+5. **Retest with fresh context, reps scaled to the change.** Use the host's subagent mechanism to spawn
+   clean-context subagents against the revised prompt.
+   - Specify the subagent type (a general worker, or the agent under test), exact task input, and
+     return schema per rep: did it trigger, did it comply, and the supporting evidence line.
+   - New artifacts and behavior-shaping rewrites get multiple reps; record variation across reps.
+     When a snapshot exists, spawn old-config and new-config reps in the same turn, never
+     sequentially, using the same tasks and return schema.
+   - A one-line edit with a clearly observed failure gets one rep per config, or ships explicitly
+     labeled "written but not tested". Never imply compliance without observed evidence.
+   - If subagent spawning is unavailable because of a spawn-depth cap or runtime restriction, ship
+     labeled "written but not tested" and name the retest your caller should run.
 6. **Version with changelogs.** Note what changed and the draft requirement, established defect,
    or tuning hypothesis that motivated it, with available baseline evidence.
 
-**Reading rep results.** An assert that passes in both configurations is regression evidence, not proof of improvement.
-Failing in both leaves the cause unresolved: check the assertion, loaded context, tool/runtime
-results, and capability before attributing it to the prompt. Passing only with the change: the value you're claiming. Passing only *without* it: the change hurts — a failed edit, not noise. High variance can reflect ambiguous grading, model variation, or input/runtime differences; inspect the recorded conditions and traces before attributing it to the prompt. Then grade the evals themselves — would any passing assert also pass for a plainly wrong output? Did a rep show an outcome, good or bad, that no assert covers? A pass on a weak assert is worse than no assert; it manufactures confidence. And the second time the same eval set drives an edit, hold one or two of its cases out of the tuning loop and judge the final version on those — a prompt tuned until its train cases pass has learned the cases, not the job.
+**Bound iterative repairs.** Use the project's or caller's review-round limit; if none exists,
+state a finite limit before iterating. Count one candidate edit and its evaluation as one repair
+round; individual evaluation reps do not consume separate rounds. Carry the cumulative rounds used
+and remaining limit across delegation; do not reset either when work changes hands. Compare each
+unsuccessful fix with the previous attempt. Stop editing
+when the same failure persists without new evidence, or when the limit is reached. Return the
+unresolved issue, attempts and results, and what would justify another attempt to the caller.
+Continuing past the limit requires the caller to authorize another round.
+
+**Reading rep results:**
+
+- An assert that passes in both configurations is regression evidence, not proof of improvement.
+- Failing in both leaves the cause unresolved: check the assertion, loaded context, tool/runtime
+  results, and capability before attributing it to the prompt.
+- Passing only with the change supports improvement on that case. Passing only without it is a
+  regression to investigate, not noise to discard.
+- High variance can reflect ambiguous grading, model variation, or input/runtime differences.
+  Inspect the recorded conditions and traces before attributing it to the prompt.
+- Grade the evals themselves: would a passing assert also pass for a plainly wrong output? Did a
+  rep show an outcome that no assert covers? A weak assert can manufacture confidence.
+- Judge the final version on the reserved cases. If those results drive another edit, they become
+  tuning feedback; use fresh cases for the next independent final evaluation.
 
 ## Craft knowledge
 
@@ -95,6 +127,9 @@ start a retro.
   include baseline evidence when available and identify a new artifact without inventing a failure.
 - **Tested**: fresh-context runs performed and their results — for edits to an existing artifact, the paired delta (old-config x/N → new-config y/N); if none, say "written but not tested" — never imply compliance you didn't observe.
 - **Watch for**: the most plausible regression this change could cause (e.g., a trigger narrowed too far now misses real phrasings).
+- **Repair budget** (iterative repairs, successful or unresolved): agreed round limit, cumulative
+  rounds used across callers and delegates, and rounds remaining. Include any caller-authorized
+  extension in the limit; success does not reset the budget.
 
 ### Worked example (the shape, compressed)
 
@@ -105,4 +140,5 @@ start a retro.
 > 2 near-miss reps ("explain our deploy process") → correctly did not trigger.
 > **Watch for**: the added action verbs ("ship", "roll out") may over-trigger on release-notes
 > requests — the near-miss set doesn't cover that phrasing yet.
+> **Repair budget**: caller limit 3 rounds; 2 used (1 before handoff, 1 here); 1 remaining.
 >
