@@ -125,11 +125,13 @@ descriptions.
 ## Working on the fleet
 
 `AGENTS.md` is the rulebook every editing session loads: what to validate before pushing, the
-change playbooks, and the hard rules. `docs/fleet-development.md` holds the long-form material:
-which file owns which convention, how the hooks are wired and why, how the fleet is validated and
-probed, and how to import from another fleet. `docs/fleet-roadmap.md` is the only task tracker.
-After any agent or skill edit, regenerate the host adapters; after adding, renaming, or removing
-a component, refresh the inventory above:
+change playbooks, and the hard rules. `CONTRIBUTING.md` owns the pull-request procedure: branch
+naming, the template, and how each review pass is requested — Codex you may trigger, Copilot only
+the operator can. `docs/fleet-development.md` holds the long-form material: which file owns which
+convention, how the hooks are wired and why, how the fleet is validated and probed, and how to
+import from another fleet. `docs/fleet-roadmap.md` is the only task tracker. After any agent or
+skill edit, regenerate the host adapters; after adding, renaming, or removing a component, refresh
+the inventory above:
 
 ```bash
 python3 scripts/generate_platform_adapters.py --write
