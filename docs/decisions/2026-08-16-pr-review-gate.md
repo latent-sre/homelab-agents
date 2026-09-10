@@ -8,7 +8,7 @@ escape semantics were unified to one-further-round-per-ruling across both conver
 behavior met this record's reopen trigger; the global cap and current-head gate remain unchanged.
 **Date:** 2026-08-16 (amended 2026-08-17 and 2026-09-08)
 **Corroborating archive evidence:**
-[`prop-001 outcome`](../archive/2026-08/prop-001-outcome-2026-08-13.md) (records the
+`prop-001 outcome` (retired to Git history; records the
 review-latency and operator-step findings contemporaneously with PROP-001).
 
 ## The rules this record evidences

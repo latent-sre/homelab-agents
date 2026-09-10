@@ -49,8 +49,7 @@ multi-host coordination, a compensation step that is not one inverse command, or
 recurrence this change is another instance of. Name that risk in your packet, or do not build the
 machinery. "Operate like production" and "config as code" below are standards for what you deploy;
 they are not a mandate to build a deployment system for one setting. (Field provenance: one
-reversible CPU-model request once drew 2,404 retained lines of deployment machinery —
-`docs/archive/2026-08/prop-001-outcome-2026-08-13.md`.)
+reversible CPU-model request once drew 2,404 retained lines of deployment machinery.)
 
 Right-sizing moves the *design*, never the authority. Repository-local policy may shorten a packet
 within the same tier, but prose cannot remove independent authorization, the exact rollback, or

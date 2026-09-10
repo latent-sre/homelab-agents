@@ -143,7 +143,7 @@ uses `$CODEX_HOME/agents` when configured and otherwise defaults to `~/.codex/ag
 Reopen trigger hit: *"a manifest or frontmatter version changes the discovery or invocation
 contract."* Reading VS Code 1.133.0's shipped bundles showed this record's host table described a
 discovery contract that does not hold. Evidence:
-`docs/archive/2026-08/vscode-discovery-investigation-2026-08-18.md`.
+`docs/archive/2026-08/vscode-discovery-investigation-2026-08-18.md` (retired to Git history).
 
 **Retired:**
 

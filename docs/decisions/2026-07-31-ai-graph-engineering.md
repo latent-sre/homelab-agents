@@ -415,7 +415,7 @@ published claim for this artifact class, the definitions stand and the result is
 
 One bounded adoption of the host's native workflow layer — executed and closed 2026-08-01; the
 governing spec retired with its round to the
-[WF-001 outcome record](../archive/2026-08/wf-001-outcome-2026-08-01.md):
+WF-001 outcome record (retired to Git history):
 a plugin-shipped `deep-review` workflow (parallel guarded reviewer lanes with schema-typed packet
 contracts and deterministic merge gates), a probe extension codifying the verified platform
 contract, and the Claude-only platform boundary. The pilot does not write `run_state.py`; if the
@@ -438,7 +438,7 @@ distinct contributions rather than discarding them:
 - **`contract_digest` is a dangling reference** — stored, validated, and echoed by
   `run_state.py` while nothing resolves it. A reserved slot that resolves to nothing reads as
   enforcement and enforces nothing. Repair closed as SAFE-003 (2026-08-10,
-  [outcome record](../archive/2026-08/safe-003-outcome-2026-08-10.md)): document-and-enforce at
+  outcome record retired to Git history): document-and-enforce at
   run creation, required lowercase 64-hex shape, resolution left trigger-bound on GRAPH-004.
 - **A typed edge-contract pilot** (one real handoff as a host-neutral contract,
   `contract_digest` made resolvable) is worthwhile but not yet consumer-proven — GRAPH-004,

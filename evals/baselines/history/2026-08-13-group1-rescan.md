@@ -13,7 +13,7 @@ inversion).
 
 **Why paired:** the file is graded by this contract, and the PROP-002 round measured an
 adjacent-sentence edit degrading a sibling contract 3/3 → 2/3 → 1/3 (the adjacent-context-bleed
-correction in `docs/archive/2026-08/prop-002-scan-findings-2026-08-13.md`). An unmeasured edit to
+correction in `docs/archive/2026-08/prop-002-scan-findings-2026-08-13.md` (retired to Git history)). An unmeasured edit to
 contract-graded text knowingly repeats that pattern.
 
 **Conditions, identical both sides:** sonnet, `--clean-room`, 3 runs, this container's CLI

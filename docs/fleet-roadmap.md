@@ -405,7 +405,7 @@ each source below, not here; every "Survives" finding is already tracked live ab
 EVAL-003, EVAL-004, LABSEC-002, RELEASE-001) or, for LABSEC-001, recorded landed in LABSEC-002.
 
 - **Quality and deep-review findings** — nearly all landed:
-  [`archive/2026-07/fleet-quality-review.md`](archive/2026-07/fleet-quality-review.md).
+  `archive/2026-07/fleet-quality-review.md` (retired to Git history).
 - **Modernization and adaptation items** — landed except LAB-001, EVAL-003 above:
   [`archive/2026-07/skills-modernization-plan.md`](archive/2026-07/skills-modernization-plan.md).
 - **ECC residue** — landed except EVAL-004 above:

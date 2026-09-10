@@ -10,7 +10,7 @@ platform for a team, and machinery that serves someone developing this repositor
 to that operator.
 
 The ruling answers the question the 2026-09-01 scope review left open
-(`../archive/2026-08/agent-skill-full-audit-findings-2026-08-30.md` is the complementary defect
+(`../archive/2026-08/agent-skill-full-audit-findings-2026-08-30.md`, retired to Git history, is the complementary defect
 audit; the scope review's evidence is the operator's artifact of that date and the harness cuts
 that followed it in PRs #168, #169, and #170).
 

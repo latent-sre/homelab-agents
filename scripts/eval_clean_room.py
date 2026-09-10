@@ -9,7 +9,7 @@ to turn runner/auth failures into routing outcomes.
 Adapted from latent-sre/sre-agents' clean-room design, with a Python 3.10-compatible cleanup path.
 Source: https://github.com/latent-sre/sre-agents (MIT; Copyright 2026 SRE + SDE Agent Fleet
 contributors). The repository-root LICENSE carries the MIT text; the reviewed source revision and
-adaptation decision are recorded in docs/archive/2026-07/verification-round-outcomes-2026-07-29.md.
+adaptation decision are recorded in docs/archive/2026-07/verification-round-outcomes-2026-07-29.md (retired to Git history).
 """
 from __future__ import annotations
 

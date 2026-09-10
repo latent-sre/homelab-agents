@@ -20,8 +20,10 @@ that turn "read-only" and "ask first" from promises into controls.
 /plugin install sde-agents@latent-sre
 ```
 
-That installs the agents, the skills, and the two hooks together. Nothing is copied into
-`~/.claude`. Components are namespaced by the plugin: `sde-agents:homelab-engineer`,
+That installs the agents, the skills, and the two hooks together. Nothing is copied into the
+`~/.claude/agents` or `~/.claude/skills` discovery roots — Claude Code keeps its own cached copy of
+the plugin, which a reinstall replaces, so the fleet you edit here is never the fleet a normal
+session loads. Components are namespaced by the plugin: `sde-agents:homelab-engineer`,
 `/sde-agents:lab-incident`, and so on.
 
 To load the plugin from a checkout instead of the marketplace copy, run `claude --plugin-dir .`
@@ -79,9 +81,20 @@ subagents automatically; it does **not** read a bare `AGENTS.md`
 ([memory docs](https://code.claude.com/docs/en/memory): "Claude Code reads `CLAUDE.md`, not
 `AGENTS.md`"). A repository using portable `AGENTS.md` therefore needs a root `CLAUDE.md` containing
 a single `@AGENTS.md` import — on Windows the docs recommend the import over a symlink — or Claude
-Code never sees it. Codex consumes `AGENTS.md` directly; Copilot and VS Code adapters are instructed
-to honor the active host's project-instruction equivalent. Record the environment card and mission
-block in the file the current host actually loads.
+Code never sees it. Codex consumes `AGENTS.md` directly. GitHub's
+[support matrix](https://docs.github.com/en/copilot/reference/custom-instructions-support)
+(checked 2026-09-10) distinguishes Copilot surfaces:
+
+- The cloud agent and CLI support `AGENTS.md`, `CLAUDE.md`, or `GEMINI.md` agent instructions.
+- GitHub.com code review supports `AGENTS.md`, repository-wide, and path-specific instructions.
+- VS Code Chat supports `AGENTS.md`, repository-wide, and path-specific instructions; VS Code
+  code review lists only `.github/copilot-instructions.md`.
+
+The matrix does not list `REVIEW.md`; use its per-surface entries for other hosts and features.
+Copilot reading `CLAUDE.md` does not make a `CLAUDE.md` bridge portable: whether any non-Claude
+host expands the `@file` import is unverified, so a bridge file is one line of nothing to a host
+that does not. Record the environment card and mission block in the file the current host actually
+loads.
 
 This repository follows its own convention: guidance for working on the fleet lives in a portable
 root `AGENTS.md`, bridged by a `CLAUDE.md` containing that single import.
@@ -119,11 +132,13 @@ descriptions.
 ## Working on the fleet
 
 `AGENTS.md` is the rulebook every editing session loads: what to validate before pushing, the
-change playbooks, and the hard rules. `docs/fleet-development.md` holds the long-form material:
-which file owns which convention, how the hooks are wired and why, how the fleet is validated and
-probed, and how to import from another fleet. `docs/fleet-roadmap.md` is the only task tracker.
-After any agent or skill edit, regenerate the host adapters; after adding, renaming, or removing
-a component, refresh the inventory above:
+change playbooks, and the hard rules. `CONTRIBUTING.md` owns the pull-request procedure: branch
+naming, the template, and supported reviewer triggers, with operator handoff when the host cannot
+request a pass. `docs/fleet-development.md` holds the long-form material: which file owns which
+convention, how the hooks are wired and why, how the fleet is validated and probed, and how to
+import from another fleet. `docs/fleet-roadmap.md` is the only task tracker. After any agent or
+skill edit, regenerate the host adapters; after adding, renaming, or removing a component, refresh
+the inventory above:
 
 ```bash
 python3 scripts/generate_platform_adapters.py --write
