@@ -12,61 +12,86 @@ disable-model-invocation: true
 > Claude's plugin namespace.
 > This skill is explicit-only through Copilot's frontmatter switch.
 
-The checklist that turns a fresh install into a lab host someone can operate at 3 a.m. Work every
-step in order; when one is skipped, say so explicitly and why — silence reads as "done."
+Bring a new or rebuilt host to a small operational baseline, then add the checks its role needs.
+A bounded host request does not automatically include deploying its services or unrelated cleanup.
 
-`homelab-engineer` owns change authority for everything below, and this checklist runs
-**under** that agent — it is not self-sufficient standalone. Nearly every step changes a live
-host, and several touch the operator's access path. Use the owner's bounded-request authority,
-actual host controls, and confirmation boundaries. SSH, firewall, and user changes need Tier 3
-recovery/out-of-band precautions; the tier alone does not require another decision when the
-consequence is already clearly authorized. Preserve the current session and an independent
-recovery path before changing access.
-This checklist grants no permission of its own. Whichever way you arrived here (homelab-engineer
-reads it by path; it may also be model-invocable as a plugin skill), the authority stays with
-homelab-engineer: if you reached it without that agent's tier discipline, stop and route through
-it.
+## Authority and preparation
 
-**Read the lab's own profile before step 1.** The lab repo's project context states the stack,
-hosts, conventions, and quirks; those facts outrank any default here. If the lab has no such
-file, the lab-profile template that ships with `service-onboard`
-is the shape to create in *the lab's* repository.
+Use `homelab-engineer`'s bounded-request policy: one authorization, one
+target/effect/recovery summary, and effect-specific precautions. Actual host prompts, denials,
+and scope/data/access confirmation boundaries still apply. Reading this skill grants no tools.
 
-1. **OS and patch baseline** — supported release, current patch level, and where this host sits in
-   `upgrade-campaign`'s cadence from day one. Record the installed baseline in the lab
-   repo.
-2. **Users, SSH, and access recovery** — named users and groups, sudo policy, key-only SSH, root
-   login off — and a proven second way in (console, IPMI/KVM, or physical) **before** the first
-   lockout-capable change, not after. Never cut the branch you're sitting on: sequence SSH and
-   firewall edits so the current session survives every step.
-3. **Package sources and update policy** — the repos and channels this host trusts, unattended
-   security updates on or deliberately off (say which and why), and nothing installed outside them
-   without a note in the lab repo.
-4. **Host firewall and management exposure** — default-deny inbound where the lab's pattern allows
-   it; management planes (SSH, IPMI, hypervisor UI) reachable only from the management network or
-   VPN, never the WAN. Every open port is either justified in writing or closed.
-5. **systemd health** — units the host exists to run have deliberate enablement and restart
-   behavior; failed units are zero at handoff (`systemctl --failed` is the evidence); anything the
-   household would miss gets a health check and restart-recovery evidence.
-6. **Disks, filesystems, and mounts** — layout recorded in the lab repo, mounts in fstab or units
-   (not hand-mounted), capacity headroom stated, and SMART/health monitoring on physical disks.
-7. **Time and DNS** — NTP syncing against the lab's chosen source, correct timezone, and the
-   host's resolver pointing where the lab profile says — with the fallback path stated if that
-   resolver is itself a lab service.
-8. **Telemetry enrollment** — provide one host health and capacity signal in the lab's existing
-   stack. Ship logs when the lab already centralizes them or a named diagnostic question requires
-   it. Designing queries, alerts, or dashboards is `observability`'s job; alert when the
-   household would notice this host being down.
-9. **Backup enrollment and restore ownership** — inventory host-local state and its loss tolerance.
-   Irreplaceable state and recovery material join the backup set, name a restore owner and path,
-   and schedule the first `restore-drill`. Recreatable caches, images, and source-derived
-   state are recorded but do not need backup machinery solely because they live on disk.
-10. **Config tracking, validation, and rollback** — the host's config lives in the lab repo
-    (files, or the automation the lab already uses), every applied change had its validate step,
-    and the rollback for each Tier 2/3 change was stated before the apply. The services this host
-    will run each get `service-onboard` separately — this checklist ends where that one
-    begins.
+- **Claude Code:** an active engineer continues; other contexts return prepared live steps through
+  the caller to that engineer with existing authorization. No mandatory fresh session or repeated
+  consent. Routing is cooperative; do not evade the engineer-scoped hook by changing context.
+- **Copilot / VS Code:** prepare only and hand live commands to the operator, even when direct
+  invocation exposes main-chat execution. Skills do not inherit the profile's omitted execute tool.
+- **Codex:** use the full active engineer policy if loaded; otherwise read the active installed
+  profile identified by effective host configuration or disclosed metadata. Never guess its path
+  or substitute a repository profile. If unavailable/unverifiable, prepare and hand off through
+  the caller. Once loaded, use actual native host permissions without inventing another approval.
 
-Finish with the review packet: what was configured (with tier and approval evidence per apply),
-the access-recovery path proven in step 2, the enrollment evidence from steps 8–9, and anything
-skipped — named, with why.
+Read the lab profile first (existing project context can supply it). Establish missing task-relevant
+facts in the lab's canonical host record; do not invent defaults as observed facts or require a
+separate full-profile document merely to onboard one host.
+
+Read existing lab facts, automation, and operating records; establish the host's role and requested
+scope. Reuse applicable evidence, checking material assumptions against the target: a template is
+intent, and a rebuild invalidates evidence tied to the previous instance. Mark checked settings
+**already satisfied**; change only missing or incorrect in-scope configuration. Read selected fields
+without exposing resolved secrets.
+
+Batch independent discovery. Preserve real dependencies: prove recovery before access changes,
+validate configuration before applying it, and establish host readiness before deploying services.
+
+## Baseline for every host
+
+1. **Access and exposure.** Verify intended administrative access and trusted users, SSH/sudo, and
+   firewall policy against the lab profile (defaults: key-only SSH, root login off, minimal inbound
+   exposure). Keep management access on the management network or VPN, off the public internet.
+   Use declared service/firewall configuration as the explanation for expected ports; investigate
+   unexpected exposure before changing it. Before any lockout-capable change, prove an independent
+   recovery path and preserve the current session; a second SSH session alone is not independent
+   of the SSH/network settings being changed. A rollback timer alone is not independent recovery.
+   Verify available recovery directly; ask for missing access or evidence only when needed.
+2. **OS and essential health.** Check supported OS, patch level, package sources, and the lab's
+   update policy. Apply updates only within the request. Verify required units and their deliberate
+   startup and failure/restart policy, working time synchronization, correct timezone, and DNS, and the resolver fallback if DNS depends on another lab service.
+3. **Storage and visibility.** Verify required mounts persist, usable capacity fits the role, and
+   one useful host health/capacity signal exists. Reuse the lab's monitoring when available; a
+   focused host check can suffice without building a monitoring stack. Identify local state and
+   its loss tolerance so the applicable protection below is not missed.
+4. **Apply and verify.** Represent the baseline in the lab's source of truth, including already-satisfied
+   settings; existing image/automation references can satisfy this without copying configuration.
+   Create or reconcile missing representation in the lab repository. Reference
+   concrete rollback/recovery for changed effects in the preparation summary. Validate affected
+   configuration and verify access, required units, and the host's intended function after changes.
+
+## Add only when applicable
+
+| Host characteristic | Additional work |
+|---|---|
+| Irreplaceable local state or recovery material | Verify backup coverage, a restore owner (operator by default), and a usable restore path. Reuse applicable proof; obtain missing proof through `restore-drill` in scratch space under the host execution rules above. No separate consent unless an owner boundary is crossed. Unavailable proof remains a readiness gap; never overwrite live data merely to prove recovery. |
+| Household-critical workloads | Verify actionable alerting and restart/recovery behavior; reuse applicable evidence. Keep needed disruptive checks within the authorized scope/window; missing verification remains a readiness gap. |
+| Physical disks controlled by this host | Verify appropriate disk-health/SMART monitoring. Guests reuse the hypervisor's physical-disk coverage. |
+| New or restored services included in the request | Work `service-onboard` after the baseline. For existing services on a rebuild, reuse operating records and reverify affected runtime/dependency assumptions. |
+| Unexpected failures or exposure | Investigate impact on access, security, storage, recovery, and intended workloads. Block affected readiness when material or unknown; report understood unrelated failures without expanding into cleanup. |
+
+Recreatable images, caches, and source-derived state need no backup machinery solely because they
+live on disk. Add centralized logs or dashboards only for an existing lab requirement or a named
+operational question. Required protection and unresolved material failures are not optional polish.
+
+## Completion
+
+Update the canonical host inventory or operating record, creating a minimal entry when absent.
+Keep one short result: host/config identity,
+changes and already-satisfied checks, verification and applicable protection evidence, and remaining
+gaps with impact and owner (the operator by default). Reference existing records and the preparation
+summary; no per-command approval packet. Include role/criticality, local state/loss tolerance, disk
+ownership, and service scope once (existing record references count), so protection applicability
+is recoverable without a separate exception entry for every row.
+
+Ready means the baseline and applicable protections are verified for the intended role. Material
+unknowns leave affected readiness incomplete; optional improvements do not hold completion open.
+An unrelated failed unit with established cause and harmless impact need not be repaired to reach zero. When services are outside the
+request, report host readiness and stop without activating their onboarding.
