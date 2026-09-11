@@ -7,15 +7,17 @@ ITSELF: it no-ops unless the pending call's `agent_type` names a gated agent, an
 loop — which carries no `agent_type` key — is never inspected. (The reasons a plugin agent cannot
 carry its own `hooks:` are the guard docstring's; they are not restated here.)
 
-WHY THIS EXISTS. `agents/homelab-engineer.md` executes an approved Tier 2/3 effect only through a
-"managed gate": a host control that interposes a per-invocation human decision on the exact argv.
-Before 2026-08-29 the agent was told to prove that control existed by "inspecting the effective
-control for that argv" without invoking it. Claude Code exposes no such evaluation to the model
-(the effective mode includes CLI flags it cannot see, and the settings files it can read are ones
-it can also write), so the proof was unobtainable and the agent's own rule sent every live apply
-to operator handoff. This hook replaces the proof with the mechanism: when the agent runs as the
-plugin agent on Claude Code, this gate answers `ask` for every live-effect argv, so the host prompt
-the operator sees IS the interposition, and running as the plugin agent is the evidence.
+WHY THIS EXISTS. `agents/homelab-engineer.md` separates bounded user authorization from actual
+host permissions. This partial filter adds a managed prompt/deny for listed live effects and
+unbound/unparseable commands from that agent. When it returns no decision, the host's own
+permission flow applies; no hook decision grants additional task authority.
+
+Before 2026-08-29 the agent was told to prove that a human-interposing control existed by
+"inspecting the effective control for that argv" without invoking it. Claude Code exposes no such
+evaluation to the model (the effective mode includes CLI flags it cannot see, and settings files
+it can read are ones it can also write), so that earlier rule sent every live apply to operator
+handoff. This hook supplies interposition for the calls it covers, not every live-effect argv.
+The current bounded-authority policy does not waive any prompt/denial the hook actually returns.
 
 THE ROSTER IS DENYLIST-SHAPED, DELIBERATELY — the opposite of the guard, for a different job. The
 guard enforces read-only, where a missed writer is a silent breach, so it enumerates readers. This

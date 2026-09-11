@@ -6,90 +6,114 @@ argument-hint: [what to upgrade, or "everything"]
 
 # Upgrade campaign
 
-"Update everything" is the request; a batch of independent, individually-reversible changes with a
-verification each is the deliverable. The failure mode this skill exists to prevent is the
-twelve-service upgrade that half-works, where nobody can tell which change broke what.
+Finish the named upgrades with working services and a recoverable state. Use
+`sde-agents:homelab-engineer`'s authority rules: a bounded user request covers in-scope execution,
+verification, and recovery. Preserve real host gates and any explicit command or window limits;
+add no campaign approval tier. A version label alone requires neither a new decision nor a new
+session.
 
-Every apply is under `sde-agents:homelab-engineer`'s change tiers. Routine, unrelated, reversible
-leaf-service bumps may form one **finite ordered Tier 2 plan** when the operator sees every exact
-command and target, visible effect, rollback, and verification before deciding. That one decision
-removes repeated conversational approval; each command still passes through its own host transport
-and each service is verified before the next. Notable, major, one-way, shared-dependency, or Tier 3
-steps get a separate decision and do not hide inside the routine plan.
+Execution depends on the host:
 
-## Rule one: one service at a time, verified between
+- **Claude Code:** when already running inside `sde-agents:homelab-engineer`, continue live work
+  here through its actual host controls; do not hand the task back to yourself. Every other
+  context, including the main loop and other agents, prepares and hands live work through the
+  caller to that engineer. This routing is cooperative, not enforcement: other contexts retain
+  their own tools and lack this engineer-scoped hook. Do not change context or identity to evade it.
+- **Copilot / VS Code:** prepare only and hand live commands to the operator, including on direct
+  skill invocation. A skill does not inherit the engineer profile's omitted `execute` tool; this
+  handoff rule is cooperative in main chat, even if that chat offers execution.
+- **Codex:** use the full active engineer policy when it is already loaded in this context.
+  Otherwise read the full active installed engineer profile from the host's configured
+  agent-profile source before the first live step. Establish that source's identity/path from
+  effective host configuration or disclosed host metadata; never guess a path. A skill selection
+  or agent description does not load the policy. Do not substitute a repository-supplied profile
+  or assume missing rules. If the active source cannot be verified and read, prepare only and
+  hand the bounded task through the caller to the engineer. Once loaded, use actual host
+  permissions without an invented approval; traverse required host prompts and respect denials.
 
-Batch the *planning*, never the *applying*. Upgrade one service, verify it, then move on. Two
-simultaneous upgrades that produce one failure cost more to untangle than the time they saved, and
-the temptation is strongest exactly when the list is long.
+## Prepare once, reuse what applies
 
-The one legitimate batch is a set of genuinely unrelated leaf services with no shared dependency — and
-even then, verify each before starting the next.
+1. **Bound the work.** Resolve the named services/hosts and maintenance window from the request and
+   current lab inventory. If "everything" has no established scope, inventory first and resolve
+   that scope before applying. Separate OS package patching, native binaries, containers, and
+   shared infrastructure; use their existing runbooks, pin inventories, and deployment tools.
+   Compare declared versions with actual running versions and relevant upstream releases. An
+   update notification is a lead, not runtime proof or permission to adopt every newest major.
+2. **Check the upgrade path.** Use upstream release/migration guidance covering the deployed →
+   target range, including intervening breaking changes. A supported cumulative guide can cover
+   that range; do not reread every release entry when it adds no missing compatibility fact.
+   Record config changes, minimum dependencies, migrations, and one-way effects. Reuse sourced
+   notes for the same versions; resolve gaps before the affected apply. External lookup follows
+   the engineer's research boundary: send one sanitized batch of questions through the caller to
+   `sde-agents:researcher`, without private configuration or credentials.
+3. **Order by compatibility, then risk.** Check supported intermediate states and rollback for
+   dependencies actually affected. If A2 needs B2, B-first works only if B2 supports A1. If neither
+   order works, prepare a compatibility bridge or a coordinated maintenance step within the
+   authorized scope. Prefer low-risk leaves among safe next steps. Parallelize independent reads
+   and preparation; serialize deployment and verification on shared live paths and honor existing
+   deployment locks.
+4. **Establish recovery.** Reference the existing rollback procedure and applicable restore
+   evidence. Reuse a drill when the backup method, restore procedure, and required versions remain
+   applicable; a new version label alone does not invalidate it. For state migrations, identify
+   the compatible old runtime, config, and pre-upgrade data needed for rollback. Reverting an image
+   does not reverse a schema change. Obtain and verify the required consistent backup immediately
+   before that service's risky step, with a freshness/data-loss bound appropriate to its writes.
+   Do not require a data backup for a disposable, reproducible service.
 
-## Plan the campaign
+Keep one compact ordered list: current → target, material effect/dependency, rollback reference,
+verification, and any unresolved decision. Reuse it as the execution record. Take another session
+only when the operator requests it or a real context/window limit requires a handoff; preserve
+completed work and remaining dependencies instead of restarting discovery.
 
-1. **Inventory what's actually running** versus what's current: image tags in the compose files, the
-   digests actually running (`docker compose images`), and the upstream latest. A tag that says
-   `1.2.3` while the running container is something else is the first finding.
-2. **Read the release notes for every hop you're crossing** — not just the newest version. Skipping
-   from 1.4 to 3.0 means every 2.x breaking change applies too, and the migration notes for 2.0 are
-   where the "you must run this before upgrading" step lives. Note explicitly: breaking config
-   changes, required migrations, minimum dependency versions, and any **one-way** step.
-3. **Order by compatibility, then risk.** Map the supported consumer/dependency versions after
-   every step, including rollback. If A2 requires B2, upgrade B first only if B2 still supports A1;
-   A-first is unsafe over B1. If neither order leaves a supported intermediate state, plan a
-   compatibility bridge or an explicit coordinated maintenance window. Among safe next steps,
-   prefer low-risk leaves; shared databases, proxies, and DNS need wider checks because their
-   failures affect more services. Verify each step before beginning the next.
-4. **Classify each step**: routine bump (same major, no notes), notable (minor with config changes),
-   or major (breaking, migration required, possibly one-way). Routine leaf bumps may share the
-   bounded plan above. Notable and major changes get their own decision; majors also get their own
-   session, so a breaking migration cannot ride through a routine-looking batch and one fresh
-   context holds its notes instead of fifteen bumps'.
-5. **Identify the one-way doors before you start.** A database schema migration the new version runs
-   on boot, a storage format change, a config file rewritten in place — for each one, the rollback is
-   *restore from backup*, not "revert the tag". Say so in the plan, and confirm the backup is fresh
-   and (per `sde-agents:restore-drill`) actually restorable.
-6. **Take the backups the plan depends on**, and check they exist — before the first change, not
-   between steps.
+## Apply and verify
 
-## Per service, the loop
+For each service, recheck material target/config/runtime and recovery assumptions just before
+acting. Reuse unchanged evidence; refresh affected checks after drift, delay, or another writer.
+Observed current-state drift calls for reassessment, not automatic reapproval. A different
+selected target release or artifact digest requires confirmation unless the user explicitly
+authorized that substitution; do not treat registry re-resolution as merely refreshed evidence.
+Other changes escalate when the engineer's authority boundary or an explicit operator limit is
+crossed.
+When the approved artifact is still available and valid, use it without renewed approval; a
+pending substitution does not block that apply or independent authorized work.
 
-- **State the rollback first**, concretely: the previous tag or digest, the config revert, and the
-  restore path if the upgrade is one-way. `sde-agents:homelab-engineer` Prime directive 1 governs
-  this, including what a rollback does *not* reverse.
-- **Pin the new version explicitly** — a specific tag or digest, never `latest`. An upgrade to
-  `latest` is not a version you can roll back to or reason about later.
-- **Apply one service.** Watch it start; read its logs rather than assuming.
-- **Verify the user-visible thing**, not the container status: the page loads, the file uploads, the
-  stream plays. A healthy container serving a broken app is the most common upgrade outcome.
-- **Check the dependents** of what you just changed, if any.
-- **Record it**: new version, date, anything that had to change in config. Where the upgrade changed
-  a documented step, the runbook edit happens now (`sde-agents:runbook`).
+- Pin a specific release or digest and retain the prior runtime/config needed for recovery.
+- Apply with the existing native tool, observe startup and relevant logs, then exercise the
+  user-visible function and affected dependents before the next deployment. Reuse an existing
+  application probe when it tests that function; container status alone is insufficient.
+- Record the applied version and meaningful verification result in the same list. Update the
+  canonical runbook only when a current fact or procedure changes; link existing evidence.
 
-**Stop the campaign on the first failure, unexpected result, or material drift.** Roll that service
-back when an apply occurred, verify recovery, and stop — do not continue down the list or silently
-alter a command covered by the plan. A changed target, digest, command, or blast radius re-enters
-`sde-agents:homelab-engineer`'s gate. The remaining services keep their current versions, which is
-a perfectly good state.
+## Handle a failure at its actual scope
 
-## After
+- **Observation failed:** a broken shell wrapper or probe timeout does not prove deployment
+  failure. Correct the observation, reconcile live state, and verify before deciding to repeat or
+  roll back a deployment. Do not restart a healthy service to repair a check.
+- **Deployment failed or outcome unknown:** pause affected work, reconcile state, and use the
+  authorized rollback/recovery path. If the change actually succeeded and is healthy, record it
+  without replaying. Do not blindly revert across a state migration or repeat an uncertain write.
+  For an unknown/in-flight migration, observe and establish safe interruption/recovery first:
+  stopping writers, snapshotting, or taking a cold copy is not automatically safe or read-only.
+  Missing recovery evidence stops those mutations; do not invent a recovery procedure.
+- **Recovery verified:** defer the failed upgrade and continue already-authorized independent
+  services only after proving they do not share the fault or depend on its target version.
+- **Recovery unresolved, shared fault, or unsafe intermediate state:** stop dependent work and
+  report the last known state and next decision. An expanded target set or previously undisclosed
+  destructive consequence uses the engineer's confirmation boundary. Do not loop on unchanged
+  failures; a further attempt needs new evidence and a bounded corrective step.
 
-- Anything left un-upgraded and why (a pinned version that can't move yet is a decision worth
-  recording, not an oversight to hide).
-- A restore drill for any service whose storage format changed — the old backups may no longer be
-  restorable into the new version, which is the trap this pairing exists to catch.
-- If a service broke and its recovery wasn't obvious, that's a `sde-agents:postmortem` even though
-  nobody paged: the near-miss is the cheapest lesson available.
+## Finish
 
-## Output
+Return one concise result: upgraded and verified, recovered/deferred and why, and material remaining
+work. Keep runtime/config/recovery identities in the existing task or operating record so another
+session can resume. Omit empty sections and duplicate packets.
 
-- **Plan**: the ordered list, each entry with current → target version, classification (routine /
-  notable / major), rollback, and one-way flag.
-- **Executed**: what was actually applied, with the verification evidence per service.
-- **Not done**: what was skipped or deferred, and why.
-- **Follow-ups**: runbook edits, restore drills, findings.
+After a storage or recovery-path change, use `sde-agents:restore-drill` to prove the affected path
+when existing evidence no longer applies. Distinguish rollback into the old version from recovery
+into the new version; do not demand that an old physical backup restore directly into a new format.
+State any missing recovery proof rather than treating the campaign as fully verified. A routine
+recovery gets a short note; use `sde-agents:postmortem` when recovery exposed a reusable gap or a
+recurring/material incident, and scale its record to that consequence.
 
-Label load-bearing claims `[verified]`, `[sourced]`, or `[unverified]` — "the release notes say no
-breaking changes" is `[sourced]` and needs the link; "it still works" is `[verified]` only if you
-exercised it.
+Label load-bearing claims `[verified]`, `[sourced]`, or `[unverified]`: cite release guidance and
+report only exercised behavior as verified.

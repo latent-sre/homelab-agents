@@ -18,12 +18,31 @@ Announce at start: "Using lab-incident: mitigate → confirm → diagnose after.
 tier exemption — an outage makes the blast-radius question *more* important, not less, because the
 system is already degraded and a second change lands on top of the first.
 
-One exact reversible mitigation may contain a bounded command sequence — for example, revert the
-known-bad config, validate it, reload, then probe. Disclose that sequence once and let
-`homelab-engineer` take one Tier 2 decision for it; every live command still passes its host
-transport. A speculative alternative, changed target, unexpected result, or widened blast radius
-stops the sequence and opens a new decision. Do not pre-approve a decision tree while the system is
-changing underneath it.
+Use the bounded request's recovery authority. State the concrete mitigation and recovery limit
+once; traverse actual host controls without adding another conversational decision. Reconcile
+unexpected results before another live step. A corrected command within the same authorized
+outcome is not automatically a new approval; an expanded target set, undisclosed destructive
+consequence, or other engineer confirmation boundary is. Do not stack speculative mitigations or
+infer permission from urgency.
+
+Execution depends on the host:
+
+- **Claude Code:** when already running inside `sde-agents:homelab-engineer`, continue live work
+  here through its actual host controls; do not hand the task back to yourself. Every other
+  context, including the main loop and other agents, prepares and hands live work through the
+  caller to that engineer. This routing is cooperative, not enforcement: other contexts retain
+  their own tools and lack this engineer-scoped hook. Do not change context or identity to evade it.
+- **Copilot / VS Code:** prepare only and hand live commands to the operator, including on direct
+  skill invocation. A skill does not inherit the engineer profile's omitted `execute` tool; this
+  handoff rule is cooperative in main chat, even if that chat offers execution.
+- **Codex:** use the full active engineer policy when it is already loaded in this context.
+  Otherwise read the full active installed engineer profile from the host's configured
+  agent-profile source before the first live step. Establish that source's identity/path from
+  effective host configuration or disclosed host metadata; never guess a path. A skill selection
+  or agent description does not load the policy. Do not substitute a repository-supplied profile
+  or assume missing rules. If the active source cannot be verified and read, prepare only and
+  hand the bounded task through the caller to the engineer. Once loaded, use actual host
+  permissions without an invented approval; traverse required host prompts and respect denials.
 
 ## Step 1 — read the signals before touching anything (60 seconds, not 10 minutes)
 
@@ -43,6 +62,17 @@ Two questions decide everything that follows:
 
 ## Step 2 — pick the smallest mitigation that restores service
 
+A failed observation is not a failed write. Repair a broken probe/wrapper and reconcile an unknown
+outcome after a timeout or lost connection before choosing a mitigation. If the deployment
+completed and is healthy, verify and report it; do not repeat, restart, or roll it back merely
+because its observation failed.
+
+Before using any rollback/restart row below, reconcile whether a state migration is unknown or
+in flight. If so, observe progress and establish documented safe interruption/recovery first.
+This rule overrides the generic deploy rollback and Step 3 undo/revert instructions, even before
+data loss is suspected. Do not stop writers, snapshot, take a cold copy, or revert until those
+effects are known safe and authorized; missing evidence stops those mutations.
+
 | Situation | Mitigation | Not this |
 |---|---|---|
 | Broke right after a deploy or image change | Roll back to the previous known-good tag (`compose` file pinned back, `up -d`) | Debugging the new version while it's down |
@@ -51,7 +81,7 @@ Two questions decide everything that follows:
 | Process wedged, no recent change, logs show a hang | Restart the one service — **once** | A stack-wide `down`/`up` that widens the outage |
 | Disk full | Free the specific space (rotate/prune the identified consumer), then restart what failed | `docker system prune -a` mid-outage, which deletes images you may need to roll back to |
 | Shared dependency down (DNS, proxy, storage) | Fix the dependency; leave the dependents alone until it's healthy | Restarting dependents, which only refreshes the same failure |
-| Data loss or corruption suspected | Stop writers first, then restore per the service's runbook Recovery slot | Restarting into a corrupt state and writing more |
+| Data loss or corruption suspected | Establish safe containment and recovery per the runbook; for an unknown/in-flight migration, observe and prove safe interruption before stopping writers or snapshotting | Treating a cold stop/copy as read-only or restoring without a verified recovery path |
 | Cause unknown and impact is spreading | Deliberately reduce scope: stop the noisy component, serve a maintenance page, degrade the feature | Broad speculative restarts |
 
 **Restart is a stopgap, never a fix.** A service that came back after a restart with no explanation
@@ -63,10 +93,12 @@ postmortem's preventative action is what closes it.
 Make **one** change and watch the signal you expect it to move, for long enough to be real (a
 health check passing twice, not once). Then decide: recovered, no effect, or worse.
 
-- **No effect** → undo it before trying the next thing. Stacked half-mitigations are why an outage
+- **No effect** → use the established safe undo before trying the next thing, subject to the
+  migration rule above. Stacked half-mitigations are why an outage
   becomes a mystery: at the end nobody knows which change is load-bearing, and the postmortem's
   timeline is unreconstructible.
-- **Worse** → revert immediately, and treat that as information about the cause.
+- **Worse** → use the established safe recovery immediately; when migration state is uncertain,
+  reconcile under the rule above rather than issuing a blind revert. Treat the result as evidence.
 - Keep a running timestamped note as you go — what you ran, at what time, what happened —
   emitted as you go, not saved up for the end: a session that ends mid-incident takes everything
   unwritten with it. You are writing the postmortem's timeline right now, and memory will smooth

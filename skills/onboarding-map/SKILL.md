@@ -27,7 +27,7 @@ supplies an approval.
 | **Discovery** | the workflow exists, and this map names it | nothing |
 | **Recommendation** | it applies to this request, and here is why | nothing |
 | **Activation** | its checklist is open under `sde-agents:homelab-engineer` | that agent's Tier 0 observation and Tier 1 preparation |
-| **Execution** | a step reaches a live target | only the exact effect the operator approved for that step, under that agent's tiers |
+| **Execution** | a step reaches a live target | the live outcome the operator authorized within its scope, limits, and that agent's host controls |
 
 Discovery and recommendation are free; activation and execution are not. Collapsing them fails in
 both directions — a user who never learns the workflow exists, and a workflow that reads as

@@ -1,10 +1,10 @@
 # SDE Agents
 
 A Claude Code plugin for one person who runs a home lab and wants AI agents that behave like a
-careful operator: inspect before changing, ask before anything live, roll back before they are
-sorry, and write down what they did. It ships agents for running the lab and for writing the
+careful operator: inspect before changing, finish an explicitly delegated task within its scope,
+keep recovery ready, and record the result. It ships agents for running the lab and for writing the
 scripts and services that live on it, skills that carry the operating knowledge, and two hooks
-that turn "read-only" and "ask first" from promises into controls.
+that enforce their scoped read-only and live-command policies.
 
 ## Fleet
 
@@ -32,8 +32,9 @@ from the repository root.
 ## What you get
 
 **Running the lab.** `homelab-engineer` is the operator's agent: it classifies every change by
-how reversible it is, states the rollback before acting, and hands anything destructive back to
-you for a decision. It works the operating skills: `lab-incident` when something is down,
+how reversible it is and states recovery before acting. A bounded live request covers execution
+and recovery; it asks again for an expanded scope or a destructive consequence you have not
+authorized, and respects every actual host gate. It works the operating skills: `lab-incident` when something is down,
 `root-cause` when the fix keeps not sticking, `runbook`, `postmortem`, `restore-drill`,
 `upgrade-campaign`, `observability`, and the `lab-audit` and `security-audit` checklists. Bringing
 a new machine or a new service into the lab runs `host-onboard` and `service-onboard`.
@@ -61,10 +62,11 @@ agent making the call and does nothing for anyone else, so your own shell is nev
   of read-only commands (`git diff`, `rg`, `cat`, and their kin) and denies everything else,
   including any interpreter. If the guard cannot run, those agents lose Bash rather than gaining
   it.
-- **The live-effect gate.** `homelab-engineer` can change your lab, so its control is a question,
-  not a denial: every live command it runs (`docker compose up`, `systemctl restart`, `zfs
-  destroy`, a reboot) prompts you, and is denied outright in a session that has turned prompts
-  off, because a bypassed prompt is not a decision.
+- **The live-effect gate.** For `homelab-engineer`, listed live commands (`docker compose up`,
+  `systemctl restart`, `zfs destroy`, a reboot) prompt and are denied when prompts are suppressed.
+  Unbound wrappers and unparseable commands also ask/deny. When the partial filter returns no
+  decision (including the main loop), the host's own permissions apply. A permitted command needs
+  user task authority, and a denied effect must not be repackaged to evade the gate.
 
 Both hooks run from the installed plugin copy, never from a repository under review. Neither is a
 sandbox: a reviewer that can read files can read secrets, and the load-bearing control remains the
@@ -128,6 +130,24 @@ The plugin carries the skills; the installer syncs the agent profiles into `~/.c
 is the update path for them. On Codex, the onboarding skills are reached by name
 (`$service-onboard`), and agents are reached by explicit request rather than routed from their
 descriptions.
+
+## Upgrade campaigns
+
+Name the hosts/services and maintenance window. The campaign reuses existing inventory, patching
+procedures, release guidance, and applicable restore evidence; it verifies each deployment and
+recovers failures within the delegated scope. A major version alone does not require a new session.
+After recovery, independent authorized upgrades can continue; unresolved shared failures stop
+related work. The [bounded-campaign decision](docs/decisions/2026-09-11-bounded-upgrade-campaign.md)
+records the behavior and host limits.
+
+Claude's shipped live-effect hook still prompts for listed commands and denies them when prompts
+are suppressed; unbound/unparseable forms also ask/deny. The hook is a partial filter: only when
+it returns no decision does execution proceed under the host's own permission flow. Skills cooperatively route Claude live work to the engineer; that routing does
+not remove main-loop tools. Direct Copilot skills also hand live commands to the operator.
+Codex uses its effective permissions without a fleet-invented prompt; required native prompts
+and denials still apply. The Copilot profile has no execution tool and hands live commands to
+the operator. Changing prose
+neither removes a host gate nor supplies a missing tool.
 
 ## Working on the fleet
 

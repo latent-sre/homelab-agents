@@ -1,0 +1,19 @@
+{
+  "kind": "Focused existing native live-effect differential probe",
+  "scope": "scripts/probe_plugin.py:_probe_live_effect_gate only; not full fleet probe",
+  "hook_sha256": "9c6b1b71644cb33de9127b3dae15d682d054acb85f8a5e852873c293b3123181",
+  "results": [
+    [
+      "PASS",
+      "the gate DENIED homelab-engineer's live verb under dontAsk",
+      ""
+    ],
+    [
+      "INCONCLUSIVE",
+      "the gate IGNORED the main loop's identical live verb",
+      "the main loop never attempted the command, so the scoping was not exercised."
+    ]
+  ],
+  "executable_ast": "identical to 73cfe08 excluding module docstring",
+  "fixtures": "nonexistent compose paths checked absent before sessions"
+}
