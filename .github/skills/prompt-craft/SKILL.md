@@ -95,6 +95,7 @@ Read the relevant reference before writing; name the references used in the hand
 | an agent that touches untrusted content, private data, or the ability to act | [`references/agent-security.md`](references/agent-security.md) |
 | choosing an agent's tools, or designing tools for a model to call | [`references/tools.md`](references/tools.md) |
 | what an agent knows, when it loads it, or degradation over a long run | [`references/context.md`](references/context.md) |
+| provider-specific prompting, a model change, skill-authoring practices, or a source refresh | [`references/best-practices.md`](references/best-practices.md) |
 
 ## Host configuration
 
