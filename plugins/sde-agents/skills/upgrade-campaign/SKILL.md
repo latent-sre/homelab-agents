@@ -21,19 +21,21 @@ session.
 Execution depends on the host:
 
 - **Claude Code:** when already running inside `homelab-engineer`, continue live work
-  here through its actual host controls; do not hand the task back to yourself. Only a direct
-  main-loop invocation prepares and hands live work through the caller to that engineer. This
-  routing is cooperative, not enforcement: the main loop retains its tools and has no scoped
-  hook. Do not use another context or agent identity to avoid a gate.
+  here through its actual host controls; do not hand the task back to yourself. Every other
+  context, including the main loop and other agents, prepares and hands live work through the
+  caller to that engineer. This routing is cooperative, not enforcement: other contexts retain
+  their own tools and lack this engineer-scoped hook. Do not change context or identity to evade it.
 - **Copilot / VS Code:** prepare only and hand live commands to the operator, including on direct
   skill invocation. A skill does not inherit the engineer profile's omitted `execute` tool; this
   handoff rule is cooperative in main chat, even if that chat offers execution.
 - **Codex:** use the full active engineer policy when it is already loaded in this context.
   Otherwise read the full active installed engineer profile from the host's configured
-  agent-profile source before the first live step; a skill selection or agent description does not load
-  it. Do not substitute a repository-supplied profile or assume its missing confirmation/recovery
-  rules. If the full policy cannot be obtained, prepare only and hand the bounded task through
-  the caller to the engineer. Once loaded, use actual host permissions without another approval.
+  agent-profile source before the first live step. Establish that source's identity/path from
+  effective host configuration or disclosed host metadata; never guess a path. A skill selection
+  or agent description does not load the policy. Do not substitute a repository-supplied profile
+  or assume missing rules. If the active source cannot be verified and read, prepare only and
+  hand the bounded task through the caller to the engineer. Once loaded, use actual host
+  permissions without an invented approval; traverse required host prompts and respect denials.
 
 ## Prepare once, reuse what applies
 

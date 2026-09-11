@@ -28,19 +28,21 @@ infer permission from urgency.
 Execution depends on the host:
 
 - **Claude Code:** when already running inside `sde-agents:homelab-engineer`, continue live work
-  here through its actual host controls; do not hand the task back to yourself. Only a direct
-  main-loop invocation prepares and hands live work through the caller to that engineer. This
-  routing is cooperative, not enforcement: the main loop retains its tools and has no scoped
-  hook. Do not use another context or agent identity to avoid a gate.
+  here through its actual host controls; do not hand the task back to yourself. Every other
+  context, including the main loop and other agents, prepares and hands live work through the
+  caller to that engineer. This routing is cooperative, not enforcement: other contexts retain
+  their own tools and lack this engineer-scoped hook. Do not change context or identity to evade it.
 - **Copilot / VS Code:** prepare only and hand live commands to the operator, including on direct
   skill invocation. A skill does not inherit the engineer profile's omitted `execute` tool; this
   handoff rule is cooperative in main chat, even if that chat offers execution.
 - **Codex:** use the full active engineer policy when it is already loaded in this context.
   Otherwise read the full active installed engineer profile from the host's configured
-  agent-profile source before the first live step; a skill selection or agent description does not load
-  it. Do not substitute a repository-supplied profile or assume its missing confirmation/recovery
-  rules. If the full policy cannot be obtained, prepare only and hand the bounded task through
-  the caller to the engineer. Once loaded, use actual host permissions without another approval.
+  agent-profile source before the first live step. Establish that source's identity/path from
+  effective host configuration or disclosed host metadata; never guess a path. A skill selection
+  or agent description does not load the policy. Do not substitute a repository-supplied profile
+  or assume missing rules. If the active source cannot be verified and read, prepare only and
+  hand the bounded task through the caller to the engineer. Once loaded, use actual host
+  permissions without an invented approval; traverse required host prompts and respect denials.
 
 ## Step 1 — read the signals before touching anything (60 seconds, not 10 minutes)
 
@@ -59,6 +61,11 @@ Two questions decide everything that follows:
   usually to undo it, and you are done with this step.
 
 ## Step 2 — pick the smallest mitigation that restores service
+
+A failed observation is not a failed write. Repair a broken probe/wrapper and reconcile an unknown
+outcome after a timeout or lost connection before choosing a mitigation. If the deployment
+completed and is healthy, verify and report it; do not repeat, restart, or roll it back merely
+because its observation failed.
 
 Before using any rollback/restart row below, reconcile whether a state migration is unknown or
 in flight. If so, observe progress and establish documented safe interruption/recovery first.

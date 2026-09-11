@@ -144,8 +144,9 @@ Claude's shipped live-effect hook still prompts for listed commands and denies t
 are suppressed; unbound/unparseable forms also ask/deny. The hook is a partial filter: only when
 it returns no decision does execution proceed under the host's own permission flow. Skills cooperatively route Claude live work to the engineer; that routing does
 not remove main-loop tools. Direct Copilot skills also hand live commands to the operator.
-Codex uses its effective permissions without requiring an extra prompt; the
-Copilot profile has no execution tool and hands live commands to the operator. Changing prose
+Codex uses its effective permissions without a fleet-invented prompt; required native prompts
+and denials still apply. The Copilot profile has no execution tool and hands live commands to
+the operator. Changing prose
 neither removes a host gate nor supplies a missing tool.
 
 ## Working on the fleet

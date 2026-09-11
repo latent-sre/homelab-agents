@@ -178,6 +178,40 @@ whitespace checks. Six edited canonical definitions total 8,308 words versus 7,6
 review-driven edit rounds. Further findings receive an explicit disposition under the repository
 review contract rather than another silent rewrite.
 
+## Explicitly authorized last batch
+
+After the three-round cap, the operator explicitly authorized one last batch. Every non-engineer
+Claude context now hands live work through its caller to the engineer. Codex must verify the
+active installed policy source from effective configuration or disclosed metadata, without guessing
+paths. Incident handling repairs failed observations and reconciles unknown write outcomes before
+mutation. Native Codex controls and explicit operator command limits remain binding. The hook's
+module docstring now describes bounded authority and partial filtering; its executable AST is
+unchanged. No routing description was changed: the original campaign already included live apply,
+and no routing miss was demonstrated.
+
+[Four final one-shot cases](../archive/2026-09/bounded-campaign-last-batch-evidence.json) pass on
+frozen final sources: both Claude builder handoffs, missing-source Codex refusal to invent a path,
+and incident reconciliation without an unsupported health claim. These are decision simulations,
+not runtime enforcement or service-health proof. Earlier residuals remain in their original reports.
+Final offline verification passes 487 tests (one skip), fleet parity, and strict plugin validation.
+A focused native hook probe observed the engineer deny under suppressed prompts; the main-loop
+arm was inconclusive because it never attempted the command. Executable hook AST equivalence
+was checked against `73cfe08`. Six canonical definitions now total 8,413 words (+725 over baseline).
+This is the last authorized source-fix batch; further review observations receive a disposition.
+
+## Reopen criteria
+
+Reopen on a recorded task that bypasses an actual host denial, changes an unauthorized target or
+artifact, loses recovery/admin access, performs unsafe migration recovery, or needlessly asks
+again within a clearly authorized scope. Capture the exact installed policy, host permissions,
+request, and observed action so a policy defect can be distinguished from installation drift or
+an unsupported health claim. A demonstrated routing miss can reopen the description separately;
+no such miss was established here, and the original skill already contained live apply steps.
+
+The rejected alternative is mandatory exact-command interposition for every live action. Revisit
+that choice only with an observed failure that bounded user authority plus the actual host
+controls cannot contain, and evaluate the extra operator work alongside the safety benefit.
+
 ## Recovery
 
 Revert the source change and regenerate adapters to restore the prior workflow. A source revert
