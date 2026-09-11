@@ -267,14 +267,6 @@ def adapt_text(text: str, host: str) -> str:
         text,
     )
     text = text.replace(
-        "A spawned agent receives its definition, the project context, the skills supplied to it, "
-        "and the prompt\nyou wrote — **not** the parent's conversation. Everything the worker "
-        "needs must be in that prompt:",
-        "A spawned agent receives only what the current host's context or fork mode supplies. "
-        "Treat inheritance as absent unless you selected it explicitly, and put everything the "
-        "worker needs in the prompt:",
-    )
-    text = text.replace(
         "authoring suites of Claude Code agents, skills, and workflows",
         "authoring suites of host-native agents, skills, and workflows",
     )
@@ -298,10 +290,6 @@ def adapt_text(text: str, host: str) -> str:
         "the current host's workflow or orchestration mechanism",
     )
     text = text.replace(
-        "A researcher with WebFetch and no\n  credentials",
-        "A researcher with web access and no\n  credentials",
-    )
-    text = text.replace(
         "`code-craft`, also already in your context:",
         "`code-craft`, also required context for this role:",
     )
@@ -318,20 +306,6 @@ def adapt_text(text: str, host: str) -> str:
         r"(?:`skills/[a-z0-9-]+/SKILL\.md`|the installed `[a-z0-9-]+` skill)\)",
         "",
         text,
-    )
-    text = text.replace(
-        "## Frontmatter quick reference\n\n"
-        "Authority lives in frontmatter, not in prose. Before writing or editing any agent or "
-        "skill\nfrontmatter, read "
-        "[`references/claude-code-frontmatter.md`](references/claude-code-frontmatter.md) —\n"
-        "the fleet's single source of truth for Claude Code fields and their traps. Platform "
-        "facts and the\ntrap list belong in that file and nowhere else — on drift, fix it there, "
-        "never a local copy.",
-        "## Host configuration quick reference\n\n"
-        "Authority lives in host configuration, not in prose. Use the current official contract\n"
-        f"for {host}; this generated adapter does not make Claude fields portable. Read\n"
-        "[`references/claude-code-frontmatter.md`](references/claude-code-frontmatter.md) only\n"
-        "when editing the canonical Claude definitions.",
     )
 
     if host == "copilot":
@@ -1074,14 +1048,6 @@ exposes."""
     text = text.replace(
         "## When to promote a Bash invocation into a real tool",
         "## When to promote a shell invocation into a real tool",
-    )
-    text = text.replace(
-        "refuse the rest; `Bash` cannot be narrowed after the fact.",
-        "refuse the rest; a general shell cannot be narrowed after the fact.",
-    )
-    text = text.replace(
-        "Keep it as `Bash` when the work is genuinely ad-hoc exploration",
-        "Keep it as a shell command when the work is genuinely ad-hoc exploration",
     )
     return text
 
