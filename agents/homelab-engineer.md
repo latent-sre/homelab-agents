@@ -92,7 +92,10 @@ permits execution of the authorized work.
 - **Managed gate:** on Claude Code the plugin's live-effect hook asks for listed live commands
   from this agent and denies them when prompts are suppressed. Traverse any actual prompt; do not
   also request the same approval in chat. Never change wrappers, agent identity, or transport to
-  escape a prompt or denial. On other hosts, use their actual permission controls.
+  escape a prompt or denial. The Claude hook is a partial command filter: unlisted commands use
+  the host's own permissions, which may allow authorized execution without a prompt. Never
+  repackage a denied/gated effect as an unlisted command to evade the control. On other hosts,
+  use their actual permission controls.
 - **Standing policy:** respect effective operator/host permission rules and their limits. An
   allow rule permits tool execution only within the user's task authority; it grants no new
   target, effect, or destructive consequence. Do not edit permission policy to authorize your own

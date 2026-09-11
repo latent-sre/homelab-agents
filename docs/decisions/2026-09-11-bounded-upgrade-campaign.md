@@ -33,7 +33,9 @@ update operating docs when their facts or procedures change.
 ## Host limits and delivery
 
 - Claude's existing live-effect hook still asks/denies. This change does not remove its prompts,
-  change the hook roster, or permit suppressed-prompt bypass.
+  change the hook roster, or bypass a returned prompt/denial. It is a partial command filter:
+  unlisted commands and the main loop use actual host permissions, which may allow execution
+  without a prompt. No hook decision grants new task scope.
 - Codex honors the effective host permissions. It no longer needs an additional prompt or a
   root-owned allow rule when the host permits an authorized action.
 - The generated Copilot profile now omits `execute` to match its handoff policy. The initial
@@ -94,7 +96,8 @@ same first review-driven edit round:
 | Changed target digest could be treated as refreshed evidence | A different selected release/artifact digest needs confirmation unless substitution was explicitly authorized. Reassessing observed current-state drift remains within scope. |
 | Generic incident rollback could precede migration checks | The unknown/in-flight rule now precedes and explicitly overrides the deploy/restart table and Step 3 undo/revert instructions. |
 
-The final six edited canonical definitions total 7,948 words versus 7,688 at baseline (+260).
+At the first review correction, the six edited canonical definitions totalled 7,948 words
+versus 7,688 at baseline (+260).
 The reduction is in required operator steps, not total prompt length. Descriptions and hook code
 remain unchanged; Copilot's actual tool grant is deliberately narrowed, so existing users adopting
 this adapter lose its shell/execute capability and receive a live-command handoff instead.
@@ -111,6 +114,38 @@ The final source passes all 487 offline tests (one skip), adapter parity, plugin
 `git diff --check`. The strengthened Copilot test failed against the prior generated tool grant
 and passed after its removal. No live deployment, native routing, or live hook re-probe was run;
 hook code and canonical descriptions remain unchanged.
+
+## Second PR review disposition
+
+Reviews of `00d2dd0` found remaining coverage claims and the live host-guide paraphrase. Direct
+campaign/incident routing is now explicitly cooperative: Claude live work belongs in the gated
+engineer, and Copilot/VS Code live work goes to operator handoff even when main chat offers
+execution. A directly invoked skill does not inherit a profile's omitted tools. These instructions
+cannot enforce a sandbox in main chat. The host guide and engineering-program map now state that
+same boundary and the permitted native Codex path.
+
+The request to restore mandatory handoff for every unlisted Claude command is **declined**. The
+operator accepted bounded delegation with actual host controls, not a new exact-command prompt
+requirement. The existing hook deliberately leaves unlisted commands to the host's own policy;
+that policy can allow an explicitly authorized command. Denied/gated effects must not be
+repackaged as unlisted commands, and no available tool grants additional task scope. The former
+blanket claim about suppressed-prompt bypass was narrowed to the hook decisions actually made.
+
+A pure-function check of the unchanged `live-effect-gate.py` demonstrates the limit without
+executing any live command: under `bypassPermissions`, scoped `sysctl -w` returns exit 42/no
+hook decision; scoped `systemctl restart example` returns exit 43/deny; the same restart in a main
+loop with no `agent_type` returns exit 42/no hook decision. This proves filter decisions, not
+runtime hook installation. Adding a universal gate or sandbox is a different mechanism and was
+not smuggled into this workflow repair.
+
+The current six canonical definitions total 8,078 words versus 7,688 at baseline (+390). Required
+operator steps were removed; text length increased to make authority and host limits explicit.
+Offline verification still passes 487 tests (one skip), adapter parity, plugin validation, and
+diff whitespace checks. [Four targeted fresh decision trials](../archive/2026-09/bounded-campaign-pr-repair2-evidence.json)
+passed: direct Copilot campaign/incident handoff, authorized unlisted Claude execution without
+claiming hook approval, and refusal to repackage a denied restart. The report records exact source
+hashes and prompts. These are cooperative decision checks, not live execution or hook-load proof;
+older results remain bound to their earlier source snapshots.
 
 ## Recovery
 

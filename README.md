@@ -4,7 +4,7 @@ A Claude Code plugin for one person who runs a home lab and wants AI agents that
 careful operator: inspect before changing, finish an explicitly delegated task within its scope,
 keep recovery ready, and record the result. It ships agents for running the lab and for writing the
 scripts and services that live on it, skills that carry the operating knowledge, and two hooks
-that turn "read-only" and "ask first" from promises into controls.
+that enforce their scoped read-only and live-command policies.
 
 ## Fleet
 
@@ -140,7 +140,10 @@ related work. The [bounded-campaign decision](docs/decisions/2026-09-11-bounded-
 records the behavior and host limits.
 
 Claude's shipped live-effect hook still prompts for listed commands and denies them when prompts
-are suppressed. Codex uses its effective permissions without requiring an extra prompt; the
+are suppressed. The hook is a partial filter: unlisted commands and the direct main loop use
+host permissions. Skills cooperatively route Claude live work to the engineer; that routing does
+not remove main-loop tools. Direct Copilot skills also hand live commands to the operator.
+Codex uses its effective permissions without requiring an extra prompt; the
 Copilot profile has no execution tool and hands live commands to the operator. Changing prose
 neither removes a host gate nor supplies a missing tool.
 

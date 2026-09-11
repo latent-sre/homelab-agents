@@ -18,11 +18,17 @@ verification, and recovery. Preserve real host gates and any explicit command or
 add no campaign approval tier. A version label alone requires neither a new decision nor a new
 session.
 
-On Claude Code, live steps run only inside `homelab-engineer`, whose plugin hook scopes
-to that agent. A direct main-loop invocation may prepare the campaign but must hand live work to
-that agent through the caller; it has no scoped live-effect gate of its own. Do not execute live
-steps in the main loop or change agent identity to avoid a gate. Other hosts follow the engineer's
-generated host policy and available tools; user authorization does not create a missing tool.
+Execution depends on the host:
+
+- **Claude Code:** prepare in the main loop, but hand live work through the caller to
+  `homelab-engineer`. The hook scopes to that agent. This routing rule is cooperative
+  guidance, not enforcement: a direct skill call retains the main loop's tools and has no scoped
+  hook. Do not use that path or another agent identity to avoid a gate.
+- **Copilot / VS Code:** prepare only and hand live commands to the operator, including on direct
+  skill invocation. A skill does not inherit the engineer profile's omitted `execute` tool; this
+  handoff rule is cooperative in main chat, even if that chat offers execution.
+- **Codex:** use the engineer's generated policy and actual host permissions for authorized work.
+
 
 ## Prepare once, reuse what applies
 

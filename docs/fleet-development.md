@@ -275,21 +275,31 @@ Two properties fall out of that, both load-bearing and both tested:
 
 The same file registers a second hook with the opposite job. `homelab-engineer` holds `Bash` and
 `Write` and applies live changes, so its control is not "deny writers" but "make a human decide":
-`scripts/live-effect-gate.py` answers `ask` for every live-effect command that agent runs —
+`scripts/live-effect-gate.py` answers `ask` for listed live-effect commands that agent runs —
 `docker compose up`, `systemctl restart`, `zfs destroy`, a `reboot` — and `deny` when the session's
 permission mode suppresses prompts, because a hook `deny` wins even under bypass and a bypassed
 prompt is not a decision. It no-ops for every other caller, resolves through
 `${CLAUDE_PLUGIN_ROOT}`, and when its interpreter is missing it asks for everything from that agent
 rather than allowing anything. Its roster is deliberately denylist-shaped — the host's own prompt
-stays the floor for unlisted commands — and grows by recurrence, one entry per incident that shows
+or allow/deny policy stays the floor for unlisted commands — and grows by recurrence, one entry per incident that shows
 an unlisted live effect.
 
-What no configuration waives is the boundary itself: a prose "yes" never becomes execution
-authority on its own, so `homelab-engineer` executes an approved Tier 2/3 effect only through a
-control that interposes on the exact command — a trusted host-native managed gate is the normal
-one — and hands the command to the operator when no such control is present. Verification is
-similar: an unavailable pinned container boundary makes the affected criterion inconclusive rather
-than authorizing target-controlled code on the host.
+The current [bounded-campaign authority](decisions/2026-09-11-bounded-upgrade-campaign.md)
+separates user authorization from host permission. A bounded live request covers in-scope
+execution and recovery; it never bypasses an actual host prompt or denial. Codex may use permitted
+native execution without another human-interposing gate or a root-owned rule. The generated
+Copilot engineer omits `execute`, so its live work requires operator handoff.
+
+The Claude hook is a partial command filter, not a sandbox: it does not inspect unlisted commands
+or the direct main loop. Those paths remain subject to the host's effective permissions, which
+can allow execution without a prompt; absence of a hook decision does not authorize new task
+scope. Repackaging a gated/denied effect to escape the control remains prohibited. Direct campaign
+and incident skills cooperatively route Claude live work to the gated engineer and Copilot live
+work to operator handoff. Skills do not inherit an agent profile's tool restrictions; their routing
+prose cannot enforce those restrictions in main chat.
+
+An unavailable verification boundary makes the affected criterion inconclusive rather than
+authorizing target-controlled code on the host.
 
 `agent_type` and its plugin-namespaced values are documented in the upstream hooks reference; the
 scoping contract's owner is the `scripts/readonly-guard.py` docstring, and this section follows

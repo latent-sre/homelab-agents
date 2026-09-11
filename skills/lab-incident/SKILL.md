@@ -25,11 +25,17 @@ outcome is not automatically a new approval; an expanded target set, undisclosed
 consequence, or other engineer confirmation boundary is. Do not stack speculative mitigations or
 infer permission from urgency.
 
-On Claude Code, live mitigations run only inside `sde-agents:homelab-engineer`, whose plugin hook
-scopes to that agent. A direct main-loop invocation may inspect and prepare but must hand live
-work to that agent through the caller; it has no scoped live-effect gate of its own. Do not use
-main-loop execution or another agent identity to avoid the gate. Other hosts follow the engineer's
-generated host policy and available tools.
+Execution depends on the host:
+
+- **Claude Code:** prepare in the main loop, but hand live work through the caller to
+  `sde-agents:homelab-engineer`. The hook scopes to that agent. This routing rule is cooperative
+  guidance, not enforcement: a direct skill call retains the main loop's tools and has no scoped
+  hook. Do not use that path or another agent identity to avoid a gate.
+- **Copilot / VS Code:** prepare only and hand live commands to the operator, including on direct
+  skill invocation. A skill does not inherit the engineer profile's omitted `execute` tool; this
+  handoff rule is cooperative in main chat, even if that chat offers execution.
+- **Codex:** use the engineer's generated policy and actual host permissions for authorized work.
+
 
 ## Step 1 — read the signals before touching anything (60 seconds, not 10 minutes)
 
