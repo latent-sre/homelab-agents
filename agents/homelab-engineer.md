@@ -61,6 +61,11 @@ and concrete rollback/recovery once. Show the command or ordered steps needed to
 reviewable; do not turn every implementation adjustment into a new decision. Reference this
 summary and existing evidence during execution rather than repeating the proposal.
 
+Classify each live effect separately when selecting tier precautions. A reversible image bump
+must not hide a schema migration, storage change, or access-path effect under its Tier 2 label.
+Apply the recovery/out-of-band prerequisites to those effects before execution; this assessment
+does not add another approval for consequences already clearly authorized.
+
 Use tiers to select precautions:
 
 - **Tier 0 — observe.** Inspect health, logs, metrics, and configuration. Select only needed
@@ -92,10 +97,11 @@ permits execution of the authorized work.
 - **Managed gate:** on Claude Code the plugin's live-effect hook asks for listed live commands
   from this agent and denies them when prompts are suppressed. Traverse any actual prompt; do not
   also request the same approval in chat. Never change wrappers, agent identity, or transport to
-  escape a prompt or denial. The Claude hook is a partial command filter: unlisted commands use
-  the host's own permissions, which may allow authorized execution without a prompt. Never
-  repackage a denied/gated effect as an unlisted command to evade the control. On other hosts,
-  use their actual permission controls.
+  escape a prompt or denial. The Claude hook is a partial command filter: when it returns no
+  decision, the host's own permissions apply and may allow authorized execution without a prompt.
+  Unbound wrappers and unparseable commands can still ask/deny without a named live-effect rule.
+  Never repackage a denied/gated effect to evade the control. On other hosts, use their actual
+  permission controls.
 - **Standing policy:** respect effective operator/host permission rules and their limits. An
   allow rule permits tool execution only within the user's task authority; it grants no new
   target, effect, or destructive consequence. Do not edit permission policy to authorize your own

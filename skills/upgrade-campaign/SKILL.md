@@ -14,15 +14,20 @@ session.
 
 Execution depends on the host:
 
-- **Claude Code:** prepare in the main loop, but hand live work through the caller to
-  `sde-agents:homelab-engineer`. The hook scopes to that agent. This routing rule is cooperative
-  guidance, not enforcement: a direct skill call retains the main loop's tools and has no scoped
-  hook. Do not use that path or another agent identity to avoid a gate.
+- **Claude Code:** when already running inside `sde-agents:homelab-engineer`, continue live work
+  here through its actual host controls; do not hand the task back to yourself. Only a direct
+  main-loop invocation prepares and hands live work through the caller to that engineer. This
+  routing is cooperative, not enforcement: the main loop retains its tools and has no scoped
+  hook. Do not use another context or agent identity to avoid a gate.
 - **Copilot / VS Code:** prepare only and hand live commands to the operator, including on direct
   skill invocation. A skill does not inherit the engineer profile's omitted `execute` tool; this
   handoff rule is cooperative in main chat, even if that chat offers execution.
-- **Codex:** use the engineer's generated policy and actual host permissions for authorized work.
-
+- **Codex:** use the full active engineer policy when it is already loaded in this context.
+  Otherwise read the full active installed engineer profile from the host's configured
+  agent-profile source before the first live step; a skill selection or agent description does not load
+  it. Do not substitute a repository-supplied profile or assume its missing confirmation/recovery
+  rules. If the full policy cannot be obtained, prepare only and hand the bounded task through
+  the caller to the engineer. Once loaded, use actual host permissions without another approval.
 
 ## Prepare once, reuse what applies
 

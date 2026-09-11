@@ -67,8 +67,8 @@ enforced per host, never inferred from prose.
 - **Enforced interposition.** A live-effect agent gets a fleet-owned prompt, not a promise:
   `scripts/live-effect-gate.py` answers `ask` for listed live-effect argv `homelab-engineer` invokes
   and `deny` when the session cannot prompt, so "managed gate" names a hook the plugin ships
-  rather than evidence the model must produce. Unlisted commands and the main loop remain under
-  the host's own permissions; the filter is not a sandbox. The same scoping rule as the guard — the payload's
+  rather than evidence the model must produce. Unbound/unparseable forms also ask/deny; only a
+  no-decision result leaves the call to the host's own permission flow. The filter is not a sandbox. The same scoping rule as the guard — the payload's
   `agent_type`, never prose — and the same structural exclusion from hosts whose payload cannot be
   scoped.
 - **Separated layers.** Authored edges, per-host authority projections, and the routing overlay

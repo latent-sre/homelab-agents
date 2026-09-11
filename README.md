@@ -62,10 +62,11 @@ agent making the call and does nothing for anyone else, so your own shell is nev
   of read-only commands (`git diff`, `rg`, `cat`, and their kin) and denies everything else,
   including any interpreter. If the guard cannot run, those agents lose Bash rather than gaining
   it.
-- **The live-effect gate.** `homelab-engineer` can change your lab, so its control is a question,
-  not a denial: every live command it runs (`docker compose up`, `systemctl restart`, `zfs
-  destroy`, a reboot) prompts you, and is denied outright in a session that has turned prompts
-  off, because a bypassed prompt is not a decision.
+- **The live-effect gate.** For `homelab-engineer`, listed live commands (`docker compose up`,
+  `systemctl restart`, `zfs destroy`, a reboot) prompt and are denied when prompts are suppressed.
+  Unbound wrappers and unparseable commands also ask/deny. When the partial filter returns no
+  decision (including the main loop), the host's own permissions apply. A permitted command needs
+  user task authority, and a denied effect must not be repackaged to evade the gate.
 
 Both hooks run from the installed plugin copy, never from a repository under review. Neither is a
 sandbox: a reviewer that can read files can read secrets, and the load-bearing control remains the
@@ -140,8 +141,8 @@ related work. The [bounded-campaign decision](docs/decisions/2026-09-11-bounded-
 records the behavior and host limits.
 
 Claude's shipped live-effect hook still prompts for listed commands and denies them when prompts
-are suppressed. The hook is a partial filter: unlisted commands and the direct main loop use
-host permissions. Skills cooperatively route Claude live work to the engineer; that routing does
+are suppressed; unbound/unparseable forms also ask/deny. The hook is a partial filter: only when
+it returns no decision does execution proceed under the host's own permission flow. Skills cooperatively route Claude live work to the engineer; that routing does
 not remove main-loop tools. Direct Copilot skills also hand live commands to the operator.
 Codex uses its effective permissions without requiring an extra prompt; the
 Copilot profile has no execution tool and hands live commands to the operator. Changing prose

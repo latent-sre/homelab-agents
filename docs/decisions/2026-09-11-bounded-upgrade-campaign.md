@@ -19,8 +19,8 @@ window, target, and other limits imposed by the operator remain binding. Risk ti
 recovery evidence; the tier or version number alone does not create another decision.
 
 The agent asks when scope expands or an irreversible data-loss, external-publication, or secret
-custody consequence was not authorized, and before removing an unverified last recovery/admin
-path. Unknown outcomes require reconciliation before another write. Repeated failure without new
+custody consequence was not authorized, and before removing a last recovery/admin path
+unless an independent alternative has been verified. Unknown outcomes require reconciliation before another write. Repeated failure without new
 evidence stops retries of that step. A recovered service's failed upgrade is deferred; unrelated
 approved work continues only after checking independence and target-version dependencies.
 
@@ -34,8 +34,8 @@ update operating docs when their facts or procedures change.
 
 - Claude's existing live-effect hook still asks/denies. This change does not remove its prompts,
   change the hook roster, or bypass a returned prompt/denial. It is a partial command filter:
-  unlisted commands and the main loop use actual host permissions, which may allow execution
-  without a prompt. No hook decision grants new task scope.
+  unbound/unparseable forms can ask/deny even without a named rule. When the hook returns no
+  decision, actual host permissions may allow execution without a prompt. No hook decision grants new task scope.
 - Codex honors the effective host permissions. It no longer needs an additional prompt or a
   root-owned allow rule when the host permits an authorized action.
 - The generated Copilot profile now omits `execute` to match its handoff policy. The initial
@@ -126,8 +126,8 @@ same boundary and the permitted native Codex path.
 
 The request to restore mandatory handoff for every unlisted Claude command is **declined**. The
 operator accepted bounded delegation with actual host controls, not a new exact-command prompt
-requirement. The existing hook deliberately leaves unlisted commands to the host's own policy;
-that policy can allow an explicitly authorized command. Denied/gated effects must not be
+requirement. The existing hook can return no decision for a parsed unlisted command; the host's own policy
+can then allow an explicitly authorized command. Unbound/unparseable forms still ask/deny. Denied/gated effects must not be
 repackaged as unlisted commands, and no available tool grants additional task scope. The former
 blanket claim about suppressed-prompt bypass was narrowed to the hook decisions actually made.
 
@@ -138,7 +138,8 @@ loop with no `agent_type` returns exit 42/no hook decision. This proves filter d
 runtime hook installation. Adding a universal gate or sandbox is a different mechanism and was
 not smuggled into this workflow repair.
 
-The current six canonical definitions total 8,078 words versus 7,688 at baseline (+390). Required
+At the second correction, the six canonical definitions totalled 8,078 words versus 7,688
+at baseline (+390). Required
 operator steps were removed; text length increased to make authority and host limits explicit.
 Offline verification still passes 487 tests (one skip), adapter parity, plugin validation, and
 diff whitespace checks. [Four targeted fresh decision trials](../archive/2026-09/bounded-campaign-pr-repair2-evidence.json)
@@ -146,6 +147,36 @@ passed: direct Copilot campaign/incident handoff, authorized unlisted Claude exe
 claiming hook approval, and refusal to repackage a denied restart. The report records exact source
 hashes and prompts. These are cooperative decision checks, not live execution or hook-load proof;
 older results remain bound to their earlier source snapshots.
+
+## Third and final review-driven correction
+
+Reviews of `dc6ecfa` found that the Claude routing instruction could send an already-active
+engineer back to itself, and direct Codex skill selection did not load the owner policy. The
+Claude branch now routes only direct main-loop calls; an active engineer continues. Codex reuses
+its full active policy when loaded, otherwise reads the full active installed profile before the
+first live step, with preparation/handoff if unavailable. A description or repository-supplied
+profile is not a substitute. Profile lookup is not an additional user approval.
+
+Each live effect now receives its own risk assessment so an image bump cannot conceal a migration
+or access change under Tier 2. The README's older universal-prompt claim is corrected. Host
+summaries now distinguish a genuine no-decision hook result from unbound/unparseable commands,
+which can ask/deny without a named rule. A pure-function check confirmed an unbound `sh -c`
+restart returns exit 43/deny under suppressed prompts; no shell command was executed. The decision
+record's last-path wording now matches the requirement for a verified independent alternative.
+
+[Six final targeted trials](../archive/2026-09/bounded-campaign-pr-repair3-evidence.json) passed
+their operational criteria: active Claude campaign and incident execution, Codex missing-policy
+loading (skill-only input) and loaded-policy reuse, mixed migration precautions, and wrapper
+denial. Two answer-quality residuals are preserved: an invented example policy path and a health
+claim unsupported by a probe. These prevent any claim that real policy discovery or service
+health was verified; they were not hidden behind the operational pass count. No further tuning
+was performed.
+
+The final source passes 487 offline tests (one skip), generated parity, plugin validation, and
+whitespace checks. Six edited canonical definitions total 8,308 words versus 7,688 at baseline
+(+620); the intended reduction is operator ceremony, not prompt size. This exhausts the three
+review-driven edit rounds. Further findings receive an explicit disposition under the repository
+review contract rather than another silent rewrite.
 
 ## Recovery
 

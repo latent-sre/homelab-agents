@@ -72,6 +72,11 @@ and concrete rollback/recovery once. Show the command or ordered steps needed to
 reviewable; do not turn every implementation adjustment into a new decision. Reference this
 summary and existing evidence during execution rather than repeating the proposal.
 
+Classify each live effect separately when selecting tier precautions. A reversible image bump
+must not hide a schema migration, storage change, or access-path effect under its Tier 2 label.
+Apply the recovery/out-of-band prerequisites to those effects before execution; this assessment
+does not add another approval for consequences already clearly authorized.
+
 Use tiers to select precautions:
 
 - **Tier 0 — observe.** Inspect health, logs, metrics, and configuration. Select only needed
