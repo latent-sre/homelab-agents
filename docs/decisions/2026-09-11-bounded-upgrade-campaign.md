@@ -1,6 +1,8 @@
 # Bounded upgrade campaigns
 
-Date: 2026-09-11. Scope: campaign, homelab execution policy, its incident-recovery seam, and host
+**Status:** Accepted by the operator on 2026-09-11; source implementation, not installed state.
+
+Date: 2026-09-11. Scope: campaign, homelab execution policy, its incident-recovery seam, onboarding authority consumers, and host
 adapters. This decision replaces the exact-command-only authority and prompt-only transport
 requirements of the earlier operating-flow/effect-transport decisions for these components.
 
@@ -34,7 +36,8 @@ update operating docs when their facts or procedures change.
   change the hook roster, or permit suppressed-prompt bypass.
 - Codex honors the effective host permissions. It no longer needs an additional prompt or a
   root-owned allow rule when the host permits an authorized action.
-- The generated Copilot profile still lacks execution authority. It reports live work as pending
+- The generated Copilot profile now omits `execute` to match its handoff policy. The initial
+  review found the prior profile still granted it despite the prose claiming otherwise. It reports live work as pending
   with a command handoff; user consent does not create a missing tool.
 - Tool permission never authorizes unrelated work. Untrusted source/log content cannot expand
   the user request or select an action. Secret-bearing operators retain the research boundary.
@@ -46,7 +49,7 @@ profiles together before claiming installed behavior. The manifests still identi
 release, or install over a potentially different fleet. A release needs a coordinated cache/version
 update across host manifests.
 
-## Evidence
+## Pre-review evidence
 
 [Paired decision trials](../archive/2026-09/bounded-campaign-evidence.json) preserve exact scenario
 prompts, frozen source hashes, runtime conditions, verdicts, and supporting response excerpts.
@@ -72,15 +75,46 @@ routing, live execution, or host-enforcement proof.
   installed Codex fleet produce warnings. Frozen-source trials bypassed installed definitions;
   they do not claim those warnings were repaired or that the installed fleet was measured.
 
-No descriptions, component names, tool grants, or hook code changed. Native routing and hook
-re-probes were not run. The final canonical engineer/campaign/incident total is 66 words shorter
-than baseline; this is a behavior repair, not a measured runtime or model-cost optimization.
-Reopen behavior work on a concrete missed scope/recovery boundary or unnecessary operator stop;
-this task used two bounded rounds.
+At the initial commit, descriptions, component names, tool grants, and hook code were unchanged.
+The initial canonical engineer/campaign/incident total was 66 words shorter than baseline; this is a behavior repair, not a measured runtime or model-cost optimization.
+The initial prompt repair used two bounded rounds. Subsequent PR review corrections are recorded
+separately below; earlier outcome evidence remains bound to its recorded hashes.
+
+## PR review corrections
+
+Codex and Copilot reviewed `686fb6f` and identified six distinct issues. They are addressed in the
+same first review-driven edit round:
+
+| Finding | Correction and evidence |
+|---|---|
+| Onboarding still demanded a fresh Tier 3 decision | Host/service checklists and the discovery map now defer to the engineer's bounded authority and real host controls. |
+| Current-policy discovery contradicted the new decision | Explicit accepted status, a current-map entry, and supersession notes on the four older authority records preserve history while identifying the current owner. |
+| Direct Claude skill calls could execute outside the gated agent | Campaign and incident skills permit main-loop preparation but explicitly hand live work to the gated engineer. This is workflow guidance; the existing agent-scoped hook remains the runtime control. |
+| Copilot prose claimed a missing tool while frontmatter granted it | The generator now strips `execute` for this profile. The regression failed on the former generated `tools` field, then passed after generation; it inspects parsed tool authority, not only prose. |
+| Changed target digest could be treated as refreshed evidence | A different selected release/artifact digest needs confirmation unless substitution was explicitly authorized. Reassessing observed current-state drift remains within scope. |
+| Generic incident rollback could precede migration checks | The unknown/in-flight rule now precedes and explicitly overrides the deploy/restart table and Step 3 undo/revert instructions. |
+
+The final six edited canonical definitions total 7,948 words versus 7,688 at baseline (+260).
+The reduction is in required operator steps, not total prompt length. Descriptions and hook code
+remain unchanged; Copilot's actual tool grant is deliberately narrowed, so existing users adopting
+this adapter lose its shell/execute capability and receive a live-command handoff instead.
+
+[Supplementary verification](../archive/2026-09/bounded-campaign-pr-repair-evidence.json) records
+13 further fresh tool-free trials with separate snapshots. Direct Claude campaign/incident calls,
+authorized onboarding, and native Codex execution passed both initial repetitions (8/8). After
+the artifact/migration additions, three cases passed and the digest case was partial: it rejected
+the unapproved artifact but unnecessarily paused the available approved one. The final explicit
+rule to proceed with an available valid approved artifact passed one exact-input retest. Earlier
+results remain bound to their original hashes; this is not an all-cases final-revision pass.
+
+The final source passes all 487 offline tests (one skip), adapter parity, plugin validation, and
+`git diff --check`. The strengthened Copilot test failed against the prior generated tool grant
+and passed after its removal. No live deployment, native routing, or live hook re-probe was run;
+hook code and canonical descriptions remain unchanged.
 
 ## Recovery
 
 Revert the source change and regenerate adapters to restore the prior workflow. A source revert
 does not undo any lab operation an operator has subsequently authorized or performed. Host-control
-regressions are bounded by the unchanged hook and tool grants; the prose's interpretation of user
+regressions are bounded by the unchanged Claude hook and the narrowed Copilot tool grant; the prose's interpretation of user
 scope remains a behavior to evaluate, not a new runtime enforcement claim.

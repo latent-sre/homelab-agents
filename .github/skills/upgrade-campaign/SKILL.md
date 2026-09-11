@@ -18,6 +18,12 @@ verification, and recovery. Preserve real host gates and any explicit command or
 add no campaign approval tier. A version label alone requires neither a new decision nor a new
 session.
 
+On Claude Code, live steps run only inside `homelab-engineer`, whose plugin hook scopes
+to that agent. A direct main-loop invocation may prepare the campaign but must hand live work to
+that agent through the caller; it has no scoped live-effect gate of its own. Do not execute live
+steps in the main loop or change agent identity to avoid a gate. Other hosts follow the engineer's
+generated host policy and available tools; user authorization does not create a missing tool.
+
 ## Prepare once, reuse what applies
 
 1. **Bound the work.** Resolve the named services/hosts and maintenance window from the request and
@@ -56,8 +62,13 @@ completed work and remaining dependencies instead of restarting discovery.
 
 For each service, recheck material target/config/runtime and recovery assumptions just before
 acting. Reuse unchanged evidence; refresh affected checks after drift, delay, or another writer.
-A change in evidence calls for reassessment, not automatic reapproval: escalate only when the
-engineer's authority boundary or an explicit operator limit is crossed.
+Observed current-state drift calls for reassessment, not automatic reapproval. A different
+selected target release or artifact digest requires confirmation unless the user explicitly
+authorized that substitution; do not treat registry re-resolution as merely refreshed evidence.
+Other changes escalate when the engineer's authority boundary or an explicit operator limit is
+crossed.
+When the approved artifact is still available and valid, use it without renewed approval; a
+pending substitution does not block that apply or independent authorized work.
 
 - Pin a specific release or digest and retain the prior runtime/config needed for recovery.
 - Apply with the existing native tool, observe startup and relevant logs, then exercise the

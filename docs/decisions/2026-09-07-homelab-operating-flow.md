@@ -1,5 +1,11 @@
 # Homelab operating flow for one operator
 
+> **Authority update, 2026-09-11:** The accepted
+> [bounded-campaign decision](2026-09-11-bounded-upgrade-campaign.md) supersedes this record's
+> exact-command-only authorization, automatic fresh-Tier-3 decision, and prompt-only transport
+> requirements. Its applicable host controls and unrelated decisions remain in force. The
+> original rationale and evidence below are retained as history.
+
 **Status:** Implemented and reviewed candidate on `refactor/homelab-operating-flow`.
 The evidence below was captured during pre-publication review. No host installation is part of
 this change; publication was authorized after the review completed.

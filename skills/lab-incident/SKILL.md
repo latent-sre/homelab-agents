@@ -25,6 +25,12 @@ outcome is not automatically a new approval; an expanded target set, undisclosed
 consequence, or other engineer confirmation boundary is. Do not stack speculative mitigations or
 infer permission from urgency.
 
+On Claude Code, live mitigations run only inside `sde-agents:homelab-engineer`, whose plugin hook
+scopes to that agent. A direct main-loop invocation may inspect and prepare but must hand live
+work to that agent through the caller; it has no scoped live-effect gate of its own. Do not use
+main-loop execution or another agent identity to avoid the gate. Other hosts follow the engineer's
+generated host policy and available tools.
+
 ## Step 1 — read the signals before touching anything (60 seconds, not 10 minutes)
 
 One pass, time-boxed, to tell an outage from a symptom: what is actually broken, how wide, and
@@ -42,6 +48,12 @@ Two questions decide everything that follows:
   usually to undo it, and you are done with this step.
 
 ## Step 2 — pick the smallest mitigation that restores service
+
+Before using any rollback/restart row below, reconcile whether a state migration is unknown or
+in flight. If so, observe progress and establish documented safe interruption/recovery first.
+This rule overrides the generic deploy rollback and Step 3 undo/revert instructions, even before
+data loss is suspected. Do not stop writers, snapshot, take a cold copy, or revert until those
+effects are known safe and authorized; missing evidence stops those mutations.
 
 | Situation | Mitigation | Not this |
 |---|---|---|
@@ -63,10 +75,12 @@ postmortem's preventative action is what closes it.
 Make **one** change and watch the signal you expect it to move, for long enough to be real (a
 health check passing twice, not once). Then decide: recovered, no effect, or worse.
 
-- **No effect** → undo it before trying the next thing. Stacked half-mitigations are why an outage
+- **No effect** → use the established safe undo before trying the next thing, subject to the
+  migration rule above. Stacked half-mitigations are why an outage
   becomes a mystery: at the end nobody knows which change is load-bearing, and the postmortem's
   timeline is unreconstructible.
-- **Worse** → revert immediately, and treat that as information about the cause.
+- **Worse** → use the established safe recovery immediately; when migration state is uncertain,
+  reconcile under the rule above rather than issuing a blind revert. Treat the result as evidence.
 - Keep a running timestamped note as you go — what you ran, at what time, what happened —
   emitted as you go, not saved up for the end: a session that ends mid-incident takes everything
   unwritten with it. You are writing the postmortem's timeline right now, and memory will smooth

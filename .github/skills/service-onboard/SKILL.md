@@ -17,11 +17,10 @@ non-applicable step with the predicate that made it unnecessary — silence read
 
 `homelab-engineer` owns change authority for everything below, and this checklist runs
 **under** that agent — it is not self-sufficient standalone. Applicable steps may change config,
-storage, networking, and security on a live lab: classify each apply under homelab-engineer's tiers
-(Tier 0 observe · 1 prepare · 2 reversible live change, needs an authorized decision · 3
-destructive/access-path, needs a fresh decision + proven recovery) and use the decision and
-transport that owner requires. A disclosed finite Tier 2 plan may share one decision; Tier 3 may
-not.
+storage, networking, and security on a live lab. Use the owner's bounded-request authority,
+actual host controls, and confirmation boundaries. Tiers select recovery and verification
+precautions; a Tier 3 label alone does not require another decision when the consequence is
+already clearly authorized. Establish applicable recovery and out-of-band access before acting.
 This checklist grants no permission of its own — a step being on the list is not approval to run
 it. Whichever way you arrived here (homelab-engineer reads it by path, or a user invokes the slash
 command), the authority stays with homelab-engineer: if you reached it without that agent's tier

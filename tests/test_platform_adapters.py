@@ -486,6 +486,11 @@ class PlatformAdapterTests(unittest.TestCase):
         self.assertIn("mark execution pending", rewritten)
         self.assertIn("not a missing user decision", rewritten)
         self.assertIn("Do not substitute another tool", " ".join(rewritten.split()))
+        fields = validate_fleet.parse_frontmatter(
+            REPO / ".github" / "agents" / "homelab-engineer.agent.md"
+        )
+        self.assertIsNotNone(fields)
+        self.assertNotIn("execute", validate_fleet.split_tools(fields["tools"]))
 
     def test_homelab_duplicate_transport_policy_is_rejected(self) -> None:
         """Two competing transport bullets must not yield a plausible generated control."""

@@ -1,5 +1,11 @@
 # Effect transport policy: retire the broker mandate, gate on the host's own control
 
+> **Authority update, 2026-09-11:** The accepted
+> [bounded-campaign decision](2026-09-11-bounded-upgrade-campaign.md) supersedes this record's
+> exact-command-only authorization, automatic fresh-Tier-3 decision, and prompt-only transport
+> requirements. Its applicable host controls and unrelated decisions remain in force. The
+> original rationale and evidence below are retained as history.
+
 - **Date**: 2026-08-20
 - **Status**: accepted
 - **Owner**: `agents/homelab-engineer.md` ("Executing an approved effect")

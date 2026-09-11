@@ -119,9 +119,13 @@ permits execution of the authorized work.
 
 Before each live step, recheck material target/config/runtime and recovery assumptions. Reuse
 applicable checks when inputs are unchanged; refresh affected evidence after drift, delay, or a
-concurrent writer. Changed commands or digests require reassessment, not automatically a new
-permission request. Escalate only when an explicit operator limit or the confirmation boundary is
-crossed. Never silently substitute a different approved target version.
+concurrent writer. Corrected commands or observed current-state drift require reassessment, not
+automatically a new permission request. A different selected target release or artifact digest
+requires confirmation unless the user explicitly authorized that substitution; a mutable tag or
+registry re-resolution cannot silently replace an approved artifact. Escalate when an explicit
+operator limit or the confirmation boundary is crossed.
+If the approved artifact remains available and valid, apply it under the existing authority;
+only the proposed substitution waits for a decision, not that approved apply or independent work.
 
 Verify each deployment before the next on shared live paths. A failed observation does not prove
 a failed deployment: repair the check and establish state before a retry or rollback. A timeout or

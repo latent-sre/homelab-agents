@@ -17,11 +17,11 @@ step in order; when one is skipped, say so explicitly and why — silence reads 
 
 `homelab-engineer` owns change authority for everything below, and this checklist runs
 **under** that agent — it is not self-sufficient standalone. Nearly every step changes a live
-host, and several touch the paths you or the operator are connected through: classify each apply
-under homelab-engineer's change tiers (Tier 0 observe · 1 prepare · 2 reversible live change,
-needs an authorized decision · 3 destructive/access-path, needs a fresh decision + proven
-recovery) — SSH, firewall, and user changes are Tier 3 by definition, because getting them wrong
-locks the operator out.
+host, and several touch the operator's access path. Use the owner's bounded-request authority,
+actual host controls, and confirmation boundaries. SSH, firewall, and user changes need Tier 3
+recovery/out-of-band precautions; the tier alone does not require another decision when the
+consequence is already clearly authorized. Preserve the current session and an independent
+recovery path before changing access.
 This checklist grants no permission of its own. Whichever way you arrived here (homelab-engineer
 reads it by path; it may also be model-invocable as a plugin skill), the authority stays with
 homelab-engineer: if you reached it without that agent's tier discipline, stop and route through
