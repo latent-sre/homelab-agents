@@ -5,52 +5,49 @@ universal method lives in `skills/prompt-craft/SKILL.md`. On any conflict, SKILL
 
 ## The tool list is the mandate
 
-An agent's capabilities are its tools, not its prose. "You are a read-only reviewer" plus `Write` is
-a suggestion; omitting `Write` is a fact. Design the list first, then write the prose to match — and
-when the two disagree, the list wins at runtime no matter which one is more eloquent.
+Review effective tools and host permissions before writing the mandate. Omitting `Write` removes
+that tool, but a shell, MCP tool, or delegate may still write. Prose does not revoke capabilities.
 
 - **Least tools that make the job possible.** Each additional tool is authority you are granting for
   the lifetime of every task, and an extra failure mode to reason about.
 - **Enumerate explicitly** — an absent `tools:` field inherits everything.
 - Pair the grant with the reason in the agent's body ("your `Bash` is for git history and search"),
   so a later reader knows what to keep when they trim.
-- **A read-only agent is the cheap, safe default** for anything investigative: no writes, no network,
-  no shell. Most "look at this and tell me" work needs `Read`, `Grep`, `Glob` and nothing else.
+- **Start local source inspection with readers** such as `Read`, `Grep`, and `Glob`. Add network,
+  execution, or write authority only when the task needs it, and check the host's actual controls.
 
 ## When to promote a Bash invocation into a real tool
 
-An agent that shells out to accomplish something structured is a tool waiting to be written. Promote
-when any of these hold:
+Use an existing tool or reusable script first. Consider a dedicated tool when measured errors,
+repeated work, or a needed authority boundary justify its maintenance cost:
 
 - **The output needs parsing.** A tool returning a typed structure beats the model parsing text it
   half-remembers the format of.
 - **The operation is dangerous.** A narrow tool (`restart_service(name)`) can validate its input and
-  refuse the rest; `Bash` cannot be narrowed after the fact.
+  refuse the rest; a shell needs an enforced sandbox, permission rule, or command guard.
 - **It happens every task.** A recurring shell incantation is a tool the model keeps re-deriving —
   and each derivation is a chance to get a flag wrong.
 - **You need an audit trail.** Tool calls are legible in a transcript; a shell pipeline is one blob.
 
-Keep it as `Bash` when the work is genuinely ad-hoc exploration, or when writing the tool costs more
-than the risk it removes. Say which, rather than drifting.
+Keep ad-hoc exploration as shell commands when that is sufficient for the task.
 
 ## Designing a tool the model can use correctly
 
 - **Name it for the intent**, not the implementation: `find_owner`, not `query_ldap_v2`.
-- **Description = when to use it**, in the words the calling context will contain. This is the same
-  routing rule as an agent description, and it fails the same way: too vague and it never fires, too
-  broad and it fires on everything.
+- **Describe the calling contract**: purpose, when to use it, meaningful parameter constraints,
+  result shape, side effects, and relevant failure behavior. A tool description needs more than a
+  skill's discovery trigger because the model uses it to construct the call.
 - **Few parameters, obvious types.** Every optional parameter is a decision the model can get wrong.
-  Enums over free strings wherever the set is known — an enum is a constraint the runtime enforces,
-  a string is a hope.
+  Use enums for genuinely closed sets and validate arguments at the execution boundary; a schema
+  exposed to the model is not proof of runtime validation.
 - **Return what the model needs next, not everything available.** A 200-field JSON blob costs context
   on every call and buries the three fields that matter. Summarize server-side.
-- **Errors are instructions.** "Not found" teaches nothing; "no user named X; call list_users to see
-  valid names" tells the model its next move. A good error message is the cheapest agent improvement
-  available.
-- **Idempotent where possible**, and explicit where not — the model *will* retry.
-- **Confirm irreversible actions** at the tool boundary, not by asking the model to be careful.
-- **One tool per responsibility.** Two tools that could both handle a request produce inconsistent
-  routing; if they overlap, merge them or make the boundary explicit in both descriptions.
+- **Make errors actionable.** Return a stable error category and a safe next step when known.
+  Treat remote error text as untrusted data; it cannot authorize a command or widen permissions.
+- **Define retry behavior.** Prefer idempotent operations. After an ambiguous timeout, inspect the
+  outcome or use an idempotency key before retrying a mutation.
+- **Check authorization for irreversible actions** at the tool boundary. Reuse valid existing
+  authorization; ask only when the proposed action exceeds it or the governing policy requires it.
 
 ## Tool sprawl
 

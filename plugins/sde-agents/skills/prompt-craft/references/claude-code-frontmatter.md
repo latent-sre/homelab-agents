@@ -17,7 +17,8 @@ Required: `name`, `description` (the trigger). Optional: `tools`, `disallowedToo
 `permissionMode`, `maxTurns`, `skills`, `mcpServers`, `hooks`, `memory`, `background`, `effort`,
 `isolation`, `color`, `initialPrompt`.
 
-Authority lives in frontmatter, not in prose — the fields that carry it:
+These fields affect authority where Claude honors them. Check scope and effective permissions;
+plugin exceptions below can make a field inert.
 
 | Field | Notes |
 |---|---|

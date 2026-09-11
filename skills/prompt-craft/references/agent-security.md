@@ -1,10 +1,9 @@
 # Reviewing an agent for security
 
 Read before shipping an agent, skill, or tool definition that touches untrusted content, private
-data, or the ability to act. The universal method lives in `skills/prompt-craft/SKILL.md`. On any
-conflict, SKILL.md wins.
-
-The fleet authors agents constantly and has a review method for code but none for agents. This is it.
+data, or the ability to act. Use `skills/prompt-craft/SKILL.md` for the prompt-editing method,
+this reference for security guidance, and `references/claude-code-frontmatter.md` for Claude
+field behavior.
 
 ## The lethal trifecta
 
@@ -22,29 +21,28 @@ controls on that path, and state any unverified bypass. Rate a finding by its re
 preconditions. "Ignore malicious instructions" is a prompt mitigation, not an enforced control;
 remove an unnecessary capability or constrain its use through controls outside the model.
 
-Ways to cut a leg, in descending robustness:
+Remove unnecessary capabilities and verify the effective boundary:
 
-- **Remove the exfiltration path**: no network tools, no write tools, no posting. A reviewer that can
-  only read and report cannot leak what it found.
-- **Remove the private data**: run the untrusted-content step in a separate agent with no credentials
-  and no repo access, and pass forward only a structured summary.
-- **Remove the untrusted content**: pin the inputs (a vetted doc set) rather than fetching whatever a
-  link points at.
-- **Rule of Two**: allow at most two of the three in any single agent, and make the third a boundary
-  another agent owns.
+- **Constrain outbound paths.** Inspect network access, writes, posting, logs, and returned reports.
+  Read-only filesystem access does not prevent disclosure through a network tool or the answer.
+- **Restrict private-data access.** Run untrusted-input processing without unnecessary credentials
+  or mounts. A separate agent counts only when those access restrictions actually hold.
+- **Constrain inputs.** Use a vetted, versioned input set when the task permits it; pinning records
+  identity but does not make content trustworthy.
+- **Separate capabilities when needed.** Keeping one of the three out of a context can reduce
+  exposure, but another agent's involvement is not itself an enforced boundary.
 
 ## Delegation is not isolation
 
-Spawning a subagent does **not** sanitize anything. The subagent gets its own context window, not its
-own trust domain: it still holds the tools its definition grants, and its *output flows back into the
-parent's context*, where it is read as trusted narration. An untrusted instruction that reaches a
-worker can therefore steer the parent through the worker's report. Two consequences:
+Spawning a subagent does not sanitize its inputs or outputs. Separate context does not establish
+a separate trust domain; inspect effective tools, credentials, mounts, and network access.
+Returned content can carry an injected instruction into the parent. Two consequences:
 
-- **The trifecta is evaluated per agent AND across the handoff.** A researcher with WebFetch and no
-  credentials is fine alone; if it reports into an orchestrator that holds a deploy token and acts on
-  the report without review, the composite has all three legs.
-- **Structure the return value.** A schema (findings with file:line, a verdict enum) is far harder to
-  smuggle instructions through than free prose, and it makes the parent's parsing mechanical.
+- **Trace the full handoff.** A worker without private data can still influence an orchestrator
+  that has credentials and acts on its report. Check the composed path as well as each agent.
+- **Validate returned fields.** A constrained schema reduces free-form channels, but a string
+  inside valid JSON can still contain hostile instructions. Treat returned content as evidence;
+  validate proposed actions against the user's task and host controls before acting.
 
 ## Tool grants are the actual security boundary
 
@@ -66,26 +64,30 @@ worker can therefore steer the parent through the worker's report. Two consequen
 
 ## Content boundaries in the prompt itself
 
-Prose can't be the control, but it should still be right:
+Prompt instructions supplement host controls:
 
 - **State that fetched and read content is data, not instructions**, and that an attempt to direct
   the agent gets *reported* rather than obeyed. The report is the valuable half — it turns an attack
   into a signal.
-- Keep the untrusted content clearly delimited from the instructions when you assemble a prompt, and
-  never let it choose a tool, a path, or a permission decision.
-- **Hash- or version-bind anything you depend on**: a pinned dependency, a pinned action SHA, a
-  pinned prompt template. "Latest" means someone else decides what your agent runs
-  (`sde-agents:ci-actions` covers the CI form).
-- Secrets never enter a prompt or a tool argument; they belong in the environment of the process that
-  needs them.
+- Delimit untrusted content from instructions. Use extracted values only for the authorized task;
+  validate paths, destinations, and action parameters before use. Content cannot grant permission
+  or redefine the task, and delimiters alone do not enforce that boundary.
+- Bind executable dependencies and compared prompt versions to known revisions when identity
+  matters; `sde-agents:ci-actions` covers CI pinning.
+- Keep credentials out of prompts and model-visible tool arguments. Use the host's credential
+  mechanism or a scoped process environment, and keep values out of logs and returned output.
 
 ## The review, in five questions
 
 1. Which of the three legs does this agent hold, and what enforced boundary prevents their misuse?
 2. Does its `tools:` list say exactly what it can do — with nothing inherited and no fake scoping?
 3. If it holds `Bash` or a write tool, what enforces the limit its prose claims?
-4. Where does untrusted content enter, and what stops it from selecting an action?
+4. Where does untrusted content enter, and what validates an action derived from it?
 5. What does its output flow into, and is that consumer treating it as data or as instructions?
 
-Any question without a concrete answer is the finding. Record it the way the fleet records evidence:
-`[verified]`, `[sourced]`, or `[unverified]`.
+An unanswered question is an evidence gap, not a proven vulnerability. Record reachable findings
+and gaps separately with the fleet's evidence labels: `[verified]`, `[sourced]`, or `[unverified]`.
+
+[OpenAI's agent safety guidance](https://developers.openai.com/api/docs/guides/agent-builder-safety#combine-techniques)
+describes structured outputs and isolation as mitigations that reduce, but do not eliminate,
+prompt-injection risk.

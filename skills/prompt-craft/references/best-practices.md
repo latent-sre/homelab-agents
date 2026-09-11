@@ -1,0 +1,47 @@
+# Official guidance and freshness
+
+Use this map when a prompt change depends on provider/model behavior, when authoring a skill,
+or when checking whether guidance is current. Read the relevant source and section; a wording-only
+edit does not require loading the whole map or fetching every page.
+
+## Sources
+
+Dates record when the linked guidance was read for the stated scope. They do not certify every
+claim on the page, refresh historical CLI probes, or prove behavior in the target runtime.
+
+| Use when | Official source and scope | Last checked |
+|---|---|---|
+| Writing or tuning an OpenAI prompt | [Prompt engineering](https://developers.openai.com/api/docs/guides/prompt-engineering): instruction structure, examples, and links to model-specific guidance. | 2026-09-11 |
+| Choosing a reasoning-model prompting technique | [Reasoning best practices](https://developers.openai.com/api/docs/guides/reasoning-best-practices): direct instructions, delimiters, and when examples help; check applicability to the requested model. | 2026-09-11 |
+| Writing or tuning a Claude prompt | [Claude prompting best practices](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices): model-specific guidance, general techniques, and migration considerations. | 2026-09-11 |
+| Authoring a skill's instructions and bundle | [Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): descriptions, progressive disclosure, and evaluations. Check discovery and frontmatter against the target host. | 2026-09-11 |
+| Designing tool descriptions or returned context | [Writing effective tools](https://www.anthropic.com/engineering/writing-tools-for-agents): tool boundaries, useful results, and evaluation. Published 2025-09-11; use as design guidance, not an API contract. | 2026-09-11 |
+| Reviewing context loading, examples, or compaction | [Effective context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents): focused context, representative examples, and retrieval tradeoffs. Published 2025-09-29; use as foundational guidance. | 2026-09-11 |
+| Reviewing prompt-injection mitigations | [Agent safety: combine techniques](https://developers.openai.com/api/docs/guides/agent-builder-safety#combine-techniques): limits of structured outputs and isolation. Apply these general mitigation principles; Agent Builder setup is outside this scope. | 2026-09-11 |
+
+For host fields and permissions, use the target host's current documentation.
+`references/claude-code-frontmatter.md` owns this fleet's Claude field facts and dated probes;
+the source checks above do not update those probe dates.
+
+## Apply guidance to the actual target
+
+- Identify the provider, requested model, host, and behavior being changed. Follow model-specific
+  links for that target; a page labelled "latest" does not authorize changing the requested model.
+- Treat recommendations about examples, thinking, verbosity, and tool use as hypotheses to test
+  on that target. A technique recommended for one model is not a fleet-wide rule.
+- Keep provider advice, repository requirements, and observed runtime behavior distinct. Resolve
+  documentation disagreements using target-specific evidence; report any remaining uncertainty.
+- Use current documentation for syntax and supported configuration. Establish behavioral or
+  performance claims with the matched cases and recorded conditions required by
+  `skills/prompt-craft/SKILL.md`. Reading a recommendation does not establish an improvement.
+
+## Refresh only what the change depends on
+
+Recheck the relevant source when the provider/model or host version changes, the user asks for
+current advice, or observed behavior contradicts the guidance. Use an available official-docs
+connector or Context7; otherwise open the official page. A search snippet alone is not a check.
+
+When updating this reference, change a row's date only after reading its relevant passage. Fix
+affected guidance at its owning file and identify what was checked in the handoff. If a source is
+unavailable, retain its previous date, mark the dependent claim unverified, and continue work that
+does not depend on it. Update a runtime-probe stamp only after rerunning that probe.

@@ -12,9 +12,11 @@ delegation does not reset the repair budget.
 
 ## Method
 
-Capturing a live workflow ("turn what we just did into a skill")? Extract the method from the conversation first — tools used, step order, corrections made — and confirm the gaps before drafting.
+When capturing a live workflow, extract its tools, step order, and corrections from the
+conversation. Ask about gaps only when they would change the reusable procedure.
 
-1. **Success criteria first.** Define what a correct output looks like, measurably, before touching the prompt.
+1. **Define success.** State the required behavior, output, and constraints before editing.
+   Use observable criteria: required fields, allowed actions, or how to handle missing evidence.
 2. **Match the evidence to the task.** A new draft starts from requirements and representative
    inputs; no previous failure is required. A repair starts from observed behavior or a verified
    source contradiction: check loaded instructions, context, tool errors and runtime limits
@@ -26,67 +28,72 @@ Capturing a live workflow ("turn what we just did into a skill")? Extract the me
    could contaminate the result. Report checks actually performed; an unexecuted draft is
    "written but not behavior-tested." Measured tuning uses paired cases and repeated fresh runs
    under matching conditions, through `sde-agents:prompt-engineer` when that loop is needed.
-   Description edits still owe the overlapping `scripts/eval_routing.py` cluster before and after;
-   use its firing rates for routing, not as proof of output quality. A new near-miss firing is a
-   defect at any rate. Existing equivalent evidence may be reused under the repository's rules.
+   When editing this fleet's descriptions, follow the repository's before/after routing-eval
+   playbook. Firing rates measure routing, not output quality; any new forbidden near-miss firing
+   is a defect. Reuse existing evidence only under the repository's equivalence rules.
 
 For iterative repairs, use the project's or caller's review-round limit; if none exists, state a
 finite limit before iterating. Compare each unsuccessful fix with the previous attempt. Stop
 editing when the same failure persists without new evidence, or when the limit is reached. Return
 the unresolved issue, attempts and results, and what would justify another attempt to the caller.
-Continuing past the limit requires the caller to authorize another round.
+The caller can extend its own limit only within the project's cap. Crossing that cap requires the
+authority and extension size the project specifies; delegation cannot supply an operator ruling.
+Without a project cap, the caller may authorize another round.
 
-## Two prompt-shaping rules
+## Write instructions the model can apply
 
-**1. Description = trigger, not workflow.** State when to use the component in words a user would
-say; keep its procedure in the body. A workflow-heavy description can encourage acting on the
-summary without loading that body. For routing failures, first confirm registration, visibility,
-and actual invocation. Then test
-whether user phrasing mismatches the description or a topic-shaped description ("helps with
-documents") over-fires compared with an action-shaped one ("extracts form fields from PDFs").
+**Describe capability and triggers.** Use words a user would say; keep the procedure in the body.
+For routing failures, check registration, visibility, and actual invocation before editing the
+description. Test realistic requests and adjacent near-misses: "extracts form fields from PDFs"
+gives a clearer action boundary than "helps with documents".
 
-**2. Match the form to the failure.**
+**Match the form to the observed failure.** These are starting points to test, not guarantees.
 
-| Observed failure | Right form |
+| Observed failure | Candidate change |
 |---|---|
-| Knows the rule, breaks it under pressure | Hard prohibition + rationalization table + red-flag list |
-| Complies, but output is the wrong shape | Positive recipe: state what the output IS, part by part |
-| Omits a required element | Required slot in a template it must fill |
+| Breaks a required rule under pressure | State the boundary and permitted alternative; add a counterexample if useful. Enforce authority outside the prompt. |
+| Produces the wrong output shape | Specify the required parts and order; use a schema or compact example when useful. |
+| Omits a required element | Add a required slot and define how to report missing evidence without inventing a value. |
 | Behavior should depend on a condition | Conditional keyed to an observable predicate |
+| Follows an earlier conflicting instruction | Correct the conflicting instruction at its source; adding another rule leaves both active. |
 
-Prohibitions backfire on shaping problems; recipes leave nothing to negotiate. Avoid nuance clauses ("unless it matters") — they reopen the negotiation. Everywhere outside the pressure-discipline row, the default register is plain imperative that explains *why* — reaching for all-caps MUST/NEVER there is a sign the form is wrong.
+Use plain imperatives and observable conditions. Replace vague exceptions such as "unless it
+matters" with the condition that changes the action; retain necessary exceptions. Explain why
+only when it prevents a likely mistake. Emphasis and repeated prohibitions do not establish
+compliance. Separate instructions, input data, and examples with clear headings or delimiters.
 
-## When a new model generation lands
+## Simplify without losing the contract
 
-Treat simplification as an experiment on the new model, not an automatic consequence of upgrading.
-Capture representative outcomes, try removing redundant stylistic or workflow instructions, and
-compare under matched conditions. Keep a change only when it preserves the required behavior.
-Security, privacy, permission,
-and destructive-action invariants stay absolute through every generation: no secrets in prompts,
-untrusted content never selects a tool or widens a permission, no irreversible action without
-authorization (`references/agent-security.md` owns that list). The pressure-discipline row above
-stays absolute for the same reason. And when trimming a body, keep the gotchas — hard-won failure
-points are the highest-signal content a definition carries; generic workflow prose is what goes.
+Remove repetition, generic workflow narration, and obsolete advice. Keep decision-changing
+constraints, output contracts, reference triggers, and known failure points that still apply.
+Put substantial conditional detail in references; do not split a short, self-contained procedure
+merely to make its entrypoint shorter. Preserve security, privacy, authorization, and
+destructive-action boundaries; `references/agent-security.md` owns the security guidance.
 
-Keep compact canonical examples that demonstrate required behavior. Test adding, changing, or
-removing examples against distinct task cases; do not infer a universal rule from one model or
-benchmark. [Anthropic's context guidance](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
-recommends representative examples and a minimal sufficient context.
+Treat simplification on a new model as an experiment. Compare recorded prompt versions on the
+same cases, holding the model, tools, context, and grading fixed. Keep the change only when required
+behavior is preserved. A shorter file proves only text reduction; claim better reliability,
+latency, or token use only for what was measured.
+
+Keep compact examples that demonstrate required behavior and agree with the instructions.
+Test example changes on distinct cases; one model or benchmark does not establish a universal
+rule. [Anthropic's context guidance](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
+supports representative examples and sufficient, focused context.
 
 ## Load the reference for what you're working on
 
-The method above applies to every prompt task. These apply when the task involves the thing named —
-read before writing, and name what you read.
+Read the relevant reference before writing; name the references used in the handoff.
 
 | If the work involves… | Read first |
 |---|---|
 | an agent that touches untrusted content, private data, or the ability to act | [`references/agent-security.md`](references/agent-security.md) |
 | choosing an agent's tools, or designing tools for a model to call | [`references/tools.md`](references/tools.md) |
 | what an agent knows, when it loads it, or degradation over a long run | [`references/context.md`](references/context.md) |
+| provider-specific prompting, a model change, skill-authoring practices, or a source refresh | [`references/best-practices.md`](references/best-practices.md) |
 
-## Frontmatter quick reference
+## Host configuration
 
-Authority lives in frontmatter, not in prose. Before writing or editing any agent or skill
-frontmatter, read [`references/claude-code-frontmatter.md`](references/claude-code-frontmatter.md) —
-the fleet's single source of truth for Claude Code fields and their traps. Platform facts and the
-trap list belong in that file and nowhere else — on drift, fix it there, never a local copy.
+Use the target host's current configuration and permission controls. Frontmatter fields only
+work where that host honors them. For canonical Claude definitions, read
+[`references/claude-code-frontmatter.md`](references/claude-code-frontmatter.md); it owns the field
+facts and plugin exceptions. Fix drift there instead of copying platform facts into each prompt.

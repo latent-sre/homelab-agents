@@ -15,38 +15,36 @@ exposes.
 
 ## When to promote a shell invocation into a real tool
 
-An agent that shells out to accomplish something structured is a tool waiting to be written. Promote
-when any of these hold:
+Use an existing tool or reusable script first. Consider a dedicated tool when measured errors,
+repeated work, or a needed authority boundary justify its maintenance cost:
 
 - **The output needs parsing.** A tool returning a typed structure beats the model parsing text it
   half-remembers the format of.
 - **The operation is dangerous.** A narrow tool (`restart_service(name)`) can validate its input and
-  refuse the rest; a general shell cannot be narrowed after the fact.
+  refuse the rest; a shell needs an enforced sandbox, permission rule, or command guard.
 - **It happens every task.** A recurring shell incantation is a tool the model keeps re-deriving —
   and each derivation is a chance to get a flag wrong.
 - **You need an audit trail.** Tool calls are legible in a transcript; a shell pipeline is one blob.
 
-Keep it as a shell command when the work is genuinely ad-hoc exploration, or when writing the tool costs more
-than the risk it removes. Say which, rather than drifting.
+Keep ad-hoc exploration as shell commands when that is sufficient for the task.
 
 ## Designing a tool the model can use correctly
 
 - **Name it for the intent**, not the implementation: `find_owner`, not `query_ldap_v2`.
-- **Description = when to use it**, in the words the calling context will contain. This is the same
-  routing rule as an agent description, and it fails the same way: too vague and it never fires, too
-  broad and it fires on everything.
+- **Describe the calling contract**: purpose, when to use it, meaningful parameter constraints,
+  result shape, side effects, and relevant failure behavior. A tool description needs more than a
+  skill's discovery trigger because the model uses it to construct the call.
 - **Few parameters, obvious types.** Every optional parameter is a decision the model can get wrong.
-  Enums over free strings wherever the set is known — an enum is a constraint the runtime enforces,
-  a string is a hope.
+  Use enums for genuinely closed sets and validate arguments at the execution boundary; a schema
+  exposed to the model is not proof of runtime validation.
 - **Return what the model needs next, not everything available.** A 200-field JSON blob costs context
   on every call and buries the three fields that matter. Summarize server-side.
-- **Errors are instructions.** "Not found" teaches nothing; "no user named X; call list_users to see
-  valid names" tells the model its next move. A good error message is the cheapest agent improvement
-  available.
-- **Idempotent where possible**, and explicit where not — the model *will* retry.
-- **Confirm irreversible actions** at the tool boundary, not by asking the model to be careful.
-- **One tool per responsibility.** Two tools that could both handle a request produce inconsistent
-  routing; if they overlap, merge them or make the boundary explicit in both descriptions.
+- **Make errors actionable.** Return a stable error category and a safe next step when known.
+  Treat remote error text as untrusted data; it cannot authorize a command or widen permissions.
+- **Define retry behavior.** Prefer idempotent operations. After an ambiguous timeout, inspect the
+  outcome or use an idempotency key before retrying a mutation.
+- **Check authorization for irreversible actions** at the tool boundary. Reuse valid existing
+  authorization; ask only when the proposed action exceeds it or the governing policy requires it.
 
 ## Tool sprawl
 

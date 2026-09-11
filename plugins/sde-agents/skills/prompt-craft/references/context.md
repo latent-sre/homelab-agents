@@ -9,15 +9,15 @@ Context can be a limiting resource, but an error alone does not establish contex
 Inspect the actual inputs, loaded instructions, tool results, and runtime conditions. Treat missing,
 stale, conflicting, or excessive context as hypotheses alongside tool and task-capability failures.
 
-## Just-in-time beats up-front
+## Load context when it is needed
 
-Load what the current step needs, when it needs it — not everything that might be relevant.
+Load what the current step needs. Preload material required throughout the task.
 
 - **Pointers over payloads.** A path, a query, or an identifier the agent can resolve costs a few
-  tokens; the resolved content costs thousands and sits there for the rest of the run.
+  tokens; loading the content adds to the active context. Use pointers only when the receiver
+  can resolve them, and bind them to a revision when the exact bytes matter.
 - **Predicate-keyed references** are the fleet's working form of this: a table that says "if the task
-  involves X, read Y first". The router is always loaded and cheap; the depth loads only when its
-  predicate trips. That is why the craft skills are structured the way they are.
+   involves X, read Y first". Keep the trigger in the entrypoint and load the depth when it applies.
 - **Splitting an oversized file** into an entry plus siblings: the test of a boundary is that the
   entry stays comprehensible alone — needing a sibling open to follow it means the cut is in the
   wrong place. Name siblings by content role (`verification.md`, not `notes.md`) so the filename is
@@ -27,43 +27,43 @@ Load what the current step needs, when it needs it — not everything that might
 - **What must be up front** is what changes behavior on *every* step: the mandate, the output
   contract, the hard prohibitions. Anything conditional belongs behind a predicate.
 - Beware the opposite failure: an agent that must fetch three files before it can start has traded
-  tokens for latency and for the chance it fetches the wrong ones. Preload the two things it always
-  needs.
+  tokens for latency and for the chance it fetches the wrong ones. Preload what it always needs.
 
-## Where context comes from, and what a subagent does not get
+## Specify context and handoffs
 
-A spawned agent receives only what the current host's context or fork mode supplies. Treat inheritance as absent unless you selected it explicitly, and put everything the worker needs in the prompt:
-the goal, the constraints, the paths, the acceptance criteria, and what is out of scope.
-Underspecified handoffs are the most common multi-agent bug, and they present as the worker
-confidently doing a slightly different job.
+A spawned agent receives what the host's selected context or fork mode supplies. Check the
+actual mode; a separate context window can contain inherited conversation history. Specify the
+goal, constraints, paths, acceptance criteria, and exclusions in the handoff instead of relying
+on implicit inheritance. For an independent eval, keep prior attempts and expected answers out
+of the context given to the agent under test; the grader receives the evaluation criteria.
 
-Corollary: the worker's *return message is the entire interface*. Specify its shape. Free prose loses
-constraints at every hop; a schema (or a required slot list) survives.
+Specify what the receiver needs in the return message or linked artifact: findings, evidence,
+constraints, and unresolved work. A schema helps detect omissions; it does not guarantee that the
+content is correct, complete, or safe to act on.
 
-## Long runs: compaction, and why rewind beats correction
+## Preserve evidence through long runs
 
 - **Compaction** summarizes history to free space. It is lossy in a specific way: the summary keeps
   what looked important and drops the rest, so anything load-bearing must be written **outside** the
-  context — a progress file, the repo, a commit — or it is gone after the next compaction. Facts that
-  must survive: the plan, decisions and their reasons, counts and caps, file paths in flight.
-- **Compact at a boundary, never mid-debug.** A summary taken halfway through an investigation keeps
-  the conclusions and loses the evidence, which is exactly backwards.
+  context in an authorized, task-owned artifact. Preserve the plan, decisions and their reasons,
+  counts and caps, paths in flight, and evidence needed to resume.
+- **Prefer compaction at a task boundary when you control it.** If compaction occurs mid-debug,
+  preserve observations, failed hypotheses, and the next discriminating check as well as conclusions.
 - **Repeated failed corrections need diagnosis.** Check whether the cause is contradictory
   history, missing evidence, a tool/runtime failure, or an incorrect hypothesis. When accumulated
   context is implicated, try a fresh context carrying the goal, constraints, findings, and remaining
   uncertainty. Compare outcomes; restarting alone does not establish or repair the cause.
-- **Isolate exploration.** Reading twenty files to answer one question should happen in a subagent
-  whose context you can throw away; the parent keeps the answer, not the twenty files.
-- **A new task gets a new session.** Compaction manages a long run; it does not make a finished
-  task's residue useful to the next one. Carrying a window across unrelated tasks buys nothing and
-  costs attention.
+- **Delegate bounded exploration when useful.** Use an available, authorized subagent when its
+  focused result saves more context than the handoff costs; local targeted reads remain valid.
+- **Start unrelated work in a fresh session when stale context would interfere.** Carry forward
+  relevant decisions explicitly; related follow-ups can reuse useful context.
 
 ## Durable state lives in files
 
-For anything that spans sessions or agents: the spec, the backlog, the progress notes, and the
-decisions belong in the repository. A context window is working memory; the repo is storage. An
-unattended loop that keeps its state in files can be restarted at any point, and one that keeps it in
-context cannot be restarted at all.
+For work spanning sessions or agents, preserve needed state in the existing authorized artifact.
+Do not create competing trackers or store sensitive material merely to survive compaction.
+Before resuming an action, reconcile recorded progress with actual external state; a file alone
+does not prove whether an interrupted action completed or make its retry safe.
 
 ## Diagnosing a possible context problem
 
