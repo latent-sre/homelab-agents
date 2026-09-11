@@ -1,8 +1,8 @@
 # SDE Agents
 
 A Claude Code plugin for one person who runs a home lab and wants AI agents that behave like a
-careful operator: inspect before changing, ask before anything live, roll back before they are
-sorry, and write down what they did. It ships agents for running the lab and for writing the
+careful operator: inspect before changing, finish an explicitly delegated task within its scope,
+keep recovery ready, and record the result. It ships agents for running the lab and for writing the
 scripts and services that live on it, skills that carry the operating knowledge, and two hooks
 that turn "read-only" and "ask first" from promises into controls.
 
@@ -32,8 +32,9 @@ from the repository root.
 ## What you get
 
 **Running the lab.** `homelab-engineer` is the operator's agent: it classifies every change by
-how reversible it is, states the rollback before acting, and hands anything destructive back to
-you for a decision. It works the operating skills: `lab-incident` when something is down,
+how reversible it is and states recovery before acting. A bounded live request covers execution
+and recovery; it asks again for an expanded scope or a destructive consequence you have not
+authorized, and respects every actual host gate. It works the operating skills: `lab-incident` when something is down,
 `root-cause` when the fix keeps not sticking, `runbook`, `postmortem`, `restore-drill`,
 `upgrade-campaign`, `observability`, and the `lab-audit` and `security-audit` checklists. Bringing
 a new machine or a new service into the lab runs `host-onboard` and `service-onboard`.
@@ -128,6 +129,20 @@ The plugin carries the skills; the installer syncs the agent profiles into `~/.c
 is the update path for them. On Codex, the onboarding skills are reached by name
 (`$service-onboard`), and agents are reached by explicit request rather than routed from their
 descriptions.
+
+## Upgrade campaigns
+
+Name the hosts/services and maintenance window. The campaign reuses existing inventory, patching
+procedures, release guidance, and applicable restore evidence; it verifies each deployment and
+recovers failures within the delegated scope. A major version alone does not require a new session.
+After recovery, independent authorized upgrades can continue; unresolved shared failures stop
+related work. The [bounded-campaign decision](docs/decisions/2026-09-11-bounded-upgrade-campaign.md)
+records the behavior and host limits.
+
+Claude's shipped live-effect hook still prompts for listed commands and denies them when prompts
+are suppressed. Codex uses its effective permissions without requiring an extra prompt; the
+Copilot profile has no execution tool and hands live commands to the operator. Changing prose
+neither removes a host gate nor supplies a missing tool.
 
 ## Working on the fleet
 

@@ -18,12 +18,12 @@ Announce at start: "Using lab-incident: mitigate → confirm → diagnose after.
 tier exemption — an outage makes the blast-radius question *more* important, not less, because the
 system is already degraded and a second change lands on top of the first.
 
-One exact reversible mitigation may contain a bounded command sequence — for example, revert the
-known-bad config, validate it, reload, then probe. Disclose that sequence once and let
-`homelab-engineer` take one Tier 2 decision for it; every live command still passes its host
-transport. A speculative alternative, changed target, unexpected result, or widened blast radius
-stops the sequence and opens a new decision. Do not pre-approve a decision tree while the system is
-changing underneath it.
+Use the bounded request's recovery authority. State the concrete mitigation and recovery limit
+once; traverse actual host controls without adding another conversational decision. Reconcile
+unexpected results before another live step. A corrected command within the same authorized
+outcome is not automatically a new approval; an expanded target set, undisclosed destructive
+consequence, or other engineer confirmation boundary is. Do not stack speculative mitigations or
+infer permission from urgency.
 
 ## Step 1 — read the signals before touching anything (60 seconds, not 10 minutes)
 
@@ -51,7 +51,7 @@ Two questions decide everything that follows:
 | Process wedged, no recent change, logs show a hang | Restart the one service — **once** | A stack-wide `down`/`up` that widens the outage |
 | Disk full | Free the specific space (rotate/prune the identified consumer), then restart what failed | `docker system prune -a` mid-outage, which deletes images you may need to roll back to |
 | Shared dependency down (DNS, proxy, storage) | Fix the dependency; leave the dependents alone until it's healthy | Restarting dependents, which only refreshes the same failure |
-| Data loss or corruption suspected | Stop writers first, then restore per the service's runbook Recovery slot | Restarting into a corrupt state and writing more |
+| Data loss or corruption suspected | Establish safe containment and recovery per the runbook; for an unknown/in-flight migration, observe and prove safe interruption before stopping writers or snapshotting | Treating a cold stop/copy as read-only or restoring without a verified recovery path |
 | Cause unknown and impact is spreading | Deliberately reduce scope: stop the noisy component, serve a maintenance page, degrade the feature | Broad speculative restarts |
 
 **Restart is a stopgap, never a fix.** A service that came back after a restart with no explanation

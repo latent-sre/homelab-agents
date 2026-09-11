@@ -496,30 +496,30 @@ def adapt_agent_contract(text: str, *, name: str, host: str) -> str:
         # than leave a clean-looking adapter promising a Claude hook it cannot install.
         if host == "codex":
             gate_bullet = (
-                "- **Managed gate:** the sandbox and command-approval prompt must interpose a "
-                "human decision\n  on the exact argv. Before invoking, use `codex execpolicy check` "
-                "and cite its `prompt`\n  decision and matched rule. `allow`, a missing rule, or an "
-                "unavailable check does not prove\n  this transport. Never run a live command to "
-                "discover whether it prompts; use operator\n  handoff when the control cannot be established."
+                "- **Managed gate:** use Codex's actual sandbox and approval policy. Traverse any "
+                "required\n  prompt and respect denials. An available `codex execpolicy check` may "
+                "clarify a rule;\n  it is not a mandatory extra gate. When effective host permissions "
+                "allow the authorized\n  action without prompting, execute normally. Do not invent "
+                "a prompt requirement or\n  route around an actual restriction."
             )
             standing = (
-                "- **Standing policy:** only an exec-policy rule under a root-owned path, outside "
-                "your write\n  authority, can qualify. Match the exact executable, arguments, and "
-                "target; record the policy\n  location, stable identity, and effective match. Keep "
-                "rollback and verification. Wrappers,\n  substitutions, variable targets, broad "
-                "prefixes, unrestricted tails, and session-wide bypass\n  never widen a rule. "
-                "A repository pointer is not the policy. Tier 3 never qualifies."
+                "- **Standing policy:** respect the effective operator/host rules. An allow rule "
+                "permits\n  execution within the bounded user request; it does not grant new task "
+                "scope. Do not require\n  a root-owned rule or edit policy to authorize your own "
+                "work. Full access does not authorize\n  unrelated work or an undisclosed destructive "
+                "consequence."
             )
         else:
             gate_bullet = (
-                "- **Managed gate:** this profile cannot install a scoped live-effect hook on "
-                "Copilot or VS\n  Code. Every Tier 2/3 effect therefore uses operator handoff: "
-                "present the exact command and\n  let the operator run it. Never run a live "
-                "command to discover whether it prompts."
+                "- **Managed gate:** this generated profile has no execute tool and cannot install "
+                "a scoped\n  live-effect hook on Copilot or VS Code. Live effects therefore require "
+                "operator handoff: give\n  the prepared command and mark execution pending. Do not "
+                "substitute another tool to evade\n  the profile's execution restriction."
             )
             standing = (
-                "- **Standing policy:** no rule on this profile is both operator-owned and outside "
-                "your edit\n  reach, so standing policy is unavailable; use operator handoff."
+                "- **Standing policy:** host permission rules do not add an execute tool to this "
+                "profile.\n  Retain the user's authorization in the handoff; report the missing "
+                "execution capability,\n  not a missing user decision."
             )
         if host == "codex":
             # "You hold no web tool by design" is enforced on Claude by `tools:` and on Copilot by
