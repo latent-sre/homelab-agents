@@ -10,13 +10,23 @@ A bounded host request does not automatically include deploying its services or 
 
 ## Authority and preparation
 
-`sde-agents:homelab-engineer` owns live execution and its host controls. Run live steps in that
-owner's execution context; otherwise prepare and return the live steps to the caller for delegation
-with the existing authorization. This handoff does not require a fresh session or repeated consent;
-operator handoff is needed only when the host cannot delegate or execute. Reading the checklist
-does not grant its tools or live authority. Use the owner's bounded-request policy: one
-authorization, one target/effect/recovery summary, and effect-specific precautions. Actual host
-prompts, denials, and scope/data/access confirmation boundaries still apply.
+Use `sde-agents:homelab-engineer`'s bounded-request policy: one authorization, one
+target/effect/recovery summary, and effect-specific precautions. Actual host prompts, denials,
+and scope/data/access confirmation boundaries still apply. Reading this skill grants no tools.
+
+- **Claude Code:** an active engineer continues; other contexts return prepared live steps through
+  the caller to that engineer with existing authorization. No mandatory fresh session or repeated
+  consent. Routing is cooperative; do not evade the engineer-scoped hook by changing context.
+- **Copilot / VS Code:** prepare only and hand live commands to the operator, even when direct
+  invocation exposes main-chat execution. Skills do not inherit the profile's omitted execute tool.
+- **Codex:** use the full active engineer policy if loaded; otherwise read the active installed
+  profile identified by effective host configuration or disclosed metadata. Never guess its path
+  or substitute a repository profile. If unavailable/unverifiable, prepare and hand off through
+  the caller. Once loaded, use actual native host permissions without inventing another approval.
+
+Read the lab profile first (existing project context can supply it). Establish missing task-relevant
+facts in the lab's canonical host record; do not invent defaults as observed facts or require a
+separate full-profile document merely to onboard one host.
 
 Read existing lab facts, automation, and operating records; establish the host's role and requested
 scope. Reuse applicable evidence, checking material assumptions against the target: a template is
@@ -39,13 +49,14 @@ validate configuration before applying it, and establish host readiness before d
    Verify available recovery directly; ask for missing access or evidence only when needed.
 2. **OS and essential health.** Check supported OS, patch level, package sources, and the lab's
    update policy. Apply updates only within the request. Verify required units and their deliberate
-   startup behavior, working time
-   synchronization and DNS, and the resolver fallback if DNS depends on another lab service.
+   startup and failure/restart policy, working time synchronization, correct timezone, and DNS, and the resolver fallback if DNS depends on another lab service.
 3. **Storage and visibility.** Verify required mounts persist, usable capacity fits the role, and
    one useful host health/capacity signal exists. Reuse the lab's monitoring when available; a
    focused host check can suffice without building a monitoring stack. Identify local state and
    its loss tolerance so the applicable protection below is not missed.
-4. **Apply and verify.** Keep changed configuration in the lab's existing source of truth. Reference
+4. **Apply and verify.** Represent the baseline in the lab's source of truth, including already-satisfied
+   settings; existing image/automation references can satisfy this without copying configuration.
+   Create or reconcile missing representation in the lab repository. Reference
    concrete rollback/recovery for changed effects in the preparation summary. Validate affected
    configuration and verify access, required units, and the host's intended function after changes.
 
@@ -53,10 +64,10 @@ validate configuration before applying it, and establish host readiness before d
 
 | Host characteristic | Additional work |
 |---|---|
-| Irreplaceable local state or recovery material | Verify backup coverage and a usable restore path; reuse applicable restore evidence or obtain missing proof through a safe in-scope scratch restore. This needs no separate consent unless it crosses the owner's boundaries. Unavailable proof remains an owned readiness gap; never overwrite live data merely to prove recovery. |
+| Irreplaceable local state or recovery material | Verify backup coverage, a restore owner (operator by default), and a usable restore path. Reuse applicable proof; obtain missing proof through `sde-agents:restore-drill` in scratch space under the host execution rules above. No separate consent unless an owner boundary is crossed. Unavailable proof remains a readiness gap; never overwrite live data merely to prove recovery. |
 | Household-critical workloads | Verify actionable alerting and restart/recovery behavior; reuse applicable evidence. Keep needed disruptive checks within the authorized scope/window; missing verification remains a readiness gap. |
 | Physical disks controlled by this host | Verify appropriate disk-health/SMART monitoring. Guests reuse the hypervisor's physical-disk coverage. |
-| New services included in the request | Work `sde-agents:service-onboard` after the baseline. For existing services on a rebuild, reuse operating records and reverify affected runtime/dependency assumptions. |
+| New or restored services included in the request | Work `sde-agents:service-onboard` after the baseline. For existing services on a rebuild, reuse operating records and reverify affected runtime/dependency assumptions. |
 | Unexpected failures or exposure | Investigate impact on access, security, storage, recovery, and intended workloads. Block affected readiness when material or unknown; report understood unrelated failures without expanding into cleanup. |
 
 Recreatable images, caches, and source-derived state need no backup machinery solely because they
@@ -65,12 +76,15 @@ operational question. Required protection and unresolved material failures are n
 
 ## Completion
 
-Write one short result in the existing host inventory or operating record: host/config identity,
+Update the canonical host inventory or operating record, creating a minimal entry when absent.
+Keep one short result: host/config identity,
 changes and already-satisfied checks, verification and applicable protection evidence, and remaining
 gaps with impact and owner (the operator by default). Reference existing records and the preparation
-summary; no per-command approval packet. Explain non-applicability where otherwise ambiguous.
+summary; no per-command approval packet. Include role/criticality, local state/loss tolerance, disk
+ownership, and service scope once (existing record references count), so protection applicability
+is recoverable without a separate exception entry for every row.
 
 Ready means the baseline and applicable protections are verified for the intended role. Material
 unknowns leave affected readiness incomplete; optional improvements do not hold completion open.
-A harmless failed unit need not be repaired merely to reach zero. When services are outside the
+An unrelated failed unit with established cause and harmless impact need not be repaired to reach zero. When services are outside the
 request, report host readiness and stop without activating their onboarding.

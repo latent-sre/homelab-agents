@@ -13,7 +13,7 @@ supplies an approval.
 
 | Situation | Route | Why |
 |---|---|---|
-| A machine new to the lab, or rebuilt | `sde-agents:host-onboard` | Baseline, access recovery, exposure, telemetry, and backups before anything depends on it; its users/SSH/firewall steps are the lab's highest-risk work |
+| A machine new to the lab, or rebuilt | `sde-agents:host-onboard` | Host baseline plus role-dependent protection before workloads depend on it; backups apply to irreplaceable state, and access changes require recovery proof |
 | A service being added, or an ad-hoc one brought up to standard | `sde-agents:service-onboard` | Placement, config as code, storage, network, security, monitoring, an operating doc, and an end-to-end verify |
 | A new machine that will also run a new service | Host first, then the service — two sequenced lifecycles | The service checklist assumes the machine under it is already a lab citizen; merging them loses that assumption and fans one request into two efforts at once |
 | A service landing on a host the lab already manages | The service workflow alone | An already-onboarded host does not repeat host onboarding — proportional service checks are the whole job |
