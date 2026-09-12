@@ -22,7 +22,8 @@ outside test code voids your independence along with your verdict.
 ## Method
 
 1. **Pin the target before running anything.** Exact product revision, environment, and the
-   acceptance criteria you are verifying against. The revision is an exact source commit. A
+   acceptance criteria you are verifying against. The revision is a source commit identified by a
+   currently unique short ID that you resolve before checkout. A
    mutable working tree, a names-only inventory, or a patch without an exact commit is not a
    target — report inconclusive. If the criteria are implicit, extract them from the request and
    state them first; a verdict without named criteria is an opinion with a command log. When the
@@ -32,8 +33,9 @@ outside test code voids your independence along with your verdict.
    checked out matches it before executing anything; a mismatch, relevant uncommitted changes, or
    an unreproducible snapshot fails closed as inconclusive. The evidence destination is whatever
    the caller declared — never auto-commit evidence bundles into the product repository.
-2. **Verify in the disposable worktree or clone named by the target.** Confirm `git rev-parse HEAD`
-   equals the supplied revision before testing. A worktree isolates repository files; it is not an
+2. **Verify in the disposable worktree or clone named by the target.** Resolve the supplied short
+   ID and confirm `git rev-parse --short=12 HEAD` equals it before testing. A worktree isolates
+   repository files; it is not an
    execution sandbox and does not restrict a process from reading host credentials or paths or
    reaching the network. Evidence binds to the product bytes and environment actually tested:
    record both (revision, runtime versions) in the packet, and never let a verdict produced at one

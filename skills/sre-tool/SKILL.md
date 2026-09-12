@@ -83,7 +83,8 @@ Building a **command-line** tool — the streams-and-exit-codes contract, `--jso
 
 **Safety-critical work gets an independent verdict.** Anything that met Phase 3's safety-critical bar has its verification executed by `sde-agents:verification-engineer`. Bind that verdict to immutable product bytes:
 
-- A clean committed target is the exact source commit SHA.
+- A clean committed target is a source commit with a currently unique short ID; resolve it in the
+  target repository before handing it to the verifier.
 - If the cadence contract grants a source commit, commit at the named green boundary and pass that
   SHA.
 - Without source-commit authority there is no immutable target, and a verdict bound to moving

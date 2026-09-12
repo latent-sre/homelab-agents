@@ -932,10 +932,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     print("== the platform contract ==")
-    validated = run([CLAUDE, "plugin", "validate", str(REPO), "--strict"])
+    validated = run([sys.executable, str(REPO / "scripts/validate_claude_plugin.py")])
     probe.check(
         PASS if validated.returncode == 0 else FAIL,
-        "claude plugin validate --strict",
+        "strict marketplace and canonical plugin validation",
         ((validated.stdout or "") + (validated.stderr or "")).strip()[:400],
     )
 

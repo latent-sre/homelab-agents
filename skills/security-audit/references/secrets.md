@@ -14,8 +14,9 @@ reaches position X learn, and what does that credential then open?** Blast radiu
   `git log --oneline -- <env-or-config-path>` for a tracked secret file's commits, and
   `git log -G'<shape>' --name-only --oneline` for the shapes below — both identify commits and
   paths without emitting file contents. Never run `git log -p` over suspect paths: it prints the
-  secret values into the session transcript, which is itself a leak. A hit is a finding even if
-  the file is now clean.
+  secret values into the session transcript, which is itself a leak. A hit is a lead: distinguish
+  key names and examples from real credentials, then establish exposure and rotation status
+  without emitting the value. A clean current file does not invalidate a historical exposure.
 - **Compose and unit files** for inline values rather than `env_file:`/`EnvironmentFile=`
   indirection. Read names, never values — an audit that copies a secret into its own report has
   created a new leak. Cite `file:line` and the variable *name*.
@@ -25,11 +26,14 @@ reaches position X learn, and what does that credential then open?** Blast radiu
   value: `docker inspect --format '{{range .Config.Env}}{{println (index (split . "=") 0)}}{{end}}' <container>`.
   Any secret-shaped key present here is visible to anyone who can talk to the docker socket —
   which ties this row to check 3.
-- **Backups**: whether the backup set includes the env/secret files, and whether that destination
-  is encrypted. An unencrypted off-site backup of a secrets directory is the same exposure as
-  publishing it, delayed.
-- **Logs and telemetry**: grep the log paths and any log shipper's config for the token shapes
-  below — secrets in logs leak to everyone with read access to observability, and that audience
+- **Backups**: whether the backup set includes env/secret files, its encryption, and who can access
+  the destination or its keys. Missing encryption increases exposure if that storage is accessed;
+  it does not by itself prove the contents are public. Compare with the lab's backup policy.
+- **Logs and telemetry**: locate candidate files with a names-only search such as
+  `rg -l -i -e 'api[_-]?key|secret|token|password|passwd' -- <log-path> <shipper-config>`.
+  Never emit matching lines: validate suspected exposures inside authorized custody and return
+  only locations, variable names, and redacted findings. Secrets in logs leak to readers of
+  observability, and that audience
   includes every agent session that reads logs plus the transcripts and retained eval artifacts
   those sessions leave behind: the same exposure the `git log -p` rule above exists to prevent.
 - **The vault or password manager as the intended record**: what should be in it, what isn't
@@ -55,8 +59,9 @@ credentials inline.
 
 ## Findings
 
-- `[P0]` a live secret readable from a lower-trust zone, present in git history for a still-valid
-  credential, or included unencrypted in an off-site backup.
+- A live secret readable by an unauthorized position is a finding; grade its capability and reach.
+  Git history or an off-site backup matters when that position can access it. Missing encryption
+  or uncertain credential validity remains a policy/evidence gap, not proof of public disclosure.
 - `[P1]` reused across services, world-readable on disk, leaking into logs, or holding no rotation
   path at all.
 - `[P2]` internal-only, single-consumer, rotatable, but not recorded in the vault.

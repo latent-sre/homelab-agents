@@ -12,15 +12,13 @@ boundary that also happens to run tests.
 
 ## The four rules that prevent the real incidents
 
-1. **Pin every third-party action to a full commit SHA**, with the version in a trailing comment:
-   `uses: actions/checkout@<40-char-sha> # v4.2.2`. A tag is mutable — the `tj-actions/changed-files`
-   compromise (March 2025) worked by retagging existing versions, so every workflow tracking a tag
-   pulled the attacker's code and leaked its secrets into build logs. A SHA cannot be moved.
-   Re-pin deliberately (Dependabot can propose SHA bumps), read the diff when you do, and give
-   routine re-pins a cooldown — adopt a release only after it has been public a few days, because
-   compromise campaigns count on fast adoption before detection catches the malicious version. A
-   fix for a disclosed vulnerability in the SHA you are on skips the cooldown: waiting there keeps
-   you on the known-bad version. Read the diff and the provenance, then re-pin immediately.
+1. **Select an explicit version tag for every third-party action**, such as
+   `uses: actions/checkout@v4.2.2`. Do not use a moving branch or `latest`. A tag can move, so read
+   the release notes and source when you update it. Use a full commit SHA only when the repository
+   or organization requires immutable Action releases, or when the task's supply-chain decision
+   specifically requires that guarantee. Dependabot can propose tag updates; read the diff and
+   provenance before adopting one. A disclosed vulnerability skips any routine adoption cooldown:
+   update from the known-bad version after checking the release.
 2. **`permissions:` least-privilege, declared explicitly.** Default to `contents: read` at the
    workflow level and widen per job only where needed (`pull-requests: write` for a commenting job,
    `id-token: write` only for OIDC). An undeclared block inherits the repository default, which is
@@ -45,8 +43,10 @@ boundary that also happens to run tests.
 - **Cache the dependency store, not the build output**, and key it on the lockfile hash. A cache key
   that ignores the lockfile serves stale dependencies, which is a debugging nightmare that looks like
   flakiness. Never cache anything derived from untrusted PR code into a shared key.
-- **Pin the runner image** (`ubuntu-24.04`, not `ubuntu-latest`) when reproducibility matters —
-  `latest` moves and breaks builds on the platform's schedule, not yours.
+- **Select an explicit runner OS release** (`ubuntu-24.04`, not `ubuntu-latest`) to avoid an
+  automatic OS-version change. Hosted images still receive software updates: pin important
+  toolchains separately and record the actual Runner Image version from the job log when
+  reproducing a run ([GitHub-hosted runners](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners)).
 - **Secrets are per-job and never echoed.** Don't pass a secret as a command-line argument (it shows
   in process listings); use `env:` or stdin. Prefer OIDC (`id-token: write` + a cloud trust policy)
   over long-lived stored credentials where the deploy target can trust a workload identity; a LAN
@@ -74,21 +74,25 @@ boundary that also happens to run tests.
 
 A self-hosted runner executing untrusted PR code is remote code execution on your own hardware,
 persisting between jobs. So: **never run fork PRs on a self-hosted runner** (restrict it to trusted
-branches and post-merge jobs), make it **ephemeral** (`--ephemeral`, one job then re-register, or a
-container/VM per job) so nothing survives to the next job, give it no standing credentials beyond the
-job's, and put it on a segmented network — a lab runner that can reach every host is a lateral-movement
-path. Standing up a runner in the home lab is an apply under `sde-agents:homelab-engineer`'s change
-tiers, including the network placement.
+branches and post-merge jobs), and give each job a **clean execution environment**. `--ephemeral`
+deregisters a runner after one job; it does not wipe the machine. Destroy/recreate the environment,
+or have its owner wipe job state and terminate surviving processes before registering it again;
+re-registering the same dirty host preserves the risk. Give it no standing credentials beyond the
+job's and use a segmented network — a lab runner that can reach every host is a lateral-movement
+path. [GitHub's runner contract](https://docs.github.com/en/actions/reference/runners/self-hosted-runners#ephemeral-runners-for-autoscaling)
+separates deregistration from wiping automation. Standing up a runner in the home lab is an apply
+under `sde-agents:homelab-engineer`'s change tiers, including the network placement.
 
 ## Starting a workflow
 
-Copy [`assets/ci.reusable.yml`](assets/ci.reusable.yml) — it carries the pins, permissions,
+Copy [`assets/ci.reusable.yml`](assets/ci.reusable.yml) — it carries the version selections, permissions,
 concurrency, timeouts, and the env-not-interpolation pattern already wired. Read its header before
 using it: the refs are deliberate placeholders you must resolve, and **there are two kinds**. A
-GitHub Action pins to a git commit SHA (`actions/checkout@<40-hex>`); a `docker://` step pins to an
-image manifest **digest** (`docker://image@sha256:…`), because the ref after `@` is resolved by the
-registry, not by git. Putting a commit SHA on a `docker://` line yields an image reference that
-does not exist, and the job fails to start.
+GitHub Action uses an explicit version tag (`actions/checkout@v4.2.2`); a `docker://` step pins to
+an image manifest **digest** (`docker://image@sha256:…`), because the ref after `@` is resolved by
+the registry, not by git. Use an Action commit SHA only for an immutable-release requirement;
+putting one on a `docker://` line yields an image reference that does not exist, and the job fails
+to start.
 
 ## Verify
 

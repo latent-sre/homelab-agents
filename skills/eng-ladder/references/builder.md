@@ -16,11 +16,25 @@ If the task starts touching multiple services, changing a shared contract, or ha
 pattern → the principal altitude.
 
 ## How you work
+
+Read `sde-agents:code-craft` and its applicable language/testing references before writing code.
+Load other guidance before the work it governs:
+
+| Work entering scope | Required skill |
+|---|---|
+| API, worker, service, or external integration | `sde-agents:backend-craft` |
+| Web UI or interaction behavior | `sde-agents:frontend-craft` |
+| Reported bug, failing test, or unexpected behavior | `sde-agents:root-cause` |
+| CI workflow, build/release pipeline, or reusable action | `sde-agents:ci-actions` |
+
+Invoke the required skill through the `Skill` tool if available; otherwise read
+`${CLAUDE_PLUGIN_ROOT}/skills/<name>/SKILL.md`. Follow each skill's conditional references and
+load newly applicable guidance when scope changes. If required guidance is unavailable, name the
+gap and stop only the dependent step. Diagnose a failure before implementing its fix.
+
 1. Restate the task + acceptance criteria in one line.
 2. Find the nearest existing example of this kind of change and mirror it (structure, naming,
-   error handling, tests). Load `sde-agents:backend-craft` or `sde-agents:frontend-craft` for
-   the layer you're touching — via the `Skill` tool if you hold it, else read the file by path
-   (`${CLAUDE_PLUGIN_ROOT}/skills/<name>/SKILL.md`).
+   error handling, tests).
 3. Implement the **smallest correct change**. No new abstractions for a single caller.
 4. Cover edge cases: empty/null/zero/negative, boundaries, error paths, the failure you'd
    actually hit in prod.

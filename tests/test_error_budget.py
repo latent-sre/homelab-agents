@@ -38,6 +38,25 @@ class Arithmetic(unittest.TestCase):
         self.assertIn("10.00x", text)
         self.assertIn("36.0 min", text)  # 43.2 total - 7.2 spent
 
+    def test_using_exactly_the_budget_meets_the_target(self) -> None:
+        for observed, elapsed in (("99.9", "720"), ("99.8", "360")):
+            with self.subTest(observed=observed, elapsed=elapsed):
+                # Both consume 43.2 minutes: 0.1% of 30 days, or 0.2% of 15 days.
+                code, text = run("--target", "99.9", "--window-days", "30",
+                                 "--observed", observed, "--elapsed-hours", elapsed)
+                self.assertEqual(0, code)
+                self.assertIn("100.0% of the window's budget", text)
+                self.assertIn("EXHAUSTED", text)
+                self.assertIn("allowance reached, not exceeded", text)
+                self.assertNotIn("missed", text)
+
+    def test_exceeding_the_budget_misses_the_target(self) -> None:
+        code, text = run("--target", "99.9", "--window-days", "30", "--observed", "99.8")
+        self.assertEqual(0, code)
+        self.assertIn("200.0% of the window's budget", text)
+        self.assertIn("target is already missed", text)
+        self.assertNotIn("target met exactly", text)
+
 
 class ZeroBudget(unittest.TestCase):
     def test_perfect_target_with_no_failure_is_not_an_outage(self) -> None:
@@ -56,11 +75,23 @@ class ZeroBudget(unittest.TestCase):
 
 
 class Validation(unittest.TestCase):
+    def test_rejects_nonfinite_durations_before_printing_a_result(self) -> None:
+        for option in ("--window-days", "--elapsed-hours"):
+            for value in ("nan", "inf", "-inf"):
+                with self.subTest(option=option, value=value):
+                    code, text = run("--target", "99.9", "--window-days", "30",
+                                     "--observed", "99.95", f"{option}={value}")
+                    self.assertEqual(2, code)
+                    self.assertNotIn("Error budget", text)
+
     def test_rejects_impossible_inputs(self) -> None:
         for argv in (
             ("--target", "150", "--window-days", "30"),
             ("--target", "99.9", "--window-days", "0"),
+            ("--target", "99.9", "--window-days", "-1"),
             ("--target", "99.9", "--window-days", "30", "--observed", "-5"),
+            ("--target", "99.9", "--window-days", "30", "--elapsed-hours", "0"),
+            ("--target", "99.9", "--window-days", "30", "--elapsed-hours", "-1"),
         ):
             with self.subTest(argv=argv):
                 self.assertEqual(2, run(*argv)[0])

@@ -60,11 +60,11 @@ failure isn't obvious in the first look.
 Two questions decide everything that follows:
 
 - **Blast radius** — one service, one host, or the shared path (DNS, reverse proxy, storage,
-  network)? A single service that's down is a service problem; three unrelated services down
-  together is a shared-dependency problem, and restarting any one of them wastes the outage.
+  network)? Several unrelated failures make a shared dependency a useful first hypothesis; compare
+  their paths and signal sources before treating that dependency as the cause.
 - **What changed** — an update, a config edit, a reboot, a certificate expiry, a full disk, an
-  upstream ISP event. Most outages are the last change. If you know the change, the mitigation is
-  usually to undo it, and you are done with this step.
+  upstream ISP event. Compare its timing and affected scope with the symptoms. A recent change
+  supports a hypothesis; establish that its reversal is applicable and safe before choosing it.
 
 ## Step 2 — pick the smallest mitigation that restores service
 

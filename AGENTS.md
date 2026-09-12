@@ -56,7 +56,7 @@ red check is fixed if trivial, else recorded in `docs/fleet-roadmap.md`.
   component, also refresh the README inventory with
   `python3 scripts/validate_fleet.py --write-inventory`.
 - **T1 — before push/PR**: `python3 -m unittest discover -s tests` +
-  `claude plugin validate . --strict` (missing CLI defers to CI) +
+  `python3 scripts/validate_claude_plugin.py` (both strict platform checks; missing CLI defers to CI) +
   `python3 scripts/fleet_doctor.py`. CI reruns the first two, never fleet_doctor (host drift stays
   invisible). Exit 1 failed, 2 not computed (a clean report isn't evidence), 3 warnings. Repair via
   `python3 scripts/install_codex_agents.py --user`; clear warnings before measuring (issue #126).
@@ -231,6 +231,12 @@ handoff when the host cannot request a pass. Provenance:
   HEAD identity is not byte identity, and `git status` misses untracked-but-ignored paths and
   assume-unchanged or skip-worktree entries. Record that a read was tree-based, so a later reader
   knows which guarantee it carries.
+- **Name commits briefly and verify them.** Use an unambiguous short object ID (for example,
+  `git rev-parse --short=12 <rev>`) in handoffs, review packets, history claims, and permalinks.
+  The receiver resolves it in the named repository before trusting it; a short ID that does not
+  resolve uniquely is not evidence. For a third-party GitHub Action, use an explicit version tag
+  unless an enforced repository or organization policy, or a declared immutable-release decision,
+  requires a full SHA-1. File and image digests are cryptographic values, not commit IDs.
 - **The source wins on drift.** Fix the paraphrase, not its owner; fix a real defect at the source
   and re-propagate it. The ownership list is in `docs/fleet-development.md` under "Working on the
   fleet itself".

@@ -6,6 +6,10 @@ everything else, exit codes mean something, `--json` emits one document and noth
 resolves flag > env > file > default, and the destructive path computes its plan unconditionally
 while gating only the effect.
 
+Successful and dry-run JSON keeps the applied/count/items shape. An effect that raises stops the
+batch and emits applied=null, complete=false, confirmed successes in count/items, the raising item
+in unknown, and the untouched remainder in not_attempted. An exception cannot prove no effect.
+
 Standard library only, so it runs anywhere Python does.
 
     ./cli_skeleton.py prune --dry-run --json
@@ -67,7 +71,10 @@ def resolve_config(args: argparse.Namespace) -> dict[str, Any]:
 
     try:
         with open(CONFIG_PATH, encoding="utf-8") as handle:
-            for key, value in json.load(handle).items():
+            file_config = json.load(handle)
+            if not isinstance(file_config, dict):
+                raise Usage(f"config {CONFIG_PATH} must contain a JSON object")
+            for key, value in file_config.items():
                 if key in config:
                     config[key], sources[key] = value, CONFIG_PATH
     except FileNotFoundError:
@@ -76,14 +83,13 @@ def resolve_config(args: argparse.Namespace) -> dict[str, Any]:
         # A malformed config is a usage error, not a crash: say which file and what to fix.
         raise Usage(f"cannot read config {CONFIG_PATH}: {exc}") from exc
 
-    if (env := os.environ.get("LAB_OLDER_THAN")) is not None:
+    if args.older_than is not None:
+        config["older_than"], sources["older_than"] = args.older_than, "--older-than"
+    elif (env := os.environ.get("LAB_OLDER_THAN")) is not None:
         try:
             config["older_than"], sources["older_than"] = int(env), "$LAB_OLDER_THAN"
         except ValueError as exc:
             raise Usage(f"$LAB_OLDER_THAN must be an integer, got {env!r}") from exc
-
-    if args.older_than is not None:
-        config["older_than"], sources["older_than"] = args.older_than, "--older-than"
 
     # Bound the threshold AFTER precedence resolves, so the check covers the flag, the environment,
     # and the config file with one rule instead of three. A negative age is not a smaller cleanup —
@@ -91,6 +97,12 @@ def resolve_config(args: argparse.Namespace) -> dict[str, Any]:
     # silently turns a bounded prune into delete-everything. `argparse` accepts `-1` happily, and
     # the placeholder `delete()` below is meant to be replaced by a genuinely destructive call, so
     # this is exactly the input-bounding a destructive CLI owes its caller.
+    # JSON booleans compare as integers in Python; accepting true silently broadens the prune.
+    if type(config["older_than"]) is not int:
+        raise Usage(
+            f"--older-than must be an integer; got {config['older_than']!r} "
+            f"(from {sources['older_than']})"
+        )
     if config["older_than"] < 0:
         raise Usage(
             f"--older-than must be zero or more; got {config['older_than']} "
@@ -111,6 +123,17 @@ class Failure(Exception):
     """The operation genuinely failed — exits EXIT_FAILURE with a one-line diagnosis."""
 
 
+class PartialFailure(Failure):
+    """Carry confirmed results without claiming the raising operation had no effect."""
+
+    def __init__(self, message: str, completed: list[dict[str, Any]],
+                 unknown: dict[str, Any], not_attempted: list[dict[str, Any]]) -> None:
+        super().__init__(message)
+        self.completed = completed
+        self.unknown = unknown
+        self.not_attempted = not_attempted
+
+
 # --- the operation -----------------------------------------------------------------------------
 
 def prune(
@@ -127,8 +150,14 @@ def prune(
     """
     planned = [item for item in items if item["age_days"] > older_than]  # DECISION — always runs
     if not dry_run:
-        for item in planned:
-            remove(item["name"])                                         # EFFECT — the gated line
+        completed = []
+        for index, item in enumerate(planned):
+            try:
+                remove(item["name"])                                     # EFFECT — the gated line
+            except Exception as exc:
+                # A lost acknowledgement may follow a committed effect; stop before more writes.
+                raise PartialFailure(str(exc), completed, item, planned[index + 1:]) from exc
+            completed.append(item)
     return planned
 
 
@@ -222,6 +251,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     except Usage as exc:
         note(f"{styled('usage error', '33')}: {exc}")
         return EXIT_USAGE
+    except PartialFailure as exc:
+        emit(exc.completed, args, applied=None, failure=exc)
+        note(f"{styled('failed', '31')}: {exc}")
+        if args.debug:
+            raise
+        return EXIT_FAILURE
     except Failure as exc:
         note(f"{styled('failed', '31')}: {exc}")
         return EXIT_FAILURE
@@ -232,18 +267,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_FAILURE
 
 
-def emit(planned: list[dict[str, Any]], args: argparse.Namespace, *, applied: bool) -> None:
+def emit(planned: list[dict[str, Any]], args: argparse.Namespace, *, applied: bool | None,
+         failure: PartialFailure | None = None) -> None:
     """One JSON document on stdout for machines, a readable table for humans."""
     if args.json:
-        out(json.dumps({"applied": applied, "count": len(planned), "items": planned}))
-        return
-    if not planned:
+        result = {"applied": applied, "count": len(planned), "items": planned}
+        if failure is not None:
+            result.update(complete=False, unknown=[failure.unknown],
+                          not_attempted=failure.not_attempted)
+        out(json.dumps(result))
+    elif failure is not None:
+        for item in planned:
+            out(f"deleted {item['name']} ({item['age_days']}d)")
+    elif not planned:
         out("nothing to prune")
-        return
-    verb = "would delete" if not applied else "deleted"
-    for item in planned:
-        out(f"{verb} {item['name']} ({item['age_days']}d)")
-    note(f"{verb} {len(planned)} snapshot(s)")
+    else:
+        verb = "would delete" if not applied else "deleted"
+        for item in planned:
+            out(f"{verb} {item['name']} ({item['age_days']}d)")
+        note(f"{verb} {len(planned)} snapshot(s)")
+    if failure is not None:
+        note(f"{len(planned)} completed; {failure.unknown['name']}: outcome unknown; "
+             f"{len(failure.not_attempted)} not attempted")
 
 
 if __name__ == "__main__":

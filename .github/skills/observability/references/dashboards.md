@@ -37,8 +37,8 @@ forty panels is unreadable exactly when it matters, and the fix is deleting pane
 
 ## Provisioned as code
 
-A dashboard edited only in the browser lives in one container's database and dies with it. Keep the
-JSON in the lab repo, provisioned from disk:
+A dashboard edited in the browser lives in Grafana's database and survives container replacement
+when that storage persists. Keep JSON in the lab repo for review and reproducible provisioning:
 
 ```yaml
 # /etc/grafana/provisioning/dashboards/lab.yaml
@@ -53,9 +53,9 @@ providers:
       foldersFromFilesStructure: true
 ```
 
-- `allowUiUpdates: false` is the honest setting: it makes the repo the source of truth and makes
-  drift impossible rather than merely discouraged. Iterate in the UI, then **export the JSON back to
-  the repo** — that export is part of the change, not a follow-up.
+- `allowUiUpdates: false` blocks saving UI changes to a provisioned dashboard; it does not detect
+  all provisioning or runtime drift. Iterate in the UI, then **export the JSON back to the repo**
+  and provision the reviewed file — that export is part of the change, not a follow-up.
 - Strip the `id` field and pin a stable `uid` before committing, so the same file imports cleanly
   into a rebuilt Grafana and links to it keep working.
 - Datasource names come from a variable or a provisioned datasource `uid`; a dashboard with a

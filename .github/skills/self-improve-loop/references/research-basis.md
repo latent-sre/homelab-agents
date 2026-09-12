@@ -70,7 +70,7 @@ These are synthesis inferences from the evidence below, not claims made verbatim
   Design use: mutable retained state needs concurrency, lineage, and rollback controls. This skill
   does not authorize memory writes.
 - **Current during the window — [Anthropic skill-creator
-  implementation](https://github.com/anthropics/skills/blob/b29e7cf65e5cb78a5ac33d582270551bc74a14eb/skills/skill-creator/SKILL.md).** Its
+  implementation](https://github.com/anthropics/skills/blob/b29e7cf65e5c/skills/skill-creator/SKILL.md).** Its
   benchmark flow pairs with-skill and baseline runs, records variance/time/tokens, and separates an
   analyzer that surfaces evidence from the optimizer. Design use: comparable baselines and role
   separation.
@@ -214,18 +214,18 @@ GitHits was used to inspect these public repositories separately from the local 
 Repository adoption proves implementability, not benefit to this fleet.
 
 - **[anthropics/skills](https://github.com/anthropics/skills)**, inspected commit
-  `b29e7cf65e5cb78a5ac33d582270551bc74a14eb`: the installed `skill-creator` skill,
+  `b29e7cf65e5c`: the installed `skill-creator` skill,
   the installed `skill-creator` skill's `scripts/aggregate_benchmark.py` resource, and the skill's `agents/comparator.md` and
   `agents/analyzer.md` define paired skill/baseline runs, mean and sample variance, time/token
   measures, blind comparison, and evidence-grounded analysis without speculation.
 - **[microsoft/SkillOpt](https://github.com/microsoft/SkillOpt)**, inspected commit
-  `e7014cd18a18e11e6f6c10b897f7a009960d2e1b`: `README.md`, `skillopt/types.py`,
+  `e7014cd18a18`: `README.md`, `skillopt/types.py`,
   `skillopt/optimizer/skill.py`, `skillopt/evaluation/gate.py`, `docs/guide/dl-analogy.md`, and
   `skillopt_sleep/mine.py` define a frozen target, bounded typed mutations, a strict held-out gate,
   and separated train/validation/test data. `tests/test_sleep_engine.py` contains source-level
   reward-hacking/regression cases; this research did not execute that upstream suite.
 - **[stanfordnlp/dspy](https://github.com/stanfordnlp/dspy)**, inspected commit
-  `c69136b29aca4c00ca6da7667f7b80783188980e`: `dspy/teleprompt/gepa/gepa.py` separates training and
+  `c69136b29ac`: `dspy/teleprompt/gepa/gepa.py` separates training and
   validation, warns against train-as-validation overfitting, and exposes metric/full-eval budgets
   and stopping callbacks.
 - **[Leeroo-AI/kapso](https://github.com/Leeroo-AI/kapso)**,
@@ -245,10 +245,10 @@ Repository adoption proves implementability, not benefit to this fleet.
 - Promotion now freezes the baseline and requires targeted, regression/adverse, fresh-context, and
   exact-generated-artifact checks with rollback.
 - Maintenance explicitly merges, supersedes, and drops guidance instead of only adding it.
-- Every agent reports a lightweight Learning result; only lifecycle owners load the full skill to
-  avoid fleet-wide context bloat and duplicate retros.
-- A repository-local candidate ledger now preserves first occurrences, recurrence, rejection, and
-  freshness as quarantined data while keeping implementation and approval outside the intake tool.
+- The initial implementation added routine Learning results and a repository-local candidate ledger.
+  Both were subsequently retired: current agents update an existing owned artifact when authorized
+  or return evidence and an owner. The explicitly invoked maintainer retro retains its candidate
+  record in the handoff packet; the installed `self-improve-loop` skill owns the current workflow.
 
 ## Limits and open questions
 
@@ -259,6 +259,6 @@ Repository adoption proves implementability, not benefit to this fleet.
 - The best recurrence threshold is domain- and risk-dependent. “Twice” is a practical default, not a
   statistically universal law.
 - A local prompt contract can require a scan and handoff, but it cannot create a background
-  scheduler or structural write boundary. The repository-local ledger adds validated bounded
-  storage, not autonomous authority; validators, sandboxes, approvals, and independent review
-  remain the enforcing controls.
+  scheduler, structural write boundary, or persistent store. The retired ledger no longer supplies
+  storage or validation. Current handoff fields are writer discipline; any enforcing control must
+  exist in the host or the owning repository's tooling.

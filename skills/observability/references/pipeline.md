@@ -9,7 +9,7 @@ rules live in `skills/observability/SKILL.md`. On any conflict, SKILL.md wins.
 scrape_configs:
   - job_name: paperless
     scrape_interval: 30s          # match the resolution you actually need
-    scrape_timeout: 10s           # MUST be < scrape_interval
+    scrape_timeout: 10s           # <= scrape_interval; leave useful timeout margin
     static_configs:
       - targets: ["paperless:8000"]
     relabel_configs:              # keep labels bounded and meaningful
@@ -19,8 +19,9 @@ scrape_configs:
 
 - **Scrape interval is a cost decision**: it multiplies series × retention. 15–30s is plenty for a
   lab; 5s buys resolution nobody looks at and disk you'll run out of.
-- **`scrape_timeout` must be less than `scrape_interval`**, or scrapes overlap and the target gets
-  hammered while data goes missing.
+- **`scrape_timeout` cannot exceed `scrape_interval`.** Equality is valid; use a shorter timeout
+  when appropriate to the endpoint's expected response time. This is the
+  [Prometheus configuration contract](https://prometheus.io/docs/prometheus/latest/configuration/).
 - **Every rate query's window must exceed this interval** by several multiples — the two settings
   are coupled, and a `[1m]` rate on a 60s scrape is the most common empty-graph cause
   (`promql.md`).

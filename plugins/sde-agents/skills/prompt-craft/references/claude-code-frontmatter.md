@@ -101,11 +101,17 @@ ignore the field outright (see above), so treat this as unenforced in a plugin u
   are exempt and charge the budget first; the only signal is a debug-log warning. Live: a
   200k-window model rendered 18 of this fleet's 19 entries name-only, while larger-window models
   rendered all in full. Workflows list exactly like skills (`- plugin:name: meta description`)
-  and spend the same budget. OpenAI Codex applies the same 8,000-char default when the window is
-  unknown (shortens descriptions, then omits entries). `scripts/fleet_doctor.py` computes the
-  fleet's footprint (`repository.skill-listing-budget`); consuming repositories can raise
+  and spend the same budget. `scripts/fleet_doctor.py` estimates this fleet's Claude footprint
+  (`repository.skill-listing-budget`) under those recorded assumptions; it does not measure the
+  active host's context, settings, or complete catalog. Consuming repositories can raise
   `skillListingBudgetFraction` / `skillListingMaxDescChars` in settings, or override outright
   with the `SLASH_COMMAND_TOOL_CHAR_BUDGET` environment variable.
+
+**Codex uses a separate token budget.** Current
+[configuration documentation](https://learn.chatgpt.com/docs/config-file/config-reference#configtoml)
+defines `skills.max_context_tokens`: by default 2% of the model context, with explicit values capped
+at 10,000 tokens (source checked 2026-09-12). Do not apply Claude's character estimate or settings to
+Codex. Establish the target host's model, settings, and listing before making a visibility claim.
 
 Keep descriptions lean — they load into context every session, and past the listing budget above
 a long description does not degrade gracefully: it disappears entirely on the hosts that

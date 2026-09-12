@@ -23,6 +23,6 @@ credentials, secrets, reachable vulnerabilities, family data) — is
 
 ## Output
 
-Open with the coverage denominator — hosts covered and checks run vs. skipped, with why (e.g. "3/4 hosts; 6/8 checks — backups and drift skipped: no repo access") — findings without a denominator overstate the sweep. Then `[P0]`–`[P3]` findings, each with the evidence (command + output) and the one-line fix. P0 = exposed without auth, or irreplaceable state with no backup under its declared loss tolerance. End with the top three things to fix this weekend — not a list of thirty. After the top three, emit the findings-ledger rows (format at the end of
+Open with the coverage denominator — hosts covered and checks run vs. skipped, with why (e.g. "3/4 hosts; 6/8 checks — backups and drift skipped: no repo access") — findings without a denominator overstate the sweep. Then `[P0]`–`[P3]` findings, each with the evidence (command + output) and the one-line fix. Grade exposure by unauthorized capability or data reached, not the absence of auth on intended public content; irreplaceable state without backup is graded against its declared loss tolerance. End with the top three things to fix this weekend — not a list of thirty. After the top three, emit the findings-ledger rows (format at the end of
 [`references/checks.md`](references/checks.md)) for the operator to append to the lab repo's
 ledger — this skill holds no write tools, so the emitted block IS the ledger entry.

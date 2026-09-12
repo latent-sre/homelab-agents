@@ -20,6 +20,7 @@ the budget exactly at the end of the window, 14.4x exhausts a 30-day budget in a
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 
 
@@ -60,14 +61,17 @@ def main(argv: list[str] | None = None) -> int:
     if not 0 < args.target <= 100:
         print("error: --target must be greater than 0 and at most 100", file=sys.stderr)
         return 2
-    if args.window_days <= 0:
-        print("error: --window-days must be positive", file=sys.stderr)
+    # NaN bypasses a positivity comparison; non-finite durations cannot define a budget window.
+    if not math.isfinite(args.window_days) or args.window_days <= 0:
+        print("error: --window-days must be finite and positive", file=sys.stderr)
         return 2
     if args.observed is not None and not 0 <= args.observed <= 100:
         print("error: --observed must be between 0 and 100", file=sys.stderr)
         return 2
-    if args.elapsed_hours is not None and args.elapsed_hours <= 0:
-        print("error: --elapsed-hours must be positive", file=sys.stderr)
+    if args.elapsed_hours is not None and (
+        not math.isfinite(args.elapsed_hours) or args.elapsed_hours <= 0
+    ):
+        print("error: --elapsed-hours must be finite and positive", file=sys.stderr)
         return 2
 
     window_hours = args.window_days * 24
@@ -122,7 +126,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if burn_rate <= 0:
         print("Status            no failure observed — budget untouched")
-    elif consumed_fraction >= 1:
+    # Equivalent decimal inputs can land just above 1 after float subtraction and division.
+    # Ignore that rounding residue without declaring an unfinished window's target achieved.
+    elif math.isclose(consumed_fraction, 1.0, rel_tol=1e-12):
+        print("Status            BUDGET EXHAUSTED — allowance reached, not exceeded; no budget remains")
+    elif consumed_fraction > 1:
         print("Status            BUDGET EXHAUSTED — the target is already missed for this window")
     else:
         remaining_minutes = total_budget - failure_minutes

@@ -20,7 +20,9 @@ things: a truthful exit code, output they can parse, and no surprises.
 - **Never print a stack trace as the primary error.** Catch the expected failures, print a
   one-line diagnosis to stderr with what to do next, and reserve tracebacks for `--debug`.
 - **A partial failure is a failure.** Processing 9 of 10 items exits non-zero and says which one
-  didn't; a summary line on stderr and the successes on stdout.
+  did not return successfully; a summary line on stderr and confirmed successes on stdout. An effect
+  can commit before its acknowledgement fails: mark the raising item's outcome unknown and stop
+  further effects until reconciliation, rather than reporting it as definitely untouched.
 
 ## Machine-readable output
 
@@ -32,6 +34,11 @@ things: a truthful exit code, output they can parse, and no surprises.
   automatically, because ANSI escapes in a log file are noise nobody asked for. Honor `NO_COLOR`.
 - Keep the human and machine paths from diverging: derive both from the same data structure, so a
   field added to one appears in the other.
+
+The starter preserves `applied`/`count`/`items` for success and dry-run. On an apply failure it emits
+`applied: null`, `complete: false`, confirmed successes in `count`/`items`, the raising item in
+`unknown`, and the unattempted remainder in `not_attempted`. Null means the overall outcome needs
+reconciliation, not that nothing changed; callers must inspect the nonzero exit and item outcomes.
 
 ## Configuration precedence, stated in one place
 

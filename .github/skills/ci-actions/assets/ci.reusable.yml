@@ -7,9 +7,8 @@
 #
 # There are TWO kinds of placeholder, because the ref after `@` means different things:
 #
-#   REPLACE_WITH_SHA           — a GitHub Action, pinned to a 40-char GIT COMMIT SHA:
-#       gh api repos/actions/checkout/git/ref/tags/v4.2.2 --jq .object.sha
-#       (or `git ls-remote https://github.com/actions/checkout refs/tags/v4.2.2`)
+#   REPLACE_WITH_VERSION_TAG   — a GitHub Action, selected by an explicit release tag:
+#       v4.2.2
 #
 #   REPLACE_WITH_IMAGE_DIGEST  — a `docker://` step, pinned to an IMAGE MANIFEST DIGEST resolved by
 #                                the registry, written in full as `sha256:...`:
@@ -18,7 +17,7 @@
 #        docker://rhysd/actionlint:v1.7.4`)
 #
 # A commit SHA on a `docker://` line is an image reference that does not exist, so the job never
-# starts. Keep the trailing `# v4.2.2` comment either way, so the next reader knows what is pinned.
+# starts. Use a full Action SHA only when an immutable-release policy requires it.
 #
 #   REPLACE_WITH_VERSION       — a tool fetched at run time (`pipx run zizmor==1.2.3`). Not a pin
 #                                by SHA, but a pin: an unpinned `pipx run` fetches whatever PyPI
@@ -43,20 +42,20 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-24.04        # pinned, not `latest`, so the image moves when you decide
+    runs-on: ubuntu-24.04        # fixes the OS release; hosted image software still updates
     timeout-minutes: 15          # a hung job otherwise holds a runner for hours
     steps:
-      - uses: actions/checkout@REPLACE_WITH_SHA # v4.2.2
+      - uses: actions/checkout@REPLACE_WITH_VERSION_TAG # v4.2.2
         with:
           persist-credentials: false   # don't leave a pushable token in .git/config
 
-      - uses: actions/setup-python@REPLACE_WITH_SHA # v5.3.0
+      - uses: actions/setup-python@REPLACE_WITH_VERSION_TAG # v5.3.0
         with:
           python-version: "3.12"
 
       # Cache the dependency store, keyed on the lockfile — a key that ignores the lockfile
       # serves stale dependencies and the resulting failures look like flakiness.
-      - uses: actions/cache@REPLACE_WITH_SHA # v4.1.2
+      - uses: actions/cache@REPLACE_WITH_VERSION_TAG # v4.1.2
         with:
           path: ~/.cache/pip
           key: pip-${{ runner.os }}-${{ hashFiles('**/requirements*.txt', '**/uv.lock') }}
@@ -89,11 +88,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@REPLACE_WITH_SHA # v4.2.2
+      - uses: actions/checkout@REPLACE_WITH_VERSION_TAG # v4.2.2
         with:
           persist-credentials: false
       # A `docker://` step pins differently from a GitHub Action: the ref after `@` is an IMAGE
-      # MANIFEST DIGEST (`sha256:...`), not a git commit SHA, so the REPLACE_WITH_SHA above is the
+      # MANIFEST DIGEST (`sha256:...`), not a git commit SHA, so the version-tag placeholder above is the
       # wrong kind of identifier here. Resolve it with:
       #   docker buildx imagetools inspect rhysd/actionlint:v1.7.4 --format '{{.Manifest.Digest}}'
       # then use `docker://rhysd/actionlint@sha256:<digest>`.

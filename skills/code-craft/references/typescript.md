@@ -65,9 +65,13 @@ applies inside their `.ts`, `.tsx`, and `<script lang="ts">` code, but JSX/TSX o
 - **Mint the idempotency key once per logical write** — at first intent (form init or the click
   that starts the operation) — and thread that same key through every retry of it. A key generated
   inside the mutation function regenerates per retry and protects nothing: that is the
-  double-charge bug. Rotate it after the write settles, or an "add another" flow on a still-mounted
-  form replays the first key and gets the recorded response instead of a second write. Pair it with
-  disabled-while-pending so a user can't fire a second distinct write.
+  double-charge bug. Keep the key and payload across automatic and manual retries while the outcome
+  is unknown — exhausting retries or settling a rejected Promise does not prove the server did not
+  commit. Reconcile that outcome before starting another logical write; rotate the key for the new
+  write once the prior outcome is known. An "add another" flow then gets its own key instead of
+  replaying the first result. Pair it with disabled-while-pending so a user can't fire a second
+  distinct write. [Stripe's error guide](https://docs.stripe.com/error-low-level) illustrates the
+  unknown-outcome boundary; follow the target API's retention and reconciliation contract.
 - **Retries are stratified by safety**: reads retry with backoff; a non-idempotent write
   auto-retries only when the same server-enforced idempotency key rides along, and never on 4xx. A
   bare network error is ambiguous — the server may have committed before the connection dropped —

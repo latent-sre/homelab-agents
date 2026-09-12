@@ -25,6 +25,7 @@ below are live. Everything else here is historical evidence.
 
 | Document | State | Read it for |
 |---|---|---|
+| [`archive/2026-09/fleet-scan-repairs-2026-09-12.md`](archive/2026-09/fleet-scan-repairs-2026-09-12.md) | Local repair evidence | Disposition of the 29 agent/skill findings, explicit platform validation, regression and full-suite evidence, unchanged authority/frontmatter, and unmeasured runtime/installation limits |
 | [`archive/2026-09/pr178-repair-budget-check-2026-09-10.md`](archive/2026-09/pr178-repair-budget-check-2026-09-10.md) | Behavioral evidence | Paired fresh-context repair-budget decisions and return packets; four synthetic cases, with real delegation and repeated-run reliability unmeasured |
 | [`fleet-roadmap.md`](fleet-roadmap.md) | Live | Every unfinished, blocked, deferred, and decision-needed item. Nothing else adds work |
 | [`engineering-program.md`](engineering-program.md) | Live | The durable map from each program strand — handoff, loop, graph, self-learning — to the mechanisms implementing it and the checks keeping it honest. Mechanism-anchored by rule: no live item IDs, counts, or episodes, and the validator resolves every path it names |

@@ -355,7 +355,7 @@ paragraph is its summary and loses to it on conflict.
 ```bash
 python3 scripts/validate_fleet.py                       # every edit — subsumes the adapter byte-drift check
 python3 -m unittest discover -s tests                   # before push — full offline suite
-claude plugin validate . --strict                       # before push — Claude platform contract
+python3 scripts/validate_claude_plugin.py                # before push — marketplace and canonical plugin
 ```
 
 The validator checks frontmatter, names, descriptions, explicit agent tool authority (against a
@@ -382,8 +382,13 @@ it. `scripts/generate_platform_adapters.py --check` exposes that gate directly �
 is not a separate step in the tiered recipe above: running it after the validator would re-prove
 what the validator just proved.
 
-`claude plugin validate --strict` independently covers Claude's platform contract: manifest
-schema, frontmatter parsing, and hook JSON, with warnings as errors. The Codex package is also kept
+`scripts/validate_claude_plugin.py` runs Claude's strict platform validation separately for the
+marketplace and the canonical plugin contents. A repository-root invocation selects the
+marketplace and does not inspect component files. The script validates a temporary byte-preserving
+copy of canonical components without the development-only `CLAUDE.md`/`AGENTS.md` bridge; it never
+suppresses platform warnings or replaces the installed package. The script's docstring owns the
+copy scope and exit contract. This checks manifest schema, frontmatter parsing, and hook JSON,
+not native loading or execution. The Codex package is also kept
 compatible with the current Codex plugin ingestion validator; there is no `codex plugin validate`
 CLI subcommand at this time. Copilot and VS Code compatibility is exercised by the generated-schema
 tests and should receive a runtime smoke test whenever those host versions are upgraded.
