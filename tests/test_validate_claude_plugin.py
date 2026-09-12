@@ -69,6 +69,17 @@ class ClaudePluginValidationTests(unittest.TestCase):
                 self.assertNotEqual(0, result)
                 self.assertEqual(2, run.call_count)
 
+    def test_validation_failure_takes_precedence_over_uncomputed_check(self) -> None:
+        for statuses in ((1, 2), (2, 1)):
+            with self.subTest(statuses=statuses):
+                results = [subprocess.CompletedProcess([], code) for code in statuses]
+                run = mock.Mock(side_effect=results)
+
+                result = validate_claude_plugin.validate(self.root, "claude", run=run)
+
+                self.assertEqual(1, result)
+                self.assertEqual(2, run.call_count)
+
     def test_missing_cli_is_not_a_pass(self) -> None:
         with mock.patch.object(validate_claude_plugin.shutil, "which", return_value=None):
             self.assertEqual(2, validate_claude_plugin.main(["--root", str(self.root)]))
@@ -100,13 +111,19 @@ class NativeClaudeContentsTests(unittest.TestCase):
                 path = root / relative
                 path.parent.mkdir(parents=True)
                 path.write_text(data, encoding="utf-8")
+                returncodes: list[int] = []
 
                 def run(argv, **kwargs):
-                    return subprocess.run(argv, capture_output=True, encoding="utf-8", **kwargs)
+                    completed = subprocess.run(
+                        argv, capture_output=True, encoding="utf-8", **kwargs,
+                    )
+                    returncodes.append(completed.returncode)
+                    return completed
 
                 self.assertEqual(1, validate_claude_plugin.validate(
                     root, shutil.which("claude"), run=run,
                 ))
+                self.assertEqual([0, 1], returncodes)
 
 
 if __name__ == "__main__":

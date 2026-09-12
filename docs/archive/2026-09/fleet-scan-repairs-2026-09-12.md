@@ -3,9 +3,9 @@
 **Status: local implementation and verification evidence; not publication or host acceptance.**
 
 The operator requested a full agent/skill scan, then authorized its fixes. The scan read all
-10 agents, 20 skills, and 59 supporting files at
-`1c27a77677e53c530d112c91e1f695bfaeeac600`. This repair applies the 29 validated agent/skill
-findings and the two gate-reporting corrections on `fix/fleet-scan-corrections`.
+10 agents, 20 skills, and 59 supporting files at `1c27a77677e5`. This repair applies the 29
+validated agent/skill findings and the two gate-reporting corrections on
+`fix/fleet-scan-corrections`.
 
 Canonical definitions and matching adapters changed together. All 30 entrypoints retain their
 original parsed frontmatter, including descriptions, tool grants, and explicit-only activation
@@ -83,9 +83,10 @@ changing the global CLI or starting a model session. Native negative cases also 
 
 ## Verification
 
-The integrated candidate consists of 104 changed files: 42 authored files and 62 generated
-projections. Evidence-only additions to this archive and the documentation map followed the
-frozen candidate's tests and review; no tested code or guidance changed afterward.
+The published PR candidate consists of 112 changed files: 46 non-generated files and 66 generated
+projections. The initial frozen repair candidate was 104 files (42 authored and 62 generated).
+Subsequent review repairs changed guidance, the platform validator and its tests, CI policy, and
+this evidence record; those final bytes received focused checks, hosted CI, and current-head review.
 
 | Check | Result |
 |---|---|
@@ -99,7 +100,23 @@ frozen candidate's tests and review; no tested code or guidance changed afterwar
 | Adapter generation and fleet validator | 181 adapters generated; 10 agents / 20 skills validated; inventory current. |
 | Parsed frontmatter comparison | No changes across the 30 entrypoints. |
 | `git diff --check` | Clean. |
-| Independent final static review | All 42 authored changed files reviewed; no new material findings, no independent P0/P1. Provisional working-tree review, not merge approval. |
+| Initial independent static review | All 42 initially authored changed files reviewed; no new material findings, no independent P0/P1. Later PR review found defects in the expanded candidate, which were repaired and re-reviewed on the resulting heads. |
+| Latest focused repair checks | 40 validator/adapter tests passed; both native plugin targets passed; malformed native cases require marketplace/plugin return codes `[0, 1]`. |
+| Latest full local suite | 505 tests ran in 180.740 seconds: 13 known Windows `test_hook_wiring` launcher errors and 16 skips. Every error was `WinError 2` from a fixture invoking absent `python`; hosted Ubuntu CI owns the portable full-suite result. |
+
+### Bounded model-behavior attempt
+
+Five fresh-process cases were frozen before execution: approval tree-object typing, authorization
+after an internal fetch, a universal prompt-rewrite proposal, scrape failure versus user outage,
+and measured recovery versus an absent RTO. Each invocation used the working-tree plugin, Claude
+Code 2.1.269, the `sonnet` alias at low effort, disabled tools, a USD 0.30 per-run ceiling, and a
+unique non-persistent session ID.
+
+All five invocations failed authentication before inference: `Failed to authenticate: OAuth session
+expired and could not be refreshed`. Every result reported zero input tokens, zero output tokens,
+zero cost, and no model usage. No retry or grader session ran. The behavioral gate is therefore
+**inconclusive**, with five attempted invocations and zero executed model cases; fresh evidence still
+requires reauthentication and a new operator-authorized run budget.
 
 The full suite ran in a detached integration worktree with Git metadata, Python 3.12.10,
 Git's shell on PATH, and Python bytecode output disabled. The two skips were Windows symlink
@@ -121,24 +138,25 @@ SHA-256 of the sorted compact JSON file-hash mapping:
 `6122662322395dabc4148940b6d793e8ac00bf190a89d0e1699df49902d550a7`.
 Candidate patch SHA-256:
 `4aa7ff5ad69fe50cfe57f9df04d443c2e782affb85b00f2afee99d29dfd46517`.
-The final file comparison found no change to that frozen candidate.
+These hashes identify the initial frozen repair candidate only; later review-driven changes are
+identified by the PR head and its current-head checks.
 
 ## Remaining limits
 
 - Model output behavior, live routing, native hook enforcement, deployed lab behavior, and
-  cross-host efficiency were not remeasured. The repaired prose is source-corrected and reviewed,
-  not a claim of measured reliability improvement.
+  cross-host efficiency were not remeasured. The repaired prose is source-corrected and reviewed;
+  the failed bounded campaign does not establish a fleet-wide reliability improvement.
 - Doctor completed with 11 passes and three warnings: intentional working-tree edits, the
   conditional Claude listing estimate (9,174 characters versus its assumed 8,000), and installed
   Codex agents not synchronized with the edited source. No diagnostic was inconclusive in this
   post-repair run. Installation was not performed.
 - Listing-size reduction remains the existing CTX-003/CTX-004 concern. No descriptions were changed
   to clear a warning without the required routing evidence, and no host settings were changed.
-- `actionlint` and `zizmor` were unavailable. Hosted CI and GitHub review/merge gates were not run;
-  local execution on the pinned CLI is not a hosted CI result.
-- The scan and final review consumed the two permitted prose review rounds. No additional deep
-  review round, commit, push, PR, or publication occurred. Future publication follows the
-  repository's current-head review procedure; this record is not an approval.
+- `actionlint` and `zizmor` were unavailable locally. Hosted CI and GitHub reviewers subsequently
+  checked the published PR; their current-head results are separate from local pinned-CLI evidence.
+- The scan and initial final review consumed the two ordinary prose review rounds. The operator
+  explicitly authorized one additional repair round for findings raised during PR review. This
+  record remains evidence rather than merge approval.
 - The named agent/craft/operations worktrees and integration worktree were retained for local
   inspection. Their generated outputs were not hand-edited or used as canonical edit sources.
 

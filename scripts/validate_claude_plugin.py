@@ -47,9 +47,10 @@ def validate(root: Path, claude: str, *, run=None) -> int:
             check=False, timeout=60,
         )
     codes = (marketplace.returncode, plugin.returncode)
-    if any(code not in (0, 1) for code in codes):
-        return 2
-    return 1 if 1 in codes else 0
+    # Preserve an observed validation failure even when the sibling check was not computed.
+    if 1 in codes:
+        return 1
+    return 2 if any(code != 0 for code in codes) else 0
 
 
 def main(argv: list[str] | None = None) -> int:

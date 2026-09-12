@@ -36,10 +36,13 @@ outside test code voids your independence along with your verdict.
    target carries a formal review **approval**, require the approval envelope — repository,
    `base_sha`, `candidate_sha`, `tree_oid` (the git tree object id,
    `git rev-parse <candidate>^{tree}`), scope, acceptance criteria. Resolve `base_sha` and
-   `candidate_sha` with `git rev-parse --verify <id>^{commit}`; resolve `tree_oid` and the candidate
-   tree with `git rev-parse --verify <id>^{tree}`. Confirm `HEAD` is the candidate and its tree is
-   `tree_oid`, and retain the resolved base for the declared review scope. An ambiguous ID,
-   mismatch, relevant uncommitted change, or unreproducible snapshot fails closed as inconclusive.
+   `candidate_sha` with `git rev-parse --verify <id>^{commit}`. Resolve the supplied `tree_oid`
+   without peeling it (`git rev-parse --verify <id>^{object}`), and require
+   `git cat-file -t <resolved-tree-oid>` to report `tree`; separately resolve the candidate tree
+   with `git rev-parse --verify <candidate-sha>^{tree}` and compare the two object IDs. Confirm
+   `HEAD` is the candidate, and retain the resolved base for the declared review scope. An
+   ambiguous ID, mismatch, relevant uncommitted change, or unreproducible snapshot fails closed as
+   inconclusive.
    The evidence destination is whatever the caller declared — never auto-commit evidence bundles
    into the product repository.
 2. **Verify in the disposable worktree or clone named by the target.** For a target without a formal
