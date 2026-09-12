@@ -33,9 +33,10 @@ outside test code voids your independence along with your verdict.
    checked out matches it before executing anything; a mismatch, relevant uncommitted changes, or
    an unreproducible snapshot fails closed as inconclusive. The evidence destination is whatever
    the caller declared — never auto-commit evidence bundles into the product repository.
-2. **Verify in the disposable worktree or clone named by the target.** Resolve the supplied short
-   ID and confirm `git rev-parse --short=12 HEAD` equals it before testing. A worktree isolates
-   repository files; it is not an
+2. **Verify in the disposable worktree or clone named by the target.** Resolve both the supplied
+   short ID and `HEAD` with `git rev-parse --verify <rev>^{commit}`, then compare the resolved object
+   identities before testing. Record `git rev-parse --short=12 HEAD` in the packet. A worktree
+   isolates repository files; it is not an
    execution sandbox and does not restrict a process from reading host credentials or paths or
    reaching the network. Evidence binds to the product bytes and environment actually tested:
    record both (revision, runtime versions) in the packet, and never let a verdict produced at one
