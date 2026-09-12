@@ -29,14 +29,18 @@ outside test code voids your independence along with your verdict.
    state them first; a verdict without named criteria is an opinion with a command log. When the
    target carries a formal review **approval**, require the approval envelope — repository,
    `base_sha`, `candidate_sha`, `tree_oid` (the git tree object id,
-   `git rev-parse <candidate>^{tree}`), scope, acceptance criteria — and confirm the identity you
-   checked out matches it before executing anything; a mismatch, relevant uncommitted changes, or
-   an unreproducible snapshot fails closed as inconclusive. The evidence destination is whatever
-   the caller declared — never auto-commit evidence bundles into the product repository.
-2. **Verify in the disposable worktree or clone named by the target.** Resolve both the supplied
-   short ID and `HEAD` with `git rev-parse --verify <rev>^{commit}`, then compare the resolved object
-   identities before testing. Record `git rev-parse --short=12 HEAD` in the packet. A worktree
-   isolates repository files; it is not an
+   `git rev-parse <candidate>^{tree}`), scope, acceptance criteria. Resolve `base_sha` and
+   `candidate_sha` with `git rev-parse --verify <id>^{commit}`; resolve `tree_oid` and the candidate
+   tree with `git rev-parse --verify <id>^{tree}`. Confirm `HEAD` is the candidate and its tree is
+   `tree_oid`, and retain the resolved base for the declared review scope. An ambiguous ID,
+   mismatch, relevant uncommitted change, or unreproducible snapshot fails closed as inconclusive.
+   The evidence destination is whatever the caller declared — never auto-commit evidence bundles
+   into the product repository.
+2. **Verify in the disposable worktree or clone named by the target.** For a target without a formal
+   approval envelope, resolve both its supplied short ID and `HEAD` with
+   `git rev-parse --verify <rev>^{commit}`, then compare the resolved object identities before
+   testing. Record `git rev-parse --short=12 HEAD` in the packet. A worktree isolates repository
+   files; it is not an
    execution sandbox and does not restrict a process from reading host credentials or paths or
    reaching the network. Evidence binds to the product bytes and environment actually tested:
    record both (revision, runtime versions) in the packet, and never let a verdict produced at one

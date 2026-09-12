@@ -148,7 +148,7 @@ This is historical repair evidence. `docs/fleet-roadmap.md` remains the only liv
 
 The operator then requested the latest release for CI. On 2026-09-12, npm's live `dist-tags`
 reported `latest` and `next` as **2.1.269**, and `stable` as **2.1.236**; GitHits package metadata
-independently reported 2.1.269, published 2026-09-11. CI now pins
+independently reported 2.1.269, published 2026-09-11. A candidate change pinned
 `@anthropic-ai/claude-code@2.1.269` rather than following a mutable `latest` tag.
 
 The npm-resolved executable reported 2.1.269, then both strict marketplace/plugin checks passed.
@@ -156,7 +156,8 @@ T0 validation, the five platform-wrapper tests, and `git diff --check` passed. T
 workflow line after the earlier frozen repair evidence; that earlier evidence is not relabeled
 as a test of this later pin update. No global CLI, installed fleet, or published branch changed.
 
-The repository's T3 native probe and full routing sweep are still owed. The current sweep at three
-repetitions is 303 model sessions plus the probe; no model/spend budget was supplied for this
-request, so no real sessions were launched. `CLI-001` in the live roadmap owns that remaining
-verification. Offline platform success does not close it.
+The repository's T3 gate requires the native probe and every routing cluster for a CLI pin bump.
+The current sweep at three repetitions is 303 model sessions plus the probe, and the operator
+declined that campaign. The candidate pin was therefore reverted before merge; CI remains on
+2.1.219, and no `CLI-001` debt remains for an upgrade that did not ship. Offline platform success
+was not treated as runtime evidence.

@@ -103,7 +103,7 @@ jobs:
       # the moment to re-run the probe, and the two are a pair — deliberate upgrade, deliberate
       # re-verification, rather than a silent change arriving mid-PR on someone else's release day.
       - name: Install the Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code@2.1.269
+        run: npm install -g @anthropic-ai/claude-code@2.1.219
 
       # Naming the repository selects marketplace validation and skips component files.
       # The wrapper checks that manifest and an unchanged canonical plugin copy separately.

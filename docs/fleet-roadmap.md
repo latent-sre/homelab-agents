@@ -40,31 +40,6 @@ each item's Source.
 
 ### Ready
 
-#### CLI-001 — verify the Claude 2.1.269 pin
-
-**Status:** `decision-needed` — the requested latest exact pin is implemented locally; the
-real-session verification budget has not been set.
-
-**Outcome:** CI uses a reproducible current release with the T3 runtime and routing evidence its
-pin bump requires.
-
-**Source:** [AGENTS.md T3](../AGENTS.md#validate-before-you-push) and the
-[local pin update evidence](archive/2026-09/fleet-scan-repairs-2026-09-12.md#subsequent-cli-pin-update).
-
-**Prerequisites:** Freeze the integrated candidate; select the model, timeout, and session/spend
-budget before running real model sessions.
-
-**Constraints:** Keep the exact pin; do not use a floating `latest` tag or treat offline validation
-as native hook/routing evidence.
-
-**Acceptance:** On 2.1.269, run the native plugin probe and every routing cluster; record conditions,
-candidate identity, outcomes, and any inconclusive criteria. The current three-run sweep is 303
-routing sessions, plus the probe.
-
-**Next action:** Set the bounded T3 run budget, then execute and disposition the results before
-calling the CLI upgrade runtime-verified. Marketplace/plugin validation and five focused tests
-already passed locally; hosted CI remains unrun.
-
 #### DESIGN-001 — consolidate design ownership
 
 **Status:** `active` — operator-approved merger on `refactor/consolidate-design-ownership`, from main
