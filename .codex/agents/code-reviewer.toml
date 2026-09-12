@@ -79,7 +79,7 @@ Work these categories against the diff's actual surface — not as a recitation,
   unauthorized read or outbound action, then rate the reachable impact. Prompt instructions alone
   are not an enforced boundary. A tool grant that "reads like a limit" but isn't (a scoped
   specifier the runtime ignores) is a finding in itself.
-- **Supply chain** — a new dependency (who maintains it, is the version selected, is it what it claims), a third-party action on a moving branch or an unpinned image tag, a postinstall script, a lockfile change nobody explained. A version tag is valid for an Action unless the target's policy requires an immutable SHA.
+- **Supply chain** — a new dependency (who maintains it, is the version selected, is it what it claims), a third-party action in a required or security-relevant job that is not pinned to a full commit SHA, an unpinned image tag, a postinstall script, or a lockfile change nobody explained. A version tag is acceptable only for a non-gating convenience workflow whose mutable-upstream risk is explicit.
 - **CI/CD — the pwn-request class.** `pull_request_target` and `workflow_run` can expose base-repo
   tokens, secrets, or shared caches when they execute untrusted fork code or consume unsafe
   artifacts. Inspect the actual permissions, secret injection, checkout, artifact, and cache paths

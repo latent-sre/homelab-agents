@@ -18,13 +18,14 @@ boundary that also happens to run tests.
 
 ## The four rules that prevent the real incidents
 
-1. **Select an explicit version tag for every third-party action**, such as
-   `uses: actions/checkout@v4.2.2`. Do not use a moving branch or `latest`. A tag can move, so read
-   the release notes and source when you update it. Use a full commit SHA only when the repository
-   or organization requires immutable Action releases, or when the task's supply-chain decision
-   specifically requires that guarantee. Dependabot can propose tag updates; read the diff and
-   provenance before adopting one. A disclosed vulnerability skips any routine adoption cooldown:
-   update from the known-bad version after checking the release.
+1. **Pin every third-party action in a required or security-relevant job to a full commit SHA**, with
+   the release in a trailing comment: `uses: actions/checkout@<40-char-sha> # v4.2.2`. The action
+   executes before your checks can validate it, while a tag can be moved to different code. Use an
+   explicit version tag only for a non-gating convenience workflow whose mutable-upstream risk the
+   caller accepts; never use a moving branch or `latest`. Dependabot can propose SHA or tag updates;
+   read the source, release notes, diff, and provenance before adopting one. A disclosed
+   vulnerability skips any routine adoption cooldown: update from the known-bad version after
+   checking the release.
 2. **`permissions:` least-privilege, declared explicitly.** Default to `contents: read` at the
    workflow level and widen per job only where needed (`pull-requests: write` for a commenting job,
    `id-token: write` only for OIDC). An undeclared block inherits the repository default, which is
@@ -91,14 +92,13 @@ under `homelab-engineer`'s change tiers, including the network placement.
 
 ## Starting a workflow
 
-Copy [`assets/ci.reusable.yml`](assets/ci.reusable.yml) — it carries the version selections, permissions,
+Copy [`assets/ci.reusable.yml`](assets/ci.reusable.yml) — it carries the pins, permissions,
 concurrency, timeouts, and the env-not-interpolation pattern already wired. Read its header before
 using it: the refs are deliberate placeholders you must resolve, and **there are two kinds**. A
-GitHub Action uses an explicit version tag (`actions/checkout@v4.2.2`); a `docker://` step pins to
-an image manifest **digest** (`docker://image@sha256:…`), because the ref after `@` is resolved by
-the registry, not by git. Use an Action commit SHA only for an immutable-release requirement;
-putting one on a `docker://` line yields an image reference that does not exist, and the job fails
-to start.
+GitHub Action pins to a commit SHA (`actions/checkout@<40-hex>`); a `docker://` step pins to an image
+manifest **digest** (`docker://image@sha256:…`), because the ref after `@` is resolved by the
+registry, not by git. Putting a commit SHA on a `docker://` line yields an image reference that does
+not exist, and the job fails to start.
 
 ## Verify
 

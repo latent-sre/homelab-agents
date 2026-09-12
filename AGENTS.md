@@ -234,9 +234,10 @@ handoff when the host cannot request a pass. Provenance:
 - **Name commits briefly and verify them.** Use an unambiguous short object ID (for example,
   `git rev-parse --short=12 <rev>`) in handoffs, review packets, history claims, and permalinks.
   The receiver resolves it in the named repository before trusting it; a short ID that does not
-  resolve uniquely is not evidence. For a third-party GitHub Action, use an explicit version tag
-  unless an enforced repository or organization policy, or a declared immutable-release decision,
-  requires a full SHA-1. File and image digests are cryptographic values, not commit IDs.
+  resolve uniquely is not evidence. A third-party GitHub Action in a required or security-relevant
+  CI job executes before the repository can validate it, so pin it to a full SHA-1; use a version
+  tag only in a non-gating convenience workflow whose mutable-upstream risk is explicitly accepted.
+  File and image digests are cryptographic values, not commit IDs.
 - **The source wins on drift.** Fix the paraphrase, not its owner; fix a real defect at the source
   and re-propagate it. The ownership list is in `docs/fleet-development.md` under "Working on the
   fleet itself".
