@@ -7,17 +7,41 @@ argument-hint: [the service whose restore to rehearse]
 # Restore drill
 
 **A backup you have never restored is a hope with a cron job.** The drill records this service's
-measured recovery time, verification, and date. Compare that result with its recovery time objective
-(RTO): the acceptable recovery duration, not the duration the rehearsal happened to achieve.
+measured recovery time, recovered data point, verification, and date. Compare duration with its
+recovery time objective (RTO), and recovered data with its recovery point objective (RPO) or stated
+acceptable data loss. A fast restore can still recover data that is too old.
 
-Every apply here is under `sde-agents:homelab-engineer`'s change tiers. A drill that touches the live
-service is Tier 3 — but the whole point is that it usually doesn't need to.
+## Authority and preparation
+
+Use `sde-agents:homelab-engineer`'s bounded-request policy: one authorization, one
+target/effect/recovery summary, and effect-specific precautions. Actual host prompts, denials,
+and scope/data/access confirmation boundaries still apply. Reading this skill grants no tools.
+A drill that touches the live service is Tier 3; establish the recovery prerequisites first.
+
+- **Claude Code:** an active engineer continues; other contexts return prepared live steps through
+  the caller to that engineer with existing authorization. No mandatory fresh session or repeated
+  consent. Routing is cooperative; do not evade the engineer-scoped hook by changing context.
+- **Copilot / VS Code:** prepare only and hand live commands to the operator, even when direct
+  invocation exposes main-chat execution. Skills do not inherit the profile's omitted execute tool.
+- **Codex:** use the full active engineer policy if loaded; otherwise read the active installed
+  profile identified by effective host configuration or disclosed metadata. Never guess its path
+  or substitute a repository profile. If unavailable/unverifiable, prepare and hand off through
+  the caller. Once loaded, use actual native host permissions without inventing another approval.
 
 ## Rule one: drill into a scratch target, never over the live service
 
 Restore into a throwaway container, a scratch database name, or a temporary path. You are testing the
 *backup*, not testing your nerve. A drill that overwrites production state has converted a rehearsal
 into an incident, and the failure mode is the one you were trying to prevent.
+
+Before restore writes or first startup, verify the scratch target's writable storage and external
+connections. A new container or project name does not isolate shared volumes, bind mounts, live
+databases, queues, or household devices. Use separate writable storage and safe test endpoints;
+disable restored jobs, schedulers, webhooks, and integrations or contain their effects before they
+can run. Keep recovered secrets within authorized custody; use disposable identities or verified
+access restrictions so restored credentials cannot act on live targets. Apply these changes to
+the scratch copy. If isolation cannot be established, stop affected restore/startup work, retain
+safe inspection results, and report what is missing. Record isolation limits with the drill result.
 
 The exception is deliberate and rare: verifying an in-place restore path that has no scratch
 equivalent. That is Tier 3, planned, with the operator present and a second copy of the data taken
@@ -27,38 +51,45 @@ first.
 
 1. **State what you're proving.** Which service, which backup (the specific file or snapshot, by
     name), and what "restored" means for it — the database answers a query, the documents are
-    searchable, the config loads. Record the operator's recovery-time objective before timing;
-    if none is established, measure the duration but leave the time objective unassessed.
+    searchable, the config loads. Record the existing recovery-time and data-loss objectives before
+    timing; obtain missing task-relevant facts from the operator without inventing targets. For an
+    objective that remains unset, measure what you can and leave its acceptance unassessed.
 2. **Start the clock.** Measure wall-clock time from "decide to restore" to "verified working".
    Include finding the backup, reading the runbook, and fetching the off-site copy. Compare the
    measurement with the RTO, identifying scratch conditions that differ from an actual outage.
-3. **Use the runbook, exactly as written.** This is the second thing being tested. If you deviate,
-   improvise, or already know a step is wrong — that is the finding, and the runbook edit is part of
-   the drill's output. A restore performed from memory by the person who set it up proves nothing
-   about the 3 a.m. version.
+3. **Test the runbook's procedure within the authority and scratch isolation above.** An unsafe or
+   stale step is a finding to correct before executing it. Record deviations and missing steps;
+   the runbook edit is part of the drill's output. A restore performed from memory by the person
+   who set it up does not prove the documented recovery path.
 4. **Restore into the scratch target.** Take the *newest* backup, not a hand-picked one. If the
    restore needs an empty target (most do — a plain SQL dump over an existing schema fails), the
    runbook must say so and say how.
 5. **Verify against the criteria from step 1**, with a real query or a real page load. "The command
    exited 0" is not verification: a partially-restored database often exits 0, and `psql` without
-   `ON_ERROR_STOP=1` prints errors and returns success.
+   `ON_ERROR_STOP=1` prints errors and returns success. Establish the recovered data point from
+   service-appropriate evidence, such as a restored transaction or record and backup metadata;
+   newest-file ordering alone does not prove freshness. Compare the resulting loss window with
+   the stated objective and name the outage/reference time used for that comparison. If the
+   recovered point cannot be established, leave data-loss acceptance unverified.
 6. **Check what the backup did *not* contain.** The gap between "restored" and "working" is where the
    surprises live: secrets and env files, the reverse-proxy route, DNS records, TLS certificates,
    volume permissions and ownership, cron jobs, the search index that has to be rebuilt. Anything
    found here is a backup-scope finding, not a restore failure.
-7. **Record the result in the runbook**: the date, the measured duration, the backup used, and any
-   step that had to change. Update the Recovery slot's `unverified` marker and the Last-verified line
-   (`sde-agents:runbook`). An unrecorded drill has to be repeated to be useful.
+7. **Record the result in the runbook**: date, duration, backup, recovered data point, objective
+   assessments, isolation limits, and steps that changed. Update the Recovery slot and
+   Last-verified line (`sde-agents:runbook`) only for what the drill established; retain unresolved
+   recovery claims as unverified. An unrecorded drill has to be repeated to be useful.
 8. **Tear down the scratch target** so the next drill starts clean and the leftovers don't get
    mistaken for something live.
 
 ## What a drill is allowed to conclude
 
-- **Pass** — restored and verified; the measured duration meets the stated time objective. Without
-  an established RTO, report functional success and the duration, with timing acceptance unassessed.
-- **Pass with findings** — it worked, but the runbook was wrong, a step was missing, or something
-  outside the backup had to be recreated. This is the most common and most valuable outcome; each
-  finding is a runbook edit.
+- **Pass** — restored and verified; both measured duration and recovered data meet the stated
+  objectives. When an objective is unset or its evidence unavailable, report functional success
+  and the measurements, with that acceptance unassessed or unverified; do not issue an overall pass.
+- **Pass with findings** — the same acceptance criteria passed, but the runbook was wrong, a step
+  was missing, or something outside the backup had to be recreated. Record those findings in the
+  runbook; a failed time or data-loss objective cannot be downgraded to a passing documentation gap.
 - **Fail** — the selected backup or restore path did not satisfy the criteria. Record the failure
   and any separately verified alternative, including its recovery point and resulting data-loss
   exposure. Untested alternatives remain unknown; one failed newest copy does not prove every
@@ -78,8 +109,13 @@ A quarterly rehearsal of one important service beats an annual plan for all of t
 
 - **Service and backup** used, by name.
 - **Measured duration**, broken into locate → restore → verify.
+- **Recovered data point** and evidence, reference time/loss window, and separate time/data-loss
+  objective assessments. Name unset objectives or unavailable evidence.
+- **Scratch isolation** established, remaining limits, and teardown or retained scratch residue.
 - **Verified**: the criteria and the evidence (the query, the output, the page).
 - **Findings**: runbook edits made, backup-scope gaps, anything outside the backup.
-- **Verdict**: pass / pass with findings / fail, and the runbook lines updated.
+- **Verdict**: pass / pass with findings / fail, or functional success with incomplete acceptance
+  explicitly named; include the runbook lines updated. A blocked restore is unverified.
 
-RTO terminology: [NIST Recovery Time Objective](https://csrc.nist.gov/glossary/term/Recovery_Time_Objective).
+Terminology: [NIST RTO](https://csrc.nist.gov/glossary/term/recovery_time_objective) and
+[NIST RPO](https://csrc.nist.gov/glossary/term/recovery_point_objective).

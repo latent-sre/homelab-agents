@@ -27,7 +27,18 @@ row 1; a finding here that needs an attack path belongs there.
 - Fix class: restore the intended access boundary, close an unintended port, or record an accepted
   exception with its scope and justification.
 
-## 2. Container hygiene
+## 2. Host and container hygiene
+
+- Read: the canonical host record and required native service/unit and timer status, including
+  intended startup policy and the latest required job result. Compare with the applicable
+  [`host-onboard` baseline](../../host-onboard/SKILL.md); use its criteria without running onboarding
+  or applying repairs. A host without containers still receives its applicable host checks.
+  Select status/policy fields rather than dumping unit environments or credential-bearing commands.
+- Finding: a required native service is failed, its intended startup policy drifted, or a required
+  timer/job missed its expected run. A deliberately disabled unit is not a fault merely because it
+  is inactive. Merge a backup-job finding with check 4 rather than emitting it twice.
+- Fix class: restore the intended native service/job policy through `sde-agents:homelab-engineer`;
+  record unreadable status or missing intended state as an evidence gap, not a healthy host.
 
 - Read: `docker ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}'`; project only restart policy,
   health status/check presence, numeric resource limits, and privilege flags from container
@@ -83,8 +94,13 @@ row 1; a finding here that needs an attack path belongs there.
   If comparing a setting needs a private substitution, compare within its authorized environment
   and emit only the field name and match/mismatch. Also read `git -C <lab-repo> status --short`
   plus recent log for the config dirs.
+- For native hosts, also compare required persistent mounts, time synchronization, timezone,
+  resolver configuration and observed DNS health with the canonical host baseline. Select only
+  task-relevant status/settings; unavailable runtime observations remain unverified. Reuse the
+  host record rather than creating another inventory.
 - Finding: a running container that differs from the repo's rendering; console changes never
-  reconciled back to code.
+  reconciled back to code; required native-host settings or observed function differ from the
+  established baseline. Intended state that cannot be established remains a decision gap.
 - Fix class: establish intended state, then reconcile the incorrect side. If runtime is correct,
   update the repo (Tier 1); apply through `sde-agents:homelab-engineer` only when runtime must
   change, with the applicable tier precautions. Verify agreement afterward. Unresolved intended
@@ -94,8 +110,11 @@ row 1; a finding here that needs an attack path belongs there.
 
 - Read: `df -h` (flag >80%); `du -sh` on the known growers (media, logs, backups);
   `docker system df`; growth rate = compare against the previous audit's ledger row.
+- Where this host controls physical disks, inspect existing disk-health/SMART and storage-health
+  evidence using the documented read-only status path. Guests reuse hypervisor coverage; missing
+  access is a coverage gap. Do not start self-tests or storage repairs during this audit.
 - Finding: >80% and growing; a log or volume growing with no rotation (no logrotate conf, no
-  logging-driver max-size).
+  logging-driver max-size); unhealthy disks or absent required physical-disk health coverage.
 - Fix class: rotation or retention policy, or a storage plan — never a mid-audit prune.
 
 ## 8. Updates
@@ -104,8 +123,13 @@ row 1; a finding here that needs an attack path belongs there.
   VPN, and anything check 1 shows exposed. Upstream-latest intel is a web lookup; when the
   session can't fetch it, say so in the denominator (the caller or `sde-agents:researcher`
   supplies it).
+- For native hosts, compare OS release, patch/package-source state and intended update policy
+  with the host record. Establish support status from current vendor evidence via the caller or
+  `sde-agents:researcher`; unavailable evidence leaves support status unverified. Do not install
+  updates or refresh package indexes during the read-only audit.
 - Finding: an exposed service far behind upstream, or a pinned image with a known-exploited CVE
-  when version intel is available. Bare `:latest` belongs to check 2, not here.
+  when version intel is available; an unsupported OS or a confirmed departure from the host's
+  package/update policy. Bare `:latest` belongs to check 2, not here.
 - Fix class: a planned bump — one service via `sde-agents:homelab-engineer`; a batch via
   `sde-agents:upgrade-campaign`.
 

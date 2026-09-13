@@ -11,7 +11,7 @@ Audit the lab against its own standards and report like a code review of the inf
 
 All checks are read-only. `disallowed-tools` removes Write and Edit while this skill is active, but Bash can still mutate (redirects, `docker rm`), so the mandate is still yours: inspection commands only — fixes route to `sde-agents:homelab-engineer`. Whether you were invoked directly from the main session or under `homelab-engineer`, the reviewer's Bash guard does not cover this skill (that hook keys on guarded *agent* identities, and the main loop carries none at all) — the read-only-ness here is cooperative, not enforced. `NotebookEdit` is in `disallowed-tools` for the same reason as Write and Edit: it is a write tool, and a denylist that names only the obvious two leaves the third. Fan the checks out in parallel (per host or per area) rather than sweeping serially.
 
-The eight checks — exposure, container hygiene, certificates, backups, monitoring gaps, drift,
+The eight checks — exposure, host/container hygiene, certificates, backups, monitoring gaps, drift,
 capacity, updates — live with their command-level detail in
 [`references/checks.md`](references/checks.md); read it before sweeping. Run what applies, and
 name what you skipped in the denominator.
