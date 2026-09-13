@@ -73,8 +73,9 @@ publication separate from this source-level evidence.
 
 #### MACH-001 — rebuild the fleet machinery on one kernel
 
-**Status:** `active` — phase 0 implemented on `claude/machinery-rewrite-fresh-ar08n6` at the
-operator's 2026-09-13 request; phases 1–5 await acceptance of the decision record.
+**Status:** `active` — the decision record was accepted 2026-09-13 after phase 0 merged (PR #187);
+phase 1 (rules, policy, findings, CLI, rosters as data) is implemented on
+`claude/machinery-rewrite-fresh-ar08n6`, restarted from `main`; phases 2–5 remain.
 
 **Outcome:** Every maintainer instrument under `scripts/` runs on the `fleet/` kernel with one
 implementation per primitive, policy held as data, structured findings, and the routing runner
@@ -102,7 +103,8 @@ grader matched `sde-agents:homelab-engineer` in five of six runs and the observe
 `subagent_type` was the namespaced form every time —
 [native eval pilot](archive/2026-09/native-eval-pilot-2026-09-13.md). Remaining before phase 4:
 the converter and recorder the record names, and a ruling on how the migrated suite records the
-grader-counts-errored-spawns caveat the pilot surfaced.
+grader-counts-errored-spawns caveat the pilot surfaced. Phase 2 (host projections with a
+count-checked rewrite table) is the next PR.
 
 #### LABFLOW-001 — simplify the homelab operating path
 

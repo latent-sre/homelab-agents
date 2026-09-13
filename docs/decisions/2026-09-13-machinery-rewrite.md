@@ -1,10 +1,10 @@
 # Rebuild the fleet machinery on one kernel
 
 - Date: 2026-09-13
-- Status: **proposed** — the operator asked for a from-scratch design of the maintainer
-  machinery under `scripts/` and for the first slice to land on
-  `claude/machinery-rewrite-fresh-ar08n6`. Phase 0 below is implemented on that branch; phases
-  1–5 carry no implementation authority until this record is accepted (docs/README.md rule 3).
+- Status: **accepted** by the operator on 2026-09-13 ("approved for the code rewrite"), after
+  phase 0 merged in PR #187 and both live preconditions were met (the unprivileged probe re-run
+  and the native eval pilot, both in `docs/archive/2026-09/`). Phases 1–5 now carry
+  implementation authority in the order the phase table states, one PR each.
 - Owner of the live work item: `MACH-001` in `docs/fleet-roadmap.md`.
 - Amends nothing yet. Accepting phase 4 amends `evals/README.md` and the routing-eval sentence
   in `AGENTS.md`; accepting phase 5 amends `docs/fleet-development.md`'s hook section.
@@ -203,3 +203,27 @@ violated on 2026-09-13; a module leaves the table in the phase that migrates it.
 - `claude plugin eval` loses the `tool_used` grader over `Agent` input, or its isolation stops
   matching the clean-room guarantees the retired runner gave — phase 4 is then reversed, not
   patched.
+
+## Amendment, 2026-09-13 — phase 1 landed
+
+Phase 1 is implemented on `claude/machinery-rewrite-fresh-ar08n6` after acceptance, with two
+naming departures from the plan above, both because the planned name was already taken:
+the typed snapshot is `fleet/snapshot.py` (the member and cross-reference records moved into
+`fleet/references.py`, and `scripts/fleet_records.py` re-exports both), and the finding type is
+`fleet/findings.py` as planned. What landed: `fleet/policy.toml` with every vocabulary and roster
+stamped with its source and check date; `fleet/rules/` with 24 registered rules in eleven groups
+run in the legacy `validate_repo` order; `fleet/cli.py` with `validate` (`--json`, `--github`,
+`--write-inventory`, `--no-adapters`) and `rules`; hook rosters read through `ast` in
+`fleet.snapshot.read_rosters`, so the validator no longer executes a hook script;
+`fleet/modules.py` as the one content-keyed script loader. `scripts/validate_fleet.py` shrank to
+a compatibility layer whose `validate_*` functions and constants are views of the rules and the
+policy.
+
+Oracle met: a scratch harness ran the pre-phase validator and the rule-based validator over the
+repository, all fourteen fixtures, and eight fresh mutations of a repository copy (a dropped guard
+roster entry, a pinned model plus a scoped tool, a hook roster drift, a stale guide path, a
+non-member routing entry, a workflow with a statement ahead of `meta`, an orphaned reference
+file, a manifest without an author) and found identical message multisets on every tree. The
+suite grew from 550 to 576 tests, the new ones pinning rule ids per fixture, the registry's
+uniqueness and group coverage, policy loading, snapshot reads, the roster reader's refusal to
+execute, the finding renderers, and the CLI.

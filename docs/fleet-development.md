@@ -362,7 +362,13 @@ python3 scripts/validate_claude_plugin.py                # before push — marke
 
 The instruments share the `fleet/` kernel (link-safe filesystem reads, one subprocess runner,
 stream-json decoding with the `tool_use_id` oracle, digests, the exit ladder, and the frontmatter
-dialect with its strict scalar check and emitter). `ruff` and the kernel's differential YAML
+dialect with its strict scalar check and emitter). The validator itself is the rule registry in
+`fleet/rules/` — each rule a pure function over one `fleet/snapshot.py` snapshot, registered with
+a stable id and its why (`python3 -m fleet rules` lists them) — judging against the vocabularies
+in `fleet/policy.toml`; `scripts/validate_fleet.py` is the compatibility entry that returns the
+same messages as before, and `python3 -m fleet validate --json` (or `--github` for Actions
+annotations) returns them with rule ids. The hook rosters are read as AST data, never by running
+the hook. `ruff` and the kernel's differential YAML
 tripwire come from the pinned dev group: `uv sync`, or the `pip install` line
 `.github/workflows/validate.yml` runs. The rewrite's design and phase plan are in
 `docs/decisions/2026-09-13-machinery-rewrite.md`.

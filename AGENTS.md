@@ -49,7 +49,8 @@ Validation is tiered: depth matches risk, and each tier reuses the last tier's e
 red check is fixed if trivial, else recorded in `docs/fleet-roadmap.md`.
 
 - **T0 — edit loop** (seconds): `python3 scripts/validate_fleet.py` (byte-compares every
-  generated adapter, so no separate `--check` run) + the owning test module
+  generated adapter, so no separate `--check` run; `python3 -m fleet validate --json` is the same
+  run with rule ids) + the owning test module
   (`python3 -m unittest discover -s tests -p test_<area>.py`) + `ruff check .` (the lint gate;
   `pyproject.toml` owns its rule set and the per-file ratchet for legacy findings). After **any** canonical agent or
   skill edit, regenerate the host adapters with
@@ -149,11 +150,14 @@ host's own hook-config path, which is why `plugins/sde-agents/` has no `hooks/`.
 naming an empty override does not do it
 (`docs/superpowers/specs/2026-08-18-multi-host-plugin-architecture-design.md`).
 
-**Changing validator behavior** — add a fixture under `tests/fixtures/` that violates exactly the
-rule you are adding — or, for an invariant about this repo's real wiring, a mutation test in
-`tests/test_validate_fleet.py` that copies the repo and breaks the one link — plus a test that
-fails without your change. Match the existing error-message
-register: each message says what broke *and why it would have failed silently*.
+**Changing validator behavior** — a rule is a pure function over the snapshot in `fleet/rules/`,
+registered with a stable id and a one-sentence why; a vocabulary it judges against lives in
+`fleet/policy.toml`, never in the rule. Add a fixture under `tests/fixtures/` that violates
+exactly the rule you are adding and pin its rule id in `tests/test_fleet_rules.py` — or, for an
+invariant about this repo's real wiring, a mutation test in `tests/test_validate_fleet.py` that
+copies the repo and breaks the one link — plus a test that fails without your change. Match the
+existing error-message register: each message says what broke *and why it would have failed
+silently*.
 
 **Adding a defensive branch to a fleet script** — a crash-recovery, authority, or
 input-validation guard lands in the same change as a test that makes it fire; when the trigger is
@@ -220,8 +224,9 @@ handoff when the host cannot request a pass. Provenance:
   `RETIRED_GENERATED_ROOTS`, because only a still-declared root makes `--write` delete the obsolete
   copies instead of leaving a second plausible fleet.
 - **One parser per fact.** Frontmatter, `tools:` values, and namespaced references come from
-  `scripts/fleet_records.py`, which reads the frontmatter dialect from `fleet/frontmatter.py`;
-  extend the records to read a new fact. A second parser re-derives the bugs this one already
+  `fleet/frontmatter.py` and `fleet/references.py`, re-exported by `scripts/fleet_records.py`;
+  the validator judges one `fleet/snapshot.py` snapshot of the tree, loaded once. Extend the
+  records or the snapshot to read a new fact. A second parser re-derives the bugs this one already
   fixed, and lets two reports about the same tree disagree with nothing able to arbitrate them.
   The same rule covers every primitive in `fleet/` (link checks, the subprocess runner, stream
   decoding, digests, the exit ladder): an instrument imports the kernel's copy, never keeps its
@@ -234,7 +239,7 @@ handoff when the host cannot request a pass. Provenance:
   Claude Code silently ignores all three there, so a guard declared in frontmatter is armor that
   is not — worse than none, because nobody checks it. They belong at the plugin level, where
   `hooks/hooks.json`, `.mcp.json`, and `plugin.json` are read normally. The validator rejects these
-  and every unknown key; the rationale is in `scripts/validate_fleet.py`.
+  and every unknown key; the rationale is in `fleet/policy.toml` beside the key tables.
 - **Proportionality gates both directions.** No check that re-proves an existing fact; no
   optimization claim without a before/after on one machine; no new mechanism without a task
   consuming it now — with none, record it trigger-bound in `docs/fleet-roadmap.md`. Nothing
