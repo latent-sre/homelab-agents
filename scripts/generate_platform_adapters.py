@@ -27,11 +27,17 @@ import json
 import os
 import re
 import shutil
-import stat
 import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType
+
+_REPO_ROOT = str(Path(__file__).resolve().parents[1])
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)  # `import fleet` when run as `python3 scripts/<name>.py`
+
+from fleet import frontmatter as _frontmatter  # noqa: E402
+from fleet import fs as _fs  # noqa: E402
 
 
 COPILOT_AGENTS = Path(".github/agents")
@@ -797,9 +803,9 @@ def render_copilot_agent(source: Path, *, guarded_names: set[str]) -> str:
 
     return (
         "---\n"
-        f"name: {json.dumps(name, ensure_ascii=False)}\n"
-        f"description: {json.dumps(description, ensure_ascii=False)}\n"
-        f"tools: {json.dumps(tools)}\n"
+        f"name: {_frontmatter.yaml_scalar(name)}\n"
+        f"description: {_frontmatter.yaml_scalar(description)}\n"
+        f"tools: {_frontmatter.yaml_flow_list(tools)}\n"
         "---\n\n"
         f"<!-- {GENERATED_MARKER} -->\n\n"
         + "\n".join(adapter_lines)
@@ -930,7 +936,7 @@ def _portable_frontmatter(
             continue
 
         value = adapt_text(fields.get(key, ""), host)
-        output.append(f"{key}: {json.dumps(value, ensure_ascii=False)}")
+        output.append(f"{key}: {_frontmatter.yaml_scalar(value)}")
     return output, explicit_only, had_tool_deny
 
 
@@ -1106,8 +1112,8 @@ def render_codex_skill_policy(fields: dict[str, str]) -> bytes:
     display_name = name.replace("-", " ").title()
     return (
         "interface:\n"
-        f"  display_name: {json.dumps(display_name, ensure_ascii=False)}\n"
-        f"  short_description: {json.dumps(short_description, ensure_ascii=False)}\n"
+        f"  display_name: {_frontmatter.yaml_scalar(display_name)}\n"
+        f"  short_description: {_frontmatter.yaml_scalar(short_description)}\n"
         "policy:\n"
         "  allow_implicit_invocation: false\n"
     ).encode("utf-8")
@@ -1121,24 +1127,22 @@ def _guarded_names(root: Path) -> set[str]:
 def _is_runtime_byproduct(path: Path) -> bool:
     """Use the shared fleet predicate for execution residue, not a second vocabulary."""
 
-    return bool(_validator_module().is_runtime_byproduct(path))
+    return _fs.is_runtime_byproduct(path)
 
 
 def _is_link_or_reparse_point(path: Path) -> bool:
-    """Recognize links and Windows reparse points before any read or recursive removal."""
+    """Recognize links and Windows reparse points before any read or recursive removal.
 
-    if path.is_symlink():
-        return True
-    is_junction = getattr(path, "is_junction", None)
-    if is_junction is not None and is_junction():
-        return True
+    The kernel's check is the one implementation (a former copy here defaulted the reparse flag
+    to 0, which silently disabled the junction half on an interpreter lacking the constant). A
+    missing entry is not a link; any other stat failure propagates, because an unreadable entry
+    is not evidence that it is safe.
+    """
+
     try:
-        metadata = path.lstat()
+        return _fs.is_link_or_reparse(path)
     except FileNotFoundError:
         return False
-    attributes = getattr(metadata, "st_file_attributes", 0)
-    reparse_attribute = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
-    return bool(reparse_attribute and attributes & reparse_attribute)
 
 
 def _assert_no_generated_path_indirection(path: Path, *, operation: str) -> None:

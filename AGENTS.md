@@ -50,7 +50,8 @@ red check is fixed if trivial, else recorded in `docs/fleet-roadmap.md`.
 
 - **T0 — edit loop** (seconds): `python3 scripts/validate_fleet.py` (byte-compares every
   generated adapter, so no separate `--check` run) + the owning test module
-  (`python3 -m unittest discover -s tests -p test_<area>.py`). After **any** canonical agent or
+  (`python3 -m unittest discover -s tests -p test_<area>.py`) + `ruff check .` (the lint gate;
+  `pyproject.toml` owns its rule set and the per-file ratchet for legacy findings). After **any** canonical agent or
   skill edit, regenerate the host adapters with
   `python3 scripts/generate_platform_adapters.py --write`; after adding, renaming, or removing a
   component, also refresh the README inventory with
@@ -206,9 +207,12 @@ handoff when the host cannot request a pass. Provenance:
 ## Hard rules with no playbook exceptions
 
 - **Keep isolated hooks dependency-free.** `hooks/hooks.json` launches `scripts/readonly-guard.py`
-  and `scripts/live-effect-gate.py` with `python -I -S`; keep their imports in the standard library.
-  A missing dependency makes the read-only guard deny and the live-effect gate ask or deny every
-  scoped Bash call. This runtime constraint does not impose a dependency ban on other tooling.
+  and `scripts/live-effect-gate.py` with `python -I -S`; keep their imports in the standard library,
+  and never import `fleet/` from either. A missing dependency makes the read-only guard deny and
+  the live-effect gate ask or deny every scoped Bash call. This runtime constraint does not impose
+  a dependency ban on other tooling: `pyproject.toml`'s dev group is pinned tooling for the
+  maintainer loop, and `fleet/` itself stays standard-library so it can never become a hook
+  import.
 - **Never hand-edit a generated adapter.** The generated trees are `.github/agents/`,
   `.github/skills/`, `.codex/agents/`, and `plugins/sde-agents/skills/`; edit the canonical file or
   the generator, because byte-drift validation erases anything else. Adding a tree edits
@@ -216,9 +220,12 @@ handoff when the host cannot request a pass. Provenance:
   `RETIRED_GENERATED_ROOTS`, because only a still-declared root makes `--write` delete the obsolete
   copies instead of leaving a second plausible fleet.
 - **One parser per fact.** Frontmatter, `tools:` values, and namespaced references come from
-  `scripts/fleet_records.py`; extend the records to read a new fact. A second parser re-derives the
-  bugs this one already fixed, and lets two reports about the same tree disagree with nothing able
-  to arbitrate them.
+  `scripts/fleet_records.py`, which reads the frontmatter dialect from `fleet/frontmatter.py`;
+  extend the records to read a new fact. A second parser re-derives the bugs this one already
+  fixed, and lets two reports about the same tree disagree with nothing able to arbitrate them.
+  The same rule covers every primitive in `fleet/` (link checks, the subprocess runner, stream
+  decoding, digests, the exit ladder): an instrument imports the kernel's copy, never keeps its
+  own (`docs/decisions/2026-09-13-machinery-rewrite.md`).
 - **Authority is the host's own control, never prose.** Claude's guard, VS Code's omitted
   `execute`, and Codex's `sandbox_mode` are distinct controls; use the target host's. Never port a
   Claude hook — its payload cannot be scoped elsewhere — and never reference `workflows/` from

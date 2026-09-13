@@ -14,7 +14,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 from collections import Counter
 from dataclasses import asdict, dataclass, field
@@ -25,6 +24,13 @@ from typing import Callable, Sequence
 # Importing repository helpers would otherwise create `scripts/__pycache__` in a clean checkout,
 # violating the doctor's read-only contract before its first check ran.
 sys.dont_write_bytecode = True
+
+_REPO_ROOT = str(Path(__file__).resolve().parents[1])
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)  # `import fleet` when run as `python3 scripts/<name>.py`
+
+from fleet import diagnostics as _diagnostics  # noqa: E402
+from fleet import proc as _proc  # noqa: E402
 
 try:
     from scripts import (
@@ -94,18 +100,9 @@ def _assert_read_only_command(argv: Sequence[str]) -> None:
 
 def _run_read_only(argv: Sequence[str]) -> CommandResult:
     _assert_read_only_command(argv)
-    try:
-        result = subprocess.run(
-            list(argv),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            timeout=30,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return CommandResult(127, "", str(exc))
+    result = _proc.run(argv, timeout=30)
+    if result.timed_out or result.failed_to_start:
+        return CommandResult(127, "", result.error or "")
     return CommandResult(result.returncode, result.stdout, result.stderr)
 
 
@@ -721,12 +718,11 @@ def main(argv: list[str] | None = None) -> int:
     # nothing failed but the no-failures claim rests on checks that did not all run; then 3 for
     # warnings, where everything computed. A skip is not in the ladder — an absent host CLI is a
     # known, expected non-answer, not an unexpected one.
+    # The ladder itself is the kernel's (fleet/diagnostics.py) so every instrument exits alike.
     summary = report["summary"]  # type: ignore[assignment]
-    if summary["fail"]:
-        return 1
-    if summary["inconclusive"]:
-        return 2
-    return 3 if summary["warn"] else 0
+    return _diagnostics.exit_status(
+        failed=summary["fail"], not_computed=summary["inconclusive"], warned=summary["warn"]
+    )
 
 
 if __name__ == "__main__":

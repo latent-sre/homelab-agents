@@ -14,52 +14,26 @@ import hashlib
 import io
 import os
 import shutil
-import stat
 import subprocess
 import tempfile
 import unittest
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
+from fleet import fs
+
 REPO = Path(__file__).resolve().parents[1]
 
-# `.probe-tmp` is the live-probe workspace (`scripts/probe_plugin.py`), created and removed
-# inside the repository root; copying it races that removal, which invalidated a probe run when
-# the suite and the probe ran concurrently. The probe's own copytree already excludes it.
-_IGNORED_DIRS = frozenset({".git", "__pycache__", ".probe-tmp"})
-
-# `.claude/worktrees/agent-*` is the platform's nested-worktree home: a second full checkout
-# that another session writes concurrently, so copying it both bloats every test template by
-# that checkout's size and races the other writer exactly as `.probe-tmp` did. The exclusion is
-# repository-relative and covers everything UNDER the path, never the bare basename: a basename
-# ignore would silently omit any legitimate `worktrees/` directory a later skill or fixture
-# ships, so the tree under validation would quietly stop matching the repository. The probe's
-# copytree (scripts/probe_plugin.py) carries the same exclusion for the same reason — the two
-# are kept in step by hand.
-_IGNORED_PATHS = frozenset({Path(".claude") / "worktrees"})
-
-
-def _is_ignored(relative: Path) -> bool:
-    return (
-        relative in _IGNORED_PATHS
-        or any(parent in _IGNORED_PATHS for parent in relative.parents)
-        or any(part in _IGNORED_DIRS for part in relative.parts)
-    )
+# The copy exclusions are the kernel's (fleet/fs.py), shared with the probe's plugin copy. They
+# used to be two lists "kept in step by hand"; the reasons for each entry live beside the set.
+_IGNORED_DIRS = fs.IGNORED_DIRS
+_IGNORED_PATHS = fs.IGNORED_PATHS
+_is_ignored = fs.is_ignored
 
 
 def _copy_ignore(directory: str, names: list[str]) -> set[str]:
-    """copytree callback: _IGNORED_DIRS by basename, _IGNORED_PATHS anchored at the repo root.
-
-    The copytree ignore callable drops only entries named in its return value — a synthetic
-    slash-joined name ignores nothing — so the anchored path is excluded by ignoring its final
-    component when its parent's callback fires.
-    """
-    ignored = set(names) & _IGNORED_DIRS
-    directory_path = Path(directory)
-    for anchored in _IGNORED_PATHS:
-        if directory_path == REPO / anchored.parent:
-            ignored.add(anchored.name)
-    return ignored
+    """copytree callback bound to the module's REPO at call time, so tests may patch REPO."""
+    return fs.copytree_ignore(REPO)(directory, names)
 
 
 def create_directory_link(target: Path, link: Path) -> None:
@@ -93,10 +67,7 @@ def remove_directory_link(link: Path) -> None:
 
 def _is_link(path: Path) -> bool:
     """True for symlinks AND Windows reparse points (junctions), which is_symlink() misses."""
-    if path.is_symlink():
-        return True
-    attributes = getattr(path.lstat(), "st_file_attributes", 0)
-    return bool(attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0))
+    return fs.is_link_or_reparse(path)
 
 
 def _remove_link(path: Path) -> None:

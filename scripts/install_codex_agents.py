@@ -16,10 +16,15 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-import tempfile
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+
+_REPO_ROOT = str(Path(__file__).resolve().parents[1])
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)  # `import fleet` when run as `python3 scripts/<name>.py`
+
+from fleet import fs as _fs  # noqa: E402
 
 try:
     from scripts import generate_platform_adapters
@@ -127,24 +132,8 @@ def build_sync_plan(source_directory: Path, target_directory: Path) -> SyncPlan:
 
 
 def _atomic_write(path: Path, content: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as handle:
-            temporary_path = Path(handle.name)
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary_path, path)
-        temporary_path = None
-    finally:
-        if temporary_path is not None:
-            temporary_path.unlink(missing_ok=True)
+    """Replace `path` atomically (kernel implementation: sibling temp file, fsync, `os.replace`)."""
+    _fs.atomic_write_bytes(path, content)
 
 
 def apply_sync_plan(plan: SyncPlan) -> None:

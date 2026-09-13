@@ -1,33 +1,18 @@
-"""Shared parsing for line-delimited JSON emitted by host probe CLIs."""
+"""Shared parsing for line-delimited JSON emitted by host probe CLIs.
+
+The readers are `fleet.stream`'s; this module keeps the names the probes import.
+"""
 
 from __future__ import annotations
 
-import json
-from collections.abc import Iterator
+import sys
+from pathlib import Path
 
+_REPO_ROOT = str(Path(__file__).resolve().parents[1])
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
 
-def iter_events(text: str) -> Iterator[dict[str, object]]:
-    """Yield JSON object events, skipping diagnostics, malformed lines, and scalar values."""
+from fleet import stream as _stream  # noqa: E402
 
-    for line in text.splitlines():
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(event, dict):
-            yield event
-
-
-def iter_content_blocks(text: str) -> Iterator[dict[str, object]]:
-    """Yield object blocks from mapping messages in transcript order."""
-
-    for event in iter_events(text):
-        message = event.get("message")
-        if not isinstance(message, dict):
-            continue
-        content = message.get("content")
-        if not isinstance(content, list):
-            continue
-        for block in content:
-            if isinstance(block, dict):
-                yield block
+iter_events = _stream.iter_events
+iter_content_blocks = _stream.iter_content_blocks

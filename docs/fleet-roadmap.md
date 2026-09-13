@@ -71,6 +71,31 @@ authentication, capture the untouched main baseline and final candidate under th
 identical routing conditions, and run the native hook probe. Keep host synchronization and
 publication separate from this source-level evidence.
 
+#### MACH-001 — rebuild the fleet machinery on one kernel
+
+**Status:** `active` — phase 0 implemented on `claude/machinery-rewrite-fresh-ar08n6` at the
+operator's 2026-09-13 request; phases 1–5 await acceptance of the decision record.
+
+**Outcome:** Every maintainer instrument under `scripts/` runs on the `fleet/` kernel with one
+implementation per primitive, policy held as data, structured findings, and the routing runner
+retired to native `claude plugin eval`; the hooks stay single-file and dependency-free.
+
+**Source:** [Machinery rewrite decision](decisions/2026-09-13-machinery-rewrite.md).
+
+**Prerequisites:** Phase order as the record states; phase 4 additionally needs the CI pin at
+≥ 2.1.269 with the probe re-run every pin bump owes, and one live native eval run.
+
+**Constraints:** No runtime dependency in `fleet/`; hooks never import it; each phase keeps the
+generated adapters byte-identical and every existing verdict unchanged unless its PR records the
+change; the routing runner is not wired onto the kernel before it retires (provenance hole).
+
+**Acceptance:** Per phase, the oracle named in the record's phase table, plus green tiers.
+Closes when phase 5 merges and the lint ratchet table in `pyproject.toml` is empty.
+
+**Next action:** Operator ruling on the record. First live actions after acceptance: re-probe
+the `tools: Bash(git diff *)` specifier claim on the pinned CLI (the docs and the validator now
+disagree), and run one native `claude plugin eval` case with a `tool_used: Agent` grader.
+
 #### LABFLOW-001 — simplify the homelab operating path
 
 **Status:** `active` — the operator selected main-review items 1, 2, 3, 5, and 6 on 2026-09-07;

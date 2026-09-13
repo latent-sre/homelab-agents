@@ -1,0 +1,93 @@
+# Project configuration for the fleet's own tooling. The plugin the repository ships needs none of
+# this: Claude Code loads `agents/`, `skills/`, and `hooks/hooks.json` directly, and the two hooks run
+# under `python -I -S` with the standard library only (AGENTS.md, "Keep isolated hooks
+# dependency-free"). Everything declared here serves the maintainer loop -- the validator, the
+# generator, the probes, and the tests -- and is installed with `uv sync` or the pinned `pip`
+# line in `.github/workflows/validate.yml`.
+[project]
+name = "homelab-agents-tooling"
+version = "0"
+description = "Maintainer tooling for the sde-agents fleet (not the plugin itself)"
+requires-python = ">=3.11"
+# No runtime dependencies, deliberately: the scripts must keep running from a bare interpreter
+# so a contributor without the dev group installed still gets the T0 gate.
+dependencies = []
+
+[dependency-groups]
+dev = [
+    # Lint and formatting gate; version pinned so CI and the edit loop agree byte-for-byte.
+    "ruff==0.15.8",
+    # Test runner that executes the existing unittest suite unchanged and adds -k, --durations
+    # on every supported Python, and fixtures for the kernel tests.
+    "pytest==9.0.2",
+    # A CONFORMING YAML parser, used only as a differential tripwire against the fleet's own
+    # frontmatter dialect (tests/test_fleet_frontmatter.py). It is never the reader: the hosts
+    # that load the definitions are the oracle, and they are not conforming parsers either.
+    "pyyaml==6.0.3",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# The nested worktree home and the probe workspace are other writers' trees (tests/support.py).
+# `skills/**` holds fleet CONTENT (a CLI skeleton and an error-budget script a skill hands to its
+# user), and `.github/skills` and `plugins/` are its generated copies: none of it is the
+# maintainer tooling this gate covers, and linting a generated copy would demand an edit the
+# generator forbids.
+extend-exclude = [".claude/worktrees", ".probe-tmp", "skills", ".github/skills", "plugins"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+# Findings the legacy modules carried when the gate was introduced (2026-09-13). The lint gate
+# enforces the full rule set on every new module; a legacy module leaves this table when it is
+# migrated onto the kernel and cleaned in the same change. Never widen an entry to keep a new
+# finding quiet -- fix the finding or move the module here with the code it actually violates.
+[tool.ruff.lint.per-file-ignores]
+"scripts/eval_clean_room.py" = ["E501"]
+"scripts/eval_routing.py" = ["E501"]
+"scripts/fleet_doctor.py" = ["E501", "UP017", "UP035"]
+"scripts/generate_platform_adapters.py" = ["B023", "E501", "I001", "UP012"]
+"scripts/host_conformance_schema.py" = ["I001", "UP035"]
+"scripts/install_codex_agents.py" = ["UP012"]
+"scripts/live-effect-gate.py" = ["E501"]
+"scripts/probe_hosts.py" = ["UP017", "UP035"]
+"scripts/probe_plugin.py" = ["B007", "E501", "UP037"]
+"scripts/readonly-guard.py" = ["E501"]
+"scripts/validate_fleet.py" = ["B905", "E501", "F401", "UP012"]
+"tests/test_cli_skeleton.py" = ["B023", "E501", "I001"]
+"tests/test_deep_review_workflow.py" = ["I001"]
+"tests/test_eval_clean_room.py" = ["E501"]
+"tests/test_eval_routing.py" = ["E402", "E501"]
+"tests/test_fleet_doctor.py" = ["E501", "UP017"]
+"tests/test_fleet_records.py" = ["I001"]
+"tests/test_hook_wiring.py" = ["E501", "I001"]
+"tests/test_live_effect_gate.py" = ["E501"]
+"tests/test_platform_adapters.py" = ["B023", "E501", "F401", "I001"]
+"tests/test_powershell_examples.py" = ["E501", "I001"]
+"tests/test_probe_canaries.py" = ["B905", "E501"]
+"tests/test_readonly_guard.py" = ["B905", "E501"]
+"tests/test_validate_claude_plugin.py" = ["B023", "E501"]
+"tests/test_validate_fleet.py" = ["E501", "I001"]
+"tests/test_validate_routing.py" = ["E501"]
+"tests/test_validate_wiring_docs.py" = ["F401"]
+"tests/test_validate_wiring_guard.py" = ["B023", "E501", "F401", "F841", "I001"]
+"tests/test_validate_wiring_runtime.py" = ["B023", "I001"]
+"tests/test_validate_workflows.py" = ["I001"]
+"tests/validate_fleet_wiring_support.py" = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["fleet", "scripts", "tests"]
+
+[tool.ruff.format]
+# Formatting is enforced on the kernel package only until the legacy modules migrate; a
+# whole-tree reformat would bury the migration diffs and touch the two hook scripts for no
+# behavioral reason.
+exclude = ["scripts/*", "tests/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+# The suite runs from the repository root so `from scripts import ...`, `from tests.support import
+# ...`, and `import fleet` all resolve to one module identity each (tests/support.py docstring).
+pythonpath = ["."]
+addopts = "-q"

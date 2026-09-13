@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Typed, read-only records of what the canonical fleet declares.
 
-This module owns the fleet's ONE parser for frontmatter, `tools:` values, and namespaced
-cross-references. `validate_fleet.py` and `fleet_doctor.py` use these shared readers so their
-interpretations of a definition cannot drift through separate parsers.
+This module owns the fleet's ONE view of member metadata and namespaced cross-references.
+`validate_fleet.py` and `fleet_doctor.py` use these shared readers so their interpretations of a
+definition cannot drift through separate parsers. The frontmatter dialect itself -- the reader,
+its strict scalar check, and the emitter -- lives in `fleet/frontmatter.py` and is re-exported
+here under the names the instruments and tests have always used, so there is still exactly one
+parser per fact.
 
 It records; it never judges. Every policy question -- is this tool adopted, is this description too
 long, is this reference resolvable -- stays in `validate_fleet.py`.
@@ -15,138 +18,34 @@ foreign checkout or a frozen baseline is safe to parse.
 from __future__ import annotations
 
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-TOP_LEVEL_KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*)\s*:\s*(.*)$")
-LIST_ITEM_RE = re.compile(r"^\s*-\s+(\S.*?)\s*$")
+# `import fleet` must resolve both under the test suite (repository root on sys.path via the cwd)
+# and when a script is run as `python3 scripts/<name>.py`, where only `scripts/` is on the path.
+_REPO_ROOT = str(Path(__file__).resolve().parents[1])
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+from fleet import frontmatter as _frontmatter  # noqa: E402
+from fleet import fs as _fs  # noqa: E402
+
+NAME_RE = _frontmatter.NAME_RE
+TOP_LEVEL_KEY_RE = _frontmatter.TOP_LEVEL_KEY_RE
+LIST_ITEM_RE = _frontmatter.LIST_ITEM_RE
 
 
 # --------------------------------------------------------------------------------------
-# Parsing primitives (moved verbatim from validate_fleet.py, which re-exports them)
+# Parsing primitives (owned by fleet/frontmatter.py and fleet/fs.py; re-exported by name)
 # --------------------------------------------------------------------------------------
 
-
-def read_text(path: Path) -> str:
-    return path.read_text(encoding="utf-8")
-
-
-def try_read_text(path: Path) -> str | None:
-    """Read a file, or return None when it cannot be decoded.
-
-    An inspected tree is arbitrary bytes: a definition containing invalid UTF-8 raised
-    UnicodeDecodeError mid-collection, so the CLI printed a traceback and the damaged file never
-    reached the unreadable list it exists to name. Returning None lets the caller record the path
-    and keep producing an explicitly incomplete artifact.
-    """
-    try:
-        return read_text(path)
-    except (UnicodeDecodeError, OSError):
-        return None
-
-
-def is_runtime_byproduct(path: Path) -> bool:
-    """Return whether a path is Python execution residue, not distributable fleet source."""
-
-    return "__pycache__" in path.parts or path.suffix.lower() in {".pyc", ".pyo"}
-
-
-def split_tools(raw: str) -> list[str]:
-    """Split a `tools:` value on top-level commas only.
-
-    A naive ``raw.split(",")`` shreds a scoped grant: `Agent(worker, researcher)` becomes
-    `Agent(worker` and `researcher)`. Splitting at paren depth 0 keeps the scope intact so it can be
-    judged rather than mangled into two bogus tool names.
-    """
-    entries: list[str] = []
-    depth = 0
-    current: list[str] = []
-    for char in raw:
-        if char == "(":
-            depth += 1
-        elif char == ")":
-            depth = max(0, depth - 1)
-        if char == "," and depth == 0:
-            entries.append("".join(current))
-            current = []
-            continue
-        current.append(char)
-    entries.append("".join(current))
-    return [entry.strip(" []'\"") for entry in entries if entry.strip(" []'\"")]
-
-
-def frontmatter_span(lines: list[str]) -> int | None:
-    """Return the closing marker index for a complete frontmatter block."""
-
-    if not lines or lines[0].strip() != "---":
-        return None
-    return next(
-        (index for index in range(1, len(lines)) if lines[index].strip() == "---"),
-        None,
-    )
-
-
-def parse_frontmatter_lines(lines: list[str], end: int) -> dict[str, str] | None:
-    """Parse the fleet's YAML subset from one already-decoded source snapshot."""
-
-    fields: dict[str, str] = {}
-    i = 1
-    while i < end:
-        if not lines[i].strip() or lines[i].lstrip().startswith("#"):
-            i += 1
-            continue
-
-        match = TOP_LEVEL_KEY_RE.match(lines[i])
-        if not match:
-            # Skipping an unparseable line loses whatever it configured without a word: a typo'd
-            # `tools Read, Write` would read as no tools authority at all, and the file would
-            # validate. Refuse the block instead so the caller reports it.
-            return None
-
-        key, value = match.groups()
-        if key in fields:
-            # YAML keeps the last duplicate. A file carrying `model: opus` then `model: inherit`
-            # would validate against a value its author never intended to be the live one.
-            return None
-        value = value.strip()
-        if value in {">", ">-", "|", "|-"}:
-            parts: list[str] = []
-            i += 1
-            while i < end and not TOP_LEVEL_KEY_RE.match(lines[i]):
-                parts.append(lines[i].strip())
-                i += 1
-            fields[key] = " ".join(part for part in parts if part).strip()
-            continue
-
-        if not value:
-            # An empty inline value can mean a YAML block sequence follows (`skills:` then indented
-            # `- item` lines). Collect it so a value like `skills:` doesn't silently become "" with
-            # nothing downstream ever able to check it -- see LIST_ITEM_RE.
-            # Skip blank lines and comments within the sequence, mirroring the outer loop, so that
-            # `skills:\n  # note\n  - item` doesn't leave `- item` stranded in the outer loop
-            # where it fails TOP_LEVEL_KEY_RE and returns None.
-            items: list[str] = []
-            j = i + 1
-            while j < end:
-                line = lines[j]
-                if not line.strip() or line.lstrip().startswith("#"):
-                    j += 1
-                    continue
-                item_match = LIST_ITEM_RE.match(line)
-                if not item_match:
-                    break
-                items.append(item_match.group(1).strip("'\""))
-                j += 1
-            if items:
-                fields[key] = ", ".join(items)
-                i = j
-                continue
-
-        fields[key] = value.strip("'\"")
-        i += 1
-
-    return fields
+read_text = _fs.read_text
+try_read_text = _fs.try_read_text
+is_runtime_byproduct = _fs.is_runtime_byproduct
+split_tools = _frontmatter.split_tools
+frontmatter_span = _frontmatter.span
+parse_frontmatter_lines = _frontmatter.parse_lines
 
 
 def parse_frontmatter(path: Path) -> dict[str, str] | None:
