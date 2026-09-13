@@ -10,6 +10,7 @@ that keeps a TOML escaping bug from shipping the same way.
 
 from __future__ import annotations
 
+import json
 import tomllib
 import unittest
 from pathlib import Path
@@ -24,6 +25,7 @@ from fleet.hosts.rewrites import (
     check_table,
 )
 from fleet.hosts.table import ALL_REWRITES, TEXT_REWRITES
+from fleet.references import namespaced_reference_re
 from scripts import generate_platform_adapters as generator
 from tests.support import REPO, repo_copy, run_main
 
@@ -111,6 +113,23 @@ class RewriteContractTests(unittest.TestCase):
         )
         with self.assertRaises(RewriteError):
             apply_rewrites("a", [partial], host="copilot")
+
+    def test_the_namespace_projection_uses_the_canonical_matcher(self) -> None:
+        # One grammar for a namespaced reference (AGENTS.md, one parser per fact). A second,
+        # looser one would rewrite the namespace inside a URL or path; a stricter one would
+        # silently skip a malformed reference the validator is meant to reject.
+        rewrite = next(r for r in TEXT_REWRITES if r.id == "text.namespace.reference")
+        self.assertEqual(namespaced_reference_re("sde-agents").pattern, rewrite.find)
+        body = (
+            "Run /sde-agents:runbook, hand to sde-agents:code-reviewer, "
+            "see https://example.test/sde-agents:code-reviewer"
+        )
+        codex = apply_rewrites(body, [rewrite], host="codex")
+        self.assertIn("Run $runbook", codex)
+        self.assertIn("hand to code-reviewer", codex)
+        # The URL keeps its path segment: it is not an invocation to translate.
+        self.assertIn("https://example.test/sde-agents:code-reviewer", codex)
+        self.assertIn("Run /runbook", apply_rewrites(body, [rewrite], host="copilot"))
 
     def test_a_literal_replacement_is_never_read_as_a_group_reference(self) -> None:
         # Honest prose contains backslashes; a replacement passed to re.sub as a template would
@@ -219,6 +238,21 @@ class TomlEmitterTests(unittest.TestCase):
                 fleet_toml.render_document([("name", 'a " quote')])
         finally:
             fleet_toml.basic_string = original
+
+    def test_a_valid_but_semantically_wrong_document_is_rejected(self) -> None:
+        # The escaping mutation above exits through the parse error, so without this the
+        # equality branch is an untested guard: it would read as enforcement while enforcing
+        # nothing, which is the exact failure the round-trip exists to prevent.
+        original = fleet_toml.basic_string
+        try:
+            # Valid TOML, wrong value — the only thing that reaches the comparison.
+            fleet_toml.basic_string = lambda value: json.dumps(value + " (mangled)")
+            with self.assertRaises(fleet_toml.TomlEmitError) as caught:
+                fleet_toml.render_document([("name", "code-reviewer")])
+        finally:
+            fleet_toml.basic_string = original
+        self.assertIn("did not read back as written", str(caught.exception))
+        self.assertIn("name", str(caught.exception))
 
     def test_the_committed_codex_adapters_parse(self) -> None:
         agents = sorted((REPO / ".codex" / "agents").glob("*.toml"))

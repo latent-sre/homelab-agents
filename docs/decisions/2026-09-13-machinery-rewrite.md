@@ -310,3 +310,12 @@ A second review round retired the `tomli-w` tripwire for the reason recorded abo
 count-mismatch diagnostic by direction: too few means an anchor was lost and must be re-anchored;
 too many usually means a legitimate new occurrence to review and count. One message calling both
 "unintended" would have sent half the failures to undo a correction that was working.
+
+A third round caught the two remaining holes. The table had carried its own namespaced-reference
+regexes — a second grammar for a fact `fleet/references.py` already owns, loose enough to rewrite
+the namespace inside a URL and strict enough to skip a malformed reference the validator rejects.
+The projection now compiles the canonical matcher, and the adapters stayed byte-identical, which
+is the evidence the two grammars had not yet diverged in this corpus. And the TOML emitter's
+"parsed does not equal intended" branch had no firing test: the escaping mutation exits through
+the parse error instead, so the equality check was an untested guard reading as enforcement. A
+mutation that emits valid TOML with a changed value now fires it.

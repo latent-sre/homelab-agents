@@ -12,9 +12,11 @@ generation failure rather than a silently uncorrected adapter.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from typing import Final
 
 from fleet.hosts.rewrites import AT_LEAST_ONE, Rewrite
+from fleet.references import namespaced_reference_re
 
 # Where each host installs the fleet's skills, for the one rewrite that must name a real path.
 COPILOT_SKILL_ROOT: Final = ".github/skills"
@@ -45,16 +47,23 @@ def _trusted_fleet_control(match: re.Match[str]) -> str:
     return f"an operator-provided trusted copy of the fleet's `{match.group('name')}` control"
 
 
-def _bare_name(match: re.Match[str]) -> str:
-    return match.group("name")
+# The namespace is the plugin's, and only Claude resolves it. There is exactly one matcher for
+# a namespaced reference in this repository (`fleet.references`), and the host projection uses
+# it rather than a second grammar: a looser one rewrites the namespace inside a URL or path, and
+# a stricter one silently skips a malformed reference the validator is meant to reject.
+FLEET_NAMESPACE: Final = "sde-agents"
+_NAMESPACED_REFERENCE_RE: Final = namespaced_reference_re(FLEET_NAMESPACE)
 
 
-def _slash_name(match: re.Match[str]) -> str:
-    return f"/{match.group('name')}"
+def _host_reference(invocation_prefix: str) -> Callable[[re.Match[str]], str]:
+    """Render one reference the way this host spells it: a slash command keeps its own prefix,
+    a bare cross-reference keeps just the component name."""
 
+    def render(match: re.Match[str]) -> str:
+        target = match.group("target")
+        return f"{invocation_prefix}{target}" if match.group("slash") else target
 
-def _dollar_name(match: re.Match[str]) -> str:
-    return f"${match.group('name')}"
+    return render
 
 
 TEXT_REWRITES: Final[tuple[Rewrite, ...]] = (
@@ -222,23 +231,17 @@ TEXT_REWRITES: Final[tuple[Rewrite, ...]] = (
         replace="the current host's workflow or orchestration mechanism",
         expect=2,
     ),
-    # The namespace is the plugin's, and only Claude resolves it. Copilot invokes a skill as a
-    # slash command, Codex with `$name`, and a bare cross-reference keeps just the name.
     Rewrite(
-        id="text.namespace.slash-command",
-        why="A `/sde-agents:name` invocation resolves only under the Claude plugin namespace; "
-        "each host spells the same invocation its own way.",
-        find=r"/sde-agents:(?P<name>[a-z0-9]+(?:-[a-z0-9]+)*)",
-        replace={"copilot": _slash_name, "codex": _dollar_name, "portable": _bare_name},
-        expect=AT_LEAST_ONE,
-        regex=True,
-    ),
-    Rewrite(
-        id="text.namespace.bare-token",
-        why="A bare `sde-agents:name` cross-reference names a component through the plugin "
-        "namespace no other host has.",
-        find=r"sde-agents:(?P<name>[a-z0-9]+(?:-[a-z0-9]+)*)",
-        replace=_bare_name,
+        id="text.namespace.reference",
+        why="A namespaced reference resolves only under the Claude plugin namespace, so each "
+        "host spells the same invocation its own way: Copilot as a slash command, Codex as "
+        "`$name`, and a bare cross-reference as the component name alone.",
+        find=_NAMESPACED_REFERENCE_RE.pattern,
+        replace={
+            "copilot": _host_reference("/"),
+            "codex": _host_reference("$"),
+            "portable": _host_reference(""),
+        },
         expect=AT_LEAST_ONE,
         regex=True,
     ),
