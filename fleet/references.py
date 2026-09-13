@@ -145,7 +145,9 @@ def _description_line_span(lines: list[str], end: int) -> set[int]:
     return span
 
 
-def collect_references(root: Path, plugin_name: str) -> tuple[Reference, ...]:
+def collect_references(
+    root: Path, plugin_name: str, *, texts: dict[Path, str | None] | None = None
+) -> tuple[Reference, ...]:
     """Every namespaced-reference occurrence across the fleet's markdown surface.
 
     Matching runs over RAW source lines, not over parsed field values. The validator's dangling-
@@ -161,8 +163,11 @@ def collect_references(root: Path, plugin_name: str) -> tuple[Reference, ...]:
     core = core_definition_paths(root)
     found: list[Reference] = []
 
-    for path in definition_markdown_files(root):
-        text = try_read_text(path)
+    # `texts` lets a snapshot that already read every definition feed the collector the same
+    # bytes its other rules judged; without it the collector reads the tree itself.
+    paths = sorted(texts) if texts is not None else definition_markdown_files(root)
+    for path in paths:
+        text = texts[path] if texts is not None else try_read_text(path)
         if text is None:
             continue  # recorded as unreadable by collect(); no references can be read from it
         lines = text.splitlines()

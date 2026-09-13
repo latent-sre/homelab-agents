@@ -6,11 +6,10 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from fleet import fs
 from fleet.findings import Finding
 from fleet.frontmatter import NAME_RE
 from fleet.policy import POLICY
-from fleet.references import collect_references, definition_markdown_files
+from fleet.references import collect_references
 from fleet.rules import rule
 from fleet.snapshot import Fleet
 
@@ -58,10 +57,10 @@ def bare_skill_references(fleet: Fleet) -> list[Finding]:
 def perishable_tokens(fleet: Fleet) -> list[Finding]:
     findings: list[Finding] = []
     for token, owner in POLICY.perishable_tokens.items():
-        for path in definition_markdown_files(fleet.root):
+        for path in fleet.markdown_files():
             if path.relative_to(fleet.root).as_posix() == owner:
                 continue
-            if token in fs.read_text(path):
+            if token in (fleet.markdown_texts[path] or ""):
                 findings.append(
                     Finding(
                         "references.perishable-token",
@@ -76,13 +75,20 @@ def perishable_tokens(fleet: Fleet) -> list[Finding]:
     return findings
 
 
-def plugin_reference_findings(fleet: Fleet) -> list[Finding]:
+def plugin_reference_findings(
+    fleet: Fleet,
+    agent_names: list[str] | None = None,
+    skill_names: list[str] | None = None,
+) -> list[Finding]:
     """The plugin-scoped reference rules the legacy `validate_plugin` ran last: description
-    namespacing, `~/.claude` paths, and every namespaced reference's shape and resolution."""
+    namespacing, `~/.claude` paths, and every namespaced reference's shape and resolution.
+
+    `agent_names` / `skill_names` default to the snapshot's; the compatibility layer passes a
+    caller's roster through, as the legacy signature promised."""
     findings: list[Finding] = []
     plugin_name = fleet.plugin_name
-    agent_names = fleet.agent_names
-    skill_names = fleet.skill_names
+    agent_names = fleet.agent_names if agent_names is None else agent_names
+    skill_names = fleet.skill_names if skill_names is None else skill_names
     fleet_members = set(agent_names) | set(skill_names)
     definitions = [(a.path, a.path.stem, a) for a in fleet.agents]
     definitions += [(s.path, s.directory.name, s) for s in fleet.skills]
@@ -128,7 +134,7 @@ def plugin_reference_findings(fleet: Fleet) -> list[Finding]:
         # One shared extraction (fleet.references). Deduping per file to (slash, target) keeps
         # one message per distinct reference however many times a file repeats it.
         by_path: dict[Path, set[tuple[bool, str]]] = {}
-        for record in collect_references(fleet.root, plugin_name):
+        for record in collect_references(fleet.root, plugin_name, texts=fleet.markdown_texts):
             by_path.setdefault(record.path, set()).add((record.is_slash_command, record.target))
         for path, references in by_path.items():
             for is_slash_command, target in sorted(references):

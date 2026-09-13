@@ -97,6 +97,11 @@ class Fleet:
     plugin_manifest_error: str | None
     hooks_path: Path
     hook_commands: tuple[str, ...] = field(default=())
+    # Every markdown file the fleet ships as behaviour (agent bodies, SKILL.md files, and each
+    # skill's references/ and assets/), read once: the cross-reference and perishable-token rules
+    # judge these bytes, the same bytes the agent and skill rules judged, so one report can never
+    # describe two versions of a tree.
+    markdown_texts: dict[Path, str | None] = field(default_factory=dict)
 
     @classmethod
     def load(cls, root: Path) -> Fleet:
@@ -127,6 +132,9 @@ class Fleet:
             except (json.JSONDecodeError, OSError) as exc:
                 manifest_error = str(exc)
         hooks_path = root / "hooks" / "hooks.json"
+        markdown_texts = {path: fs.try_read_text(path) for path in _definition_markdown_files(root)}
+        for definition in (*agents, *skills):
+            markdown_texts[definition.path] = definition.text
         return cls(
             root=root,
             agents_dir_exists=agents_dir.is_dir(),
@@ -139,6 +147,7 @@ class Fleet:
             plugin_manifest_error=manifest_error,
             hooks_path=hooks_path,
             hook_commands=tuple(_hook_commands(hooks_path)),
+            markdown_texts=markdown_texts,
         )
 
     # --- derived views -------------------------------------------------------------------
@@ -179,9 +188,20 @@ class Fleet:
     def skill(self, name: str) -> Definition | None:
         return next((s for s in self.skills if s.stem == name), None)
 
+    def markdown_files(self) -> list[Path]:
+        """The definition markdown paths, in the order the reference collector walks them."""
+        return sorted(self.markdown_texts)
+
     def hook_command_for(self, script: str) -> str | None:
         """The PreToolUse/Bash command that runs `script`, found by name."""
         return next((command for command in self.hook_commands if script in command), None)
+
+
+def _definition_markdown_files(root: Path) -> list[Path]:
+    files = sorted((root / "agents").glob("*.md")) if (root / "agents").is_dir() else []
+    if (root / "skills").is_dir():
+        files += sorted((root / "skills").rglob("*.md"))
+    return files
 
 
 def _hook_commands(path: Path) -> list[str]:

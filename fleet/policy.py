@@ -2,6 +2,13 @@
 
 The TOML is the source; this module only types it and expands the `@group` references a role
 rule may use, so a vocabulary is declared exactly once. Nothing here judges a definition.
+
+The policy that governs a run is the EXECUTING checkout's, exactly as the rules that consume it
+are: rules and policy are one versioned unit, and a validator that mixed its own rules with a
+target tree's tables would judge that tree by a vocabulary its rules were never written against
+(a table the target lacks would be a load error, not a verdict). This is the contract the legacy
+validator had, where the same tables were module constants; the tree under validation supplies
+its generator and its conformance schema, never the validator's policy.
 """
 
 from __future__ import annotations
@@ -124,6 +131,10 @@ def load(path: Path = POLICY_PATH) -> Policy:
         if not isinstance(entry, dict):
             raise PolicyError(f"roles[{index}] must be a table")
         name = _string(entry, "name", f"roles[{index}]")
+        if name in roles:
+            # A second table with the same name would silently replace the first role's trust
+            # boundary while the loader and the validator stay green.
+            raise PolicyError(f"roles[{index}] repeats the role name {name!r}")
         roles[name] = RolePolicy(
             name,
             _expand(_strings(entry, "required", f"roles.{name}"), groups, f"roles.{name}.required"),

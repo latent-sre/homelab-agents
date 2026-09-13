@@ -51,4 +51,5 @@ def generated_adapters(fleet: Fleet) -> list[Finding]:
                 source,
             )
         ]
-    return [Finding("adapters.generated", issue, source) for issue in issues]
+    # Each issue names the generated or canonical file it is about; attribute it there.
+    return [Finding.from_text("adapters.generated", issue) for issue in issues]

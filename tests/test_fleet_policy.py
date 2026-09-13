@@ -43,6 +43,19 @@ class PolicyLoadTests(unittest.TestCase):
             with self.assertRaises(policy.PolicyError):
                 policy.load(broken)
 
+    def test_a_duplicate_role_name_is_refused(self) -> None:
+        # A second [[roles]] table with the same name would silently replace the first role's
+        # trust boundary while the loader and the validator stay green.
+        source = policy.POLICY_PATH.read_text(encoding="utf-8")
+        start = source.index('[[roles]]\nname = "researcher"')
+        end = source.index("\n[", start + 1)  # up to the next table header
+        block = source[start:end]
+        with tempfile.TemporaryDirectory() as tmp:
+            broken = Path(tmp) / "policy.toml"
+            broken.write_text(source + "\n" + block, encoding="utf-8")
+            with self.assertRaises(policy.PolicyError):
+                policy.load(broken)
+
     def test_every_table_carries_a_checked_date_or_the_meta_date(self) -> None:
         self.assertRegex(policy.POLICY.checked, r"^\d{4}-\d{2}-\d{2}$")
         self.assertRegex(policy.POLICY.cli, r"^\d+\.\d+\.\d+$")

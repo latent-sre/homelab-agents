@@ -29,17 +29,43 @@ def _roster_blocks(command: str) -> list[str]:
     return [segment.split("esac", 1)[0] for segment in CASE_BLOCK_RE.split(command)[1:]]
 
 
+PLUGIN_RULE_IDS = (
+    "plugin.rules",
+    "plugin.manifest",
+    "plugin.guard",
+    "plugin.gate",
+    "plugin.hooks.gate",
+    "plugin.hooks.guard",
+    "plugin.guard.roster",
+    "plugin.references.description-namespace",
+    "plugin.references.home-path",
+    "plugin.references.namespaced",
+)
+
+
 @rule(
     "plugin.rules",
     group=GROUP,
     why="The manifest, the guard, the gate, and the hook file must agree on names and rosters "
     "in every direction, or a guarded agent silently runs unguarded.",
+    emits=PLUGIN_RULE_IDS,
 )
 def plugin_rules(fleet: Fleet) -> list[Finding]:
     """One legacy pass, kept as one rule so its early returns keep their exact semantics: a
-    guard that cannot be read short-circuits everything that would have cross-checked it."""
+    guard that cannot be read short-circuits everything that would have cross-checked it. Each
+    check emits its own id, all declared on the registration above."""
+    return plugin_findings(fleet)
+
+
+def plugin_findings(
+    fleet: Fleet,
+    agent_names: list[str] | None = None,
+    skill_names: list[str] | None = None,
+) -> list[Finding]:
+    """The pass, with the roster a caller may supply (the legacy `validate_plugin` contract)."""
     if not fleet.ships_as_plugin:
         return []
+    supplied_agent_names = fleet.agent_names if agent_names is None else agent_names
     manifest_path = fleet.plugin_manifest_path
     if fleet.plugin_manifest_error is not None:
         return [
@@ -101,7 +127,7 @@ def plugin_rules(fleet: Fleet) -> list[Finding]:
 
     # The live-effect gate is the guard's mirror image for a Bash-and-Write agent; it has the
     # same single place to live and the same silent failure modes, so the same links are held.
-    agent_names = set(fleet.agent_names)
+    agent_names = set(supplied_agent_names)
     gate_path = root / "scripts" / "live-effect-gate.py"
     try:
         gate = read_rosters(gate_path, "GATED_AGENT_NAMES")
@@ -329,5 +355,5 @@ def plugin_rules(fleet: Fleet) -> list[Finding]:
                 )
             )
 
-    findings.extend(plugin_reference_findings(fleet))
+    findings.extend(plugin_reference_findings(fleet, list(supplied_agent_names), skill_names))
     return findings

@@ -38,6 +38,21 @@ class Finding:
         if not self.rule:
             raise ValueError("a finding must name its rule")
 
+    @classmethod
+    def from_text(cls, rule: str, text: str, *, severity: str = "error") -> Finding:
+        """A finding from a legacy `path: message` or `path:line: message` string.
+
+        Instruments that still return strings (the adapter generator) attribute each message to
+        a path in its prefix; parsing it here keeps the JSON path and the GitHub annotation on the
+        file the message names rather than on the instrument that produced it.
+        """
+        head = text.split(": ", 1)[0]
+        parts = head.rsplit(":", 1)
+        line: int | None = None
+        if len(parts) == 2 and parts[1].isdigit():
+            head, line = parts[0], int(parts[1])
+        return cls(rule, text, Path(head) if head and head != text else None, line, severity)
+
     def relative_path(self, root: Path) -> str | None:
         """The path as a repo-relative POSIX string, or the absolute path when outside root."""
         if self.path is None:

@@ -159,6 +159,7 @@ def _orphan_findings(skill: Definition) -> list[Finding]:
     group=GROUP,
     why="A link to a missing bundle file ships silently; an unlinked references/ file is "
     "unreachable knowledge that looks shipped.",
+    emits=("skill.bundle", "skill.bundle.links", "skill.bundle.orphans"),
 )
 def skill_bundle(fleet: Fleet) -> list[Finding]:
     findings: list[Finding] = []

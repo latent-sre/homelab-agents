@@ -122,7 +122,8 @@ def validate_yaml_scalar_quoting(root: Path) -> list[str]:
 
 
 def validate_plugin(root: Path, agent_names: list[str], skill_names: list[str]) -> list[str]:
-    return _run(root, "plugin")
+    # Honors the caller's roster, as the legacy signature promised.
+    return texts(_plugin.plugin_findings(Fleet.load(root), agent_names, skill_names))
 
 
 def validate_platform_adapters(root: Path) -> list[str]:

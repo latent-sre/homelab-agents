@@ -370,17 +370,7 @@ def validate_workflow_host_boundary(root: Path) -> list[str]:
 
 
 def _wrap(rule_id: str, issues: list[str]) -> list[Finding]:
-    """Findings from legacy `path: message` strings; the path prefix is parsed back out."""
-    findings = []
-    for text in issues:
-        head = text.split(": ", 1)[0]
-        # `path:line: message` carries a line number in the second segment.
-        parts = head.rsplit(":", 1)
-        line = None
-        if len(parts) == 2 and parts[1].isdigit():
-            head, line = parts[0], int(parts[1])
-        findings.append(Finding(rule_id, text, Path(head), line))
-    return findings
+    return [Finding.from_text(rule_id, text) for text in issues]
 
 
 @rule(
