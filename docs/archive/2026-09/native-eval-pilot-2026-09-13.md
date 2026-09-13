@@ -91,10 +91,11 @@ Attempt 1's traces were not preserved (no `--keep-temp`), so what its non-delega
   whether an errored spawn that *does* match would count — the docs describe the grader as counting
   calls whose input matches, with no success condition. A migrated suite that grades a spawn should
   treat this as unverified until one run shows it either way.
-- **No trust prompt fired**, with or without `--trust-plugin`: this worktree path already carried
-  `hasTrustDialogAccepted: true` in `~/.claude.json` from the interactive session that opened it.
-  Under `--json` an untrusted directory is refused with exit 1 rather than prompted, so a CI or
-  fresh-checkout run needs `--trust-plugin`.
+- **No trust prompt fired, and `--trust-plugin` was never passed**: this worktree path already
+  carried `hasTrustDialogAccepted: true` in `~/.claude.json` from the interactive session that
+  opened it, so the refusal path was not exercised. The docs state that under `--json` an
+  untrusted directory is refused with exit 1 rather than prompted, so a CI or fresh-checkout run
+  needs `--trust-plugin`; that is read from the docs, not observed here.
 - **Results land inside the eval directory**, at `evals/native-pilot/results/<timestamp>/` with
   `aggregate-result.json` and `report.html`, even when `--json <path>` writes the same document
   elsewhere. That directory is now in `.gitignore`. The report was kept local (`--no-publish`).
