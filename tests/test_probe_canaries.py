@@ -519,6 +519,72 @@ class ProbeTimeoutRecoveryTests(unittest.TestCase):
                 self.assertEqual([probe_plugin.SKIP], [s for s, *_ in probe.results])
                 self.assertNotIn(probe_plugin.FAIL, [s for s, *_ in probe.results])
 
+    def test_an_answering_leg_clears_the_previous_session_truncation(self) -> None:
+        """`answered` begins reading its result, so a leg that answered is judged on its own.
+
+        Two entry points where only one reset the state: `answered` returned True without
+        clearing, so a real regression found by a leg that DID answer was downgraded to
+        INCONCLUSIVE because an unrelated earlier session had timed out.
+        """
+        timed_out = probe_plugin._proc.CommandResult(
+            ("claude",), None, "", "", timed_out=True, error="timed out"
+        )
+        answered = probe_plugin._proc.CommandResult(("claude",), 0, "ok", "")
+        probe = probe_plugin.Probe()
+        with contextlib.redirect_stdout(io.StringIO()):
+            probe.reading(timed_out)
+            self.assertTrue(probe.answered(answered, "a leg that did answer"))
+            probe.check(probe_plugin.FAIL, "a real regression this leg found")
+        statuses = {label: status for status, label, _ in probe.results}
+        self.assertEqual(probe_plugin.FAIL, statuses["a real regression this leg found"])
+
+    def test_a_failed_setup_command_is_the_legs_inconclusive_not_a_fleet_failure(self) -> None:
+        """Setup is environment. A repository that was never initialised proves nothing."""
+        missing_git = probe_plugin._proc.CommandResult(
+            ("git", "init", "-q", "/tmp/x"), 127, "", "", failed_to_start=True, error="No such file"
+        )
+        timed_out = probe_plugin._proc.CommandResult(
+            ("git", "add", "-A"), None, "", "", timed_out=True, error="timed out"
+        )
+        ok = probe_plugin._proc.CommandResult(("git", "init"), 0, "", "")
+
+        self.assertIsNone(probe_plugin.setup_failure([ok, ok]))
+        for broken in (missing_git, timed_out):
+            with self.subTest(result=broken):
+                cause = probe_plugin.setup_failure([ok, broken, ok])
+                self.assertIsNotNone(cause)
+                self.assertIn("probe setup command", cause)
+                self.assertIn(broken.argv[0], cause)
+
+    def test_a_broken_workspace_stops_the_run_before_any_paid_session(self) -> None:
+        """No repository means nothing to probe, so the run must not spend on sessions."""
+        spawned: list[tuple[str, ...]] = []
+
+        def spawn(cmd, **_kwargs):
+            argv = tuple(cmd)
+            spawned.append(argv)
+            if argv and argv[0] == "git":
+                return probe_plugin._proc.CommandResult(
+                    argv, 127, "", "", failed_to_start=True, error="No such file"
+                )
+            return probe_plugin._proc.CommandResult(argv, 0, "", "")
+
+        with (
+            mock.patch.object(probe_plugin, "run", side_effect=spawn),
+            mock.patch.object(probe_plugin, "CLAUDE", "claude"),
+            mock.patch.object(probe_plugin, "_remove_workspace"),
+            tempfile.TemporaryDirectory() as tmp,
+            mock.patch.object(probe_plugin, "REPO", Path(tmp)),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = probe_plugin.main([])
+
+        self.assertEqual(2, code, "a broken workspace is INCONCLUSIVE, never a fleet FAIL")
+        self.assertEqual(
+            [], [argv for argv in spawned if argv and argv[0] == "claude"],
+            "the probe spent on a model session against a repository that does not exist",
+        )
+
     def test_a_truncated_transcript_makes_later_checks_unevaluated_not_failed(self) -> None:
         """The PROBE-002 distinction, applied to the whole run.
 
@@ -553,11 +619,23 @@ class ProbeTimeoutRecoveryTests(unittest.TestCase):
     def test_a_timed_out_main_session_still_reaches_the_workflow_leg(self) -> None:
         """The heart of PROBE-006: later legs run their own sessions and must still be reached."""
         reached: list[str] = []
-        timed_out = probe_plugin._proc.CommandResult(
-            ("claude",), None, "", "", timed_out=True, error="timed out"
-        )
+
+        def spawn(cmd, **_kwargs):
+            """Setup succeeds; only the model sessions time out.
+
+            The distinction is the test's whole point. A `git init` that fails means there is no
+            repository to probe, and returning early is right; a SESSION that times out must not
+            take the legs that drive their own sessions with it.
+            """
+            argv = tuple(cmd)
+            if argv and argv[0] == "git":
+                return probe_plugin._proc.CommandResult(argv, 0, "", "")
+            return probe_plugin._proc.CommandResult(
+                argv, None, "", "", timed_out=True, error="timed out"
+            )
+
         with (
-            mock.patch.object(probe_plugin, "run", return_value=timed_out),
+            mock.patch.object(probe_plugin, "run", side_effect=spawn),
             mock.patch.object(probe_plugin, "CLAUDE", "claude"),
             mock.patch.object(probe_plugin, "_remove_workspace"),
             mock.patch.object(

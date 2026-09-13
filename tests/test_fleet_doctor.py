@@ -526,6 +526,37 @@ class DoctorUsesTheKernelResult(unittest.TestCase):
             with self.subTest(result=result):
                 self.assertFalse(result.ok)
 
+    def test_the_two_failures_produce_different_diagnostics(self) -> None:
+        """Holding the richer result is pointless if the report throws the distinction away.
+
+        Both failures leave `stderr` empty and put the cause in `error`, so a details dict of
+        `{"stderr": ...}` rendered them identically -- the operator saw one blank line either
+        way and could not choose between retrying and repairing the installation.
+        """
+        timed_out = fleet_doctor.CommandResult(
+            ("claude", "--version"), None, "", "", timed_out=True, error="timed out after 30s"
+        )
+        missing = fleet_doctor.CommandResult(
+            ("claude", "--version"), 127, "", "", failed_to_start=True, error="No such file"
+        )
+        timeout_details = fleet_doctor._failure_details(timed_out)
+        missing_details = fleet_doctor._failure_details(missing)
+
+        self.assertNotEqual(timeout_details, missing_details)
+        self.assertTrue(timeout_details["timed_out"])
+        self.assertNotIn("timed_out", missing_details)
+        self.assertTrue(missing_details["failed_to_start"])
+        self.assertNotIn("failed_to_start", timeout_details)
+        for details in (timeout_details, missing_details):
+            with self.subTest(details=details):
+                self.assertTrue(details["error"], "the only field carrying the cause is empty")
+
+    def test_a_successful_result_carries_no_failure_flags(self) -> None:
+        details = fleet_doctor._failure_details(
+            fleet_doctor.CommandResult(("git",), 0, "out", "warn\n")
+        )
+        self.assertEqual({"stderr": "warn"}, details)
+
     def test_a_timed_out_command_is_not_read_as_a_passing_check(self) -> None:
         """The trap the migration had to avoid, pinned as behaviour rather than as a comment."""
         timed_out = fleet_doctor.CommandResult(

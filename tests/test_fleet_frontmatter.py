@@ -10,18 +10,12 @@ from __future__ import annotations
 import unittest
 
 from fleet import frontmatter as fm
-from tests.support import REPO
+from tests.support import HAS_HYPOTHESIS, HYPOTHESIS_REQUIRED, REPO, given, settings, st
 
 try:  # The dev dependency group installs it; a bare interpreter skips the tripwire loudly below.
     import yaml
 except ImportError:  # pragma: no cover - exercised only on hosts without the dev group
     yaml = None
-
-try:  # Same contract as PyYAML above: the dev group installs it, a bare interpreter skips loudly.
-    from hypothesis import given, settings
-    from hypothesis import strategies as st
-except ImportError:  # pragma: no cover - exercised only on hosts without the dev group
-    given = settings = st = None
 
 
 def _parse(text: str) -> dict[str, str] | None:
@@ -173,9 +167,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
-@unittest.skipIf(
-    given is None, "hypothesis (dev dependency group) is required for the property tests"
-)
+@unittest.skipUnless(HAS_HYPOTHESIS, HYPOTHESIS_REQUIRED)
 class DialectPropertyTests(unittest.TestCase):
     """Properties over arbitrary text, where a hand-picked corpus stops being convincing.
 

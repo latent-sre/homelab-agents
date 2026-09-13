@@ -175,6 +175,24 @@ def run(cmd: list[str], **kwargs) -> _proc.CommandResult:
     return _proc.run(cmd, timeout=600, **kwargs)
 
 
+def setup_failure(results: "list[_proc.CommandResult]") -> str | None:
+    """The first setup command that did not succeed, described, or None if all did.
+
+    Before the runner stopped raising, a `git` that timed out or was missing took the probe down
+    loudly. Discarding these results traded that for something worse: the probe would drive paid
+    model sessions against a repository that was never initialised and report the fallout as
+    fleet FAILs (Codex, PR #190). Setup is environment, so its failure is the leg's INCONCLUSIVE.
+    """
+    for result in results:
+        if result.ok:
+            continue
+        cause = unanswered_cause(result)
+        if cause is None:
+            cause = f"exited {result.returncode}: {(result.stderr or result.stdout).strip()[:160]}"
+        return f"probe setup command {' '.join(result.argv)!r} did not succeed -- {cause}"
+    return None
+
+
 def unanswered_cause(result: _proc.CommandResult) -> str | None:
     """Why this command produced no verdict, or None if it answered.
 
@@ -227,7 +245,16 @@ class Probe:
             print(f"      {detail}")
 
     def answered(self, result: _proc.CommandResult, label: str) -> bool:
-        """Record this leg INCONCLUSIVE and return False when the command gave no verdict."""
+        """Record this leg INCONCLUSIVE and return False when the command gave no verdict.
+
+        Begins reading `result` either way. Returning True without doing so was a real leak: a
+        leg that answered would inherit the PREVIOUS session's truncation, and a genuine
+        regression it then found -- the live-effect gate allowing a live verb, say -- was
+        downgraded from FAIL to INCONCLUSIVE because an unrelated earlier session had timed out
+        (Codex, PR #190). Two entry points where only one maintained the invariant; now there is
+        one, and `reading` is it.
+        """
+        self.reading(result)
         cause = unanswered_cause(result)
         if cause is None:
             return True
@@ -724,11 +751,17 @@ def probe_workflow_contract(probe: "Probe") -> None:
     target = workspace / "workflow-target"
     target.mkdir(parents=True)
     (target / "README.md").write_text("workflow probe target\n", encoding="utf-8")
-    run(["git", "init", "-q", str(target)])
-    run(["git", "-C", str(target), "config", "user.name", "Workflow Probe"])
-    run(["git", "-C", str(target), "config", "user.email", "workflow-probe@example.invalid"])
-    run(["git", "-C", str(target), "add", "-A"])
-    run(["git", "-C", str(target), "commit", "-qm", "probe baseline"])
+    setup = [
+        run(["git", "init", "-q", str(target)]),
+        run(["git", "-C", str(target), "config", "user.name", "Workflow Probe"]),
+        run(["git", "-C", str(target), "config", "user.email", "workflow-probe@example.invalid"]),
+        run(["git", "-C", str(target), "add", "-A"]),
+        run(["git", "-C", str(target), "commit", "-qm", "probe baseline"]),
+    ]
+    broken_setup = setup_failure(setup)
+    if broken_setup is not None:
+        probe.check(SKIP, "plugin workflow resolved and the session completed", broken_setup)
+        return
 
     session = run(
         [
@@ -935,7 +968,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     project = workspace / "target-repo"
     (project / ".claude").mkdir(parents=True)
-    run(["git", "init", "-q", str(project)])
+    project_setup = setup_failure([run(["git", "init", "-q", str(project)])])
+    if project_setup is not None:
+        # Every session below runs in this repository. Without it there is nothing to probe, and
+        # a FAIL here would name the fleet for an environment problem.
+        probe.check(SKIP, "probe workspace prepared", project_setup)
+        return probe.report()
     (project / "README.md").write_text("probe target\n", encoding="utf-8")
 
     # Allow Bash outright. A PreToolUse hook still runs and can still DENY -- that is what hooks are

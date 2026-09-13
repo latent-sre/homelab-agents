@@ -25,12 +25,13 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from scripts import validate_fleet
-
-try:  # Dev dependency group; a bare interpreter skips the property tests loudly.
-    from hypothesis import given, settings
-    from hypothesis import strategies as st
-except ImportError:  # pragma: no cover - exercised only on hosts without the dev group
-    given = settings = st = None
+from tests.support import (
+    HAS_HYPOTHESIS,
+    HYPOTHESIS_REQUIRED,
+    given,
+    settings,
+    st,
+)
 
 GUARD = Path(__file__).resolve().parents[1] / "scripts" / "readonly-guard.py"
 # The full roster, loaded from the guard itself rather than restated here: a new roster member
@@ -627,9 +628,7 @@ class NetworkReadScoping(unittest.TestCase):
         self.assertEqual(decision(proc), "deny")
 
 
-@unittest.skipIf(
-    given is None, "hypothesis (dev dependency group) is required for the property tests"
-)
+@unittest.skipUnless(HAS_HYPOTHESIS, HYPOTHESIS_REQUIRED)
 class GuardPropertyTests(unittest.TestCase):
     """Properties over arbitrary input, against the guard's decision function in process.
 

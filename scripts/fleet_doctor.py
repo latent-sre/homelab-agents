@@ -104,6 +104,25 @@ def _run_read_only(argv: Sequence[str]) -> CommandResult:
     return _proc.run(argv, timeout=30)
 
 
+def _failure_details(result: CommandResult) -> dict[str, object]:
+    """What the operator needs to choose between retrying and repairing the installation.
+
+    `stderr` alone is empty for both of the failures this module keeps apart -- a timeout and a
+    binary that never started put their cause in `error`, not on the stream -- so reporting only
+    stderr produced an identical empty diagnostic for each and defeated the point of holding the
+    kernel's richer result (Codex, PR #190). The flags are included so a reader of the JSON does
+    not have to infer the kind from prose.
+    """
+    details: dict[str, object] = {"stderr": result.stderr.strip()}
+    if result.error:
+        details["error"] = result.error
+    if result.timed_out:
+        details["timed_out"] = True
+    if result.failed_to_start:
+        details["failed_to_start"] = True
+    return details
+
+
 def _git_checks(root: Path, run: CommandRunner) -> list[Check]:
     head = run(("git", "--no-optional-locks", "-C", str(root), "rev-parse", "HEAD"))
     if not head.ok:
@@ -112,7 +131,7 @@ def _git_checks(root: Path, run: CommandRunner) -> list[Check]:
                 "repository.git",
                 "inconclusive",
                 "Git could not identify the repository revision.",
-                {"stderr": head.stderr.strip()},
+                _failure_details(head),
             )
         ]
 
@@ -448,7 +467,7 @@ def _cli_checks(which: Which, run: CommandRunner) -> tuple[list[Check], dict[str
                     f"host.{host}.cli",
                     "inconclusive",
                     f"{host} CLI was found but its version could not be read.",
-                    {"executable": executable, "stderr": version.stderr.strip()},
+                    {"executable": executable, **_failure_details(version)},
                 )
             )
         else:
@@ -485,7 +504,7 @@ def _plugin_listing_check(
                 f"host.{host}.plugin",
                 "inconclusive",
                 f"{host} plugin inventory could not be read.",
-                {"stderr": listing.stderr.strip()},
+                _failure_details(listing),
             ),
             False,
         )
