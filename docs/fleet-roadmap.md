@@ -71,6 +71,39 @@ authentication, capture the untouched main baseline and final candidate under th
 identical routing conditions, and run the native hook probe. Keep host synchronization and
 publication separate from this source-level evidence.
 
+#### MACH-001 — rebuild the fleet machinery on one kernel
+
+**Status:** `active` — phase 0 implemented on `claude/machinery-rewrite-fresh-ar08n6` at the
+operator's 2026-09-13 request; phases 1–5 await acceptance of the decision record.
+
+**Outcome:** Every maintainer instrument under `scripts/` runs on the `fleet/` kernel with one
+implementation per primitive, policy held as data, structured findings, and the routing runner
+retired to native `claude plugin eval`; the hooks stay single-file and dependency-free.
+
+**Source:** [Machinery rewrite decision](decisions/2026-09-13-machinery-rewrite.md).
+
+**Prerequisites:** Phase order as the record states; phase 4 additionally needs the CI pin at
+≥ 2.1.269 with the probe re-run every pin bump owes, and one live native eval run.
+
+**Constraints:** No runtime dependency in `fleet/`; hooks never import it; each phase keeps the
+generated adapters byte-identical and every existing verdict unchanged unless its PR records the
+change; the routing runner is not wired onto the kernel before it retires (provenance hole).
+
+**Acceptance:** Per phase, the oracle named in the record's phase table, plus green tiers.
+Closes when phase 5 merges and the lint ratchet table in `pyproject.toml` is empty.
+
+**Evidence disposition:** The specifier claim was re-probed on 2.1.270 on 2026-09-13 (three
+runs; the specifier restricts nothing, the validator's rule stands) and the CI pin moved to
+2.1.270 with the probe re-run — [pin refresh evidence](archive/2026-09/pin-refresh-evidence-2026-09-13.md).
+
+**Next action:** Operator ruling on the record. The phase-4 live precondition is met: the
+native pilot ran on 2026-09-13 (CLI 2.1.270, sonnet, two runs of three), the `tool_used: Agent`
+grader matched `sde-agents:homelab-engineer` in five of six runs and the observed
+`subagent_type` was the namespaced form every time —
+[native eval pilot](archive/2026-09/native-eval-pilot-2026-09-13.md). Remaining before phase 4:
+the converter and recorder the record names, and a ruling on how the migrated suite records the
+grader-counts-errored-spawns caveat the pilot surfaced.
+
 #### LABFLOW-001 — simplify the homelab operating path
 
 **Status:** `active` — the operator selected main-review items 1, 2, 3, 5, and 6 on 2026-09-07;
@@ -145,7 +178,10 @@ covered by deterministic tests. Retro-boundary and continuous-improvement routin
 but they do not substitute for every affected agent's before/after routing. A complete green
 runtime probe, remaining affected-agent routing, and per-skill before/after preload byte deltas
 are still owed. Doctor listing-budget and installed-agent drift warnings remain open; no host
-installation or warning waiver is implied by publication of LABFLOW-001.
+installation or warning waiver is implied by publication of LABFLOW-001. The 2026-09-13 probe on
+CLI 2.1.270 FAILED the conditional-reference check once (the builder wrote an API client without
+reading `references/consuming-apis.md`), while the three preload canaries were inconclusive —
+[evidence](archive/2026-09/pin-refresh-evidence-2026-09-13.md); a single run, not a rate.
 
 **Next action:** Compare the existing LABFLOW-001 evidence with those remaining checks, bind any
 new measurement to immutable before/after plugin bytes, and run only the missing checks. Do not

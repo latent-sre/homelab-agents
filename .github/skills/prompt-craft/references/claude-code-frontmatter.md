@@ -22,7 +22,7 @@ plugin exceptions below can make a field inert.
 
 | Field | Notes |
 |---|---|
-| `tools` | Availability allowlist for built-ins **and MCP tools**. **Omitting it inherits every tool** — omission is "all tools," not "none." Exact MCP names use `mcp__<server>__<tool>`; `mcp__<server>` and `mcp__<server>__*` are server-wide patterns. This fleet permits only exact entries in `FLEET_MCP_TOOLS`, because a server-wide pattern silently acquires tools added later. Include `ToolSearch` when approved MCP tools are deferred. **A permission-rule specifier here is inert**: `Bash(git diff:*)` on an agent's `tools:` list restricts nothing (probed on CLI 2.1.200 — the agent ran `git status` exactly like one granted a bare `Bash`), because specifiers work only in settings.json permission rules or a PreToolUse hook. It reads as a limit and is none, so the fleet's validator rejects the form outright. `Agent(worker)` scoping works only for a main-thread agent (`claude --agent`); a subagent silently ignores the type list, so it reads like a limit and isn't one. `AskUserQuestion`, `EnterPlanMode`, `ScheduleWakeup`, `WaitForMcpServers` are never available to a subagent, however listed; `ExitPlanMode` only under `permissionMode: plan`, which a plugin-shipped agent can't set. |
+| `tools` | Availability allowlist for built-ins **and MCP tools**. **Omitting it inherits every tool** — omission is "all tools," not "none." Exact MCP names use `mcp__<server>__<tool>`; `mcp__<server>` and `mcp__<server>__*` are server-wide patterns. This fleet permits only exact entries in `FLEET_MCP_TOOLS`, because a server-wide pattern silently acquires tools added later. Include `ToolSearch` when approved MCP tools are deferred. **A permission-rule specifier here is inert**: `Bash(git diff:*)` on an agent's `tools:` list restricts nothing (probed on CLI 2.1.200 and re-probed 2026-09-13 on 2.1.270 with both spellings under `default` and `dontAsk` — the agent ran `git status` exactly like one granted a bare `Bash`, although the subagent reference now describes the specifier as an enforced allowlist), because specifiers work only in settings.json permission rules or a PreToolUse hook. It reads as a limit and is none, so the fleet's validator rejects the form outright. `Agent(worker)` scoping works only for a main-thread agent (`claude --agent`); a subagent silently ignores the type list, so it reads like a limit and isn't one. `AskUserQuestion`, `EnterPlanMode`, `ScheduleWakeup`, `WaitForMcpServers` are never available to a subagent, however listed; `ExitPlanMode` only under `permissionMode: plan`, which a plugin-shipped agent can't set. |
 | `disallowedTools` | Denylist; applied before `tools` resolves. |
 | `permissionMode` | `default \| acceptEdits \| auto \| dontAsk \| bypassPermissions \| plan \| manual`. Ignored for plugin-shipped agents, so this fleet (a plugin) rejects the field outright — `validate_fleet.py` flags it as configuration that does not exist. |
 | `hooks` | Agent-scoped lifecycle hooks. Real at project/user scope, **inert in a plugin**. A plugin must instead ship `hooks/hooks.json`, which is session-wide, and scope the hook itself on the payload's `agent_type` — that is how this fleet guards `sde-agents:code-reviewer`'s `Bash`. |
@@ -58,7 +58,7 @@ Core fields: `name`, `description` (the trigger), `argument-hint`. Behavior swit
   making the skill's own content defer authority rather than treating the flag as an enforced
   boundary. Re-verify after CLI upgrades — `scripts/probe_plugin.py` is the capability test — and
   update this stamp. (Docs also state the flag stops scheduled-task firings that name the skill,
-  as of v2.1.196 — doc-checked 2026-07-24, not probed.)
+  as of v2.1.196 — doc-checked 2026-07-24 and again 2026-09-13, not probed.)
 - `user-invocable: false` — background-knowledge skills, hidden from the `/` menu.
 - `allowed-tools` **grants** (pre-approves, no permission prompt) while the skill is active — it
   does **not** restrict availability. Takes bare tool names or permission-rule specifiers
@@ -76,7 +76,7 @@ cleaned up when it finishes; a subagent's `Stop` converts to `SubagentStop` (doc
 ignore the field outright (see above), so treat this as unenforced in a plugin until
 `scripts/probe_plugin.py` proves otherwise.
 
-## Platform environment facts (doc-checked 2026-07-30, CLI 2.1.220 era)
+## Platform environment facts (doc-checked 2026-07-30, CLI 2.1.220 era; the `${CLAUDE_PLUGIN_DATA}`, `/doctor`, and `/verify` bullets re-checked against the docs 2026-09-13 with CLI 2.1.270 current — unchanged)
 
 - **`${CLAUDE_PLUGIN_DATA}`** — per-plugin persistent directory (`~/.claude/plugins/data/{id}/`),
   created on first reference, survives plugin updates; exported to hook processes. The place for

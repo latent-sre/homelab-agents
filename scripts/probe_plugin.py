@@ -45,10 +45,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-try:
-    from scripts import stream_events
-except ModuleNotFoundError:
-    import stream_events  # type: ignore[no-redef]
+_REPO_ROOT = str(Path(__file__).resolve().parents[1])
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)  # `import fleet` when run as `python3 scripts/<name>.py`
+
+from fleet import fs as _fs  # noqa: E402
+from fleet import proc as _proc  # noqa: E402
+from fleet import stream as stream_events  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
 CLAUDE = shutil.which("claude")
@@ -162,12 +165,10 @@ GUARD_DENIAL_MARKER = "limited to an ALLOWLIST"
 
 
 def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
-    # Decode as UTF-8 explicitly. `text=True` uses the locale encoding, which on Windows is cp1252
-    # and blows up on the CLI's box-drawing output -- leaving stdout as None rather than failing
-    # honestly, so the probe would report a crash as though it were a verdict.
-    return subprocess.run(
-        cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=600, **kwargs
-    )
+    # The kernel runner owns the decoding decision (explicit UTF-8, never the locale encoding).
+    # A timeout still raises here, as it always has; folding the probe's verdict logic onto
+    # `fleet.proc.run` is roadmap PROBE-006.
+    return _proc.run_completed(cmd, timeout=600, **kwargs)
 
 
 class Probe:
@@ -236,41 +237,12 @@ def bash_results(text: str) -> dict[str, list[str | None]]:
 
     A `None` entry is a call whose result never came back: the absence of evidence, never evidence.
     """
-    commands: dict[str, str] = {}
-    results: dict[str, str] = {}
-    for block in stream_events.iter_content_blocks(text):
-        if block.get("type") == "tool_use" and block.get("name") == "Bash":
-            tool_input = block.get("input")
-            if not isinstance(tool_input, dict):
-                continue
-            tool_id = block.get("id")
-            command = tool_input.get("command")
-            if (
-                not isinstance(tool_id, str)
-                or not tool_id
-                or not isinstance(command, str)
-                or not command
-            ):
-                continue
-            commands[tool_id] = command
-        elif block.get("type") == "tool_result":
-            tool_id = block.get("tool_use_id")
-            if not isinstance(tool_id, str) or not tool_id:
-                continue
-            raw = block.get("content")
-            body = raw if isinstance(raw, str) else " ".join(
-                text
-                for part in (raw if isinstance(raw, list) else [])
-                if isinstance(part, dict)
-                for text in (part.get("text"),)
-                if isinstance(text, str)
-            )
-            results[tool_id] = body or ""
     merged: dict[str, list[str | None]] = {}
-    for tid, command in commands.items():
-        if not command:
+    for exchange in stream_events.correlate_tool_results(text, tool_names={"Bash"}):
+        command = exchange.input.get("command")
+        if not isinstance(command, str) or not command:
             continue
-        merged.setdefault(command, []).append(results.get(tid))
+        merged.setdefault(command, []).append(exchange.result)
     return merged
 
 
@@ -327,29 +299,24 @@ def spawn_succeeded(text: str, agent_name: str) -> bool:
     that cannot fail. The only evidence of a resolved agent is its spawn's result coming back
     without is_error.
     """
-    spawns: dict[str, bool] = {}  # tool_use_id -> names this agent
-    outcomes: dict[str, bool] = {}  # tool_use_id -> is_error
-    for block in stream_events.iter_content_blocks(text):
-        if block.get("type") == "tool_use" and block.get("name") in ("Agent", "Task"):
-            inp = block.get("input")
-            if not isinstance(inp, dict):
-                continue
-            tool_id = block.get("id")
-            if not isinstance(tool_id, str) or not tool_id:
-                continue
-            spawns[tool_id] = (
-                inp["subagent_type"] == agent_name
-                if "subagent_type" in inp
-                else agent_name in json.dumps(inp)
-            )
-        elif block.get("type") == "tool_result":
-            tool_id = block.get("tool_use_id")
-            if not isinstance(tool_id, str) or not tool_id:
-                continue
-            outcomes[tool_id] = bool(block.get("is_error"))
     return any(
-        named and tid in outcomes and not outcomes[tid] for tid, named in spawns.items()
+        _names_agent(exchange.input, agent_name) and exchange.answered and not exchange.is_error
+        for exchange in stream_events.correlate_tool_results(text, tool_names=("Agent", "Task"))
     )
+
+
+def _names_agent(tool_input: dict, agent_name: str) -> bool:
+    """Whether an Agent/Task call's input names `agent_name`.
+
+    Not a transcript-wide `agent_name in json.dumps(input)` first: that also matches when the name
+    merely appears inside ANOTHER agent's prompt TEXT (e.g. a code-reviewer task that mentions
+    "sde-agents:sde-fullstack" in passing), which would feed the wrong spawn's result body into a
+    canary oracle. Prefer the actual field; fall back to the substring match only if it is absent,
+    so this stays safe even if the input shape ever changes.
+    """
+    if "subagent_type" in tool_input:
+        return tool_input["subagent_type"] == agent_name
+    return agent_name in json.dumps(tool_input)
 
 
 def agent_spawn_results(text: str, agent_name: str) -> list[str]:
@@ -363,45 +330,15 @@ def agent_spawn_results(text: str, agent_name: str) -> list[str]:
     specific Agent call that named sde-fullstack is what makes the check test PRELOADING INTO
     SDE-FULLSTACK, not merely "this string exists somewhere in the session."
     """
-    spawns: dict[str, bool] = {}
-    results: dict[str, str] = {}
-    for block in stream_events.iter_content_blocks(text):
-        if block.get("type") == "tool_use" and block.get("name") in ("Agent", "Task"):
-            # Not a transcript-wide `agent_name in json.dumps(input)`: that also matches when the
-            # name merely appears inside ANOTHER agent's prompt TEXT (e.g. a code-reviewer task
-            # that mentions "sde-agents:sde-fullstack" in passing), which would feed the wrong
-            # spawn's result body into the canary oracle. Prefer the actual field; fall back to
-            # the substring match only if it's absent, so this stays safe even if the input shape
-            # ever changes.
-            inp = block.get("input")
-            if not isinstance(inp, dict):
-                continue
-            tool_id = block.get("id")
-            if not isinstance(tool_id, str) or not tool_id:
-                continue
-            named = (
-                inp["subagent_type"] == agent_name
-                if "subagent_type" in inp
-                else agent_name in json.dumps(inp)
-            )
-            spawns[tool_id] = named
-        elif block.get("type") == "tool_result":
-            tool_id = block.get("tool_use_id")
-            if not isinstance(tool_id, str) or not tool_id:
-                continue
-            if block.get("is_error"):
-                # An errored tool_result is the platform saying the spawn produced no answer — a
-                # timeout, a launch failure. Its error text is not an observation of the agent's
-                # context, and returning it made both preload canaries FAIL, concluding the skills
-                # were absent when nothing had run (PR #147 review). Dropped here so the caller's
-                # empty-result branch reports INCONCLUSIVE, which is what it means.
-                continue
-            raw = block.get("content")
-            body = raw if isinstance(raw, str) else " ".join(
-                part.get("text", "") for part in (raw or []) if isinstance(part, dict)
-            )
-            results[tool_id] = body or ""
-    return [results[tid] for tid, named in spawns.items() if named and tid in results]
+    # An errored tool_result is the platform saying the spawn produced no answer -- a timeout, a
+    # launch failure. Its error text is not an observation of the agent's context, and returning
+    # it made both preload canaries FAIL, concluding the skills were absent when nothing had run
+    # (PR #147 review). Dropped here so the caller's empty-result branch reports INCONCLUSIVE.
+    return [
+        exchange.result
+        for exchange in stream_events.correlate_tool_results(text, tool_names=("Agent", "Task"))
+        if _names_agent(exchange.input, agent_name) and exchange.answered and not exchange.is_error
+    ]
 
 
 def _root_event(event: dict) -> bool:
@@ -466,11 +403,7 @@ def _builder_answers(text: str) -> list[str]:
                 continue
             tool_id = block.get("tool_use_id")
             if block.get("type") == "tool_result" and isinstance(tool_id, str):
-                raw = block.get("content")
-                body = raw if isinstance(raw, str) else "\n".join(
-                    part["text"] for part in (raw if isinstance(raw, list) else [])
-                    if isinstance(part, dict) and isinstance(part.get("text"), str)
-                )
+                body = stream_events.block_text(block.get("content"), separator="\n")
                 metadata = event.get("toolUseResult")
                 metadata = metadata if isinstance(metadata, dict) else {}
                 if not block.get("is_error") and (metadata.get("isAsync") is True
@@ -708,17 +641,9 @@ def probe_workflow_contract(probe: "Probe") -> None:
         return
     workspace = REPO / ".probe-tmp"
     plugin_copy = workspace / "plugin"
-    # `.claude/worktrees` (the platform's nested-worktree home) is excluded root-anchored, not
-    # by basename — a basename ignore would silently probe a plugin copy missing any legitimate
-    # `worktrees/` directory a skill or fixture ever ships. Kept in step with tests/support.py's
-    # exclusions by hand; the suite's own copytree gets the same exclusion for the same reason.
-    def _ignore(directory: str, names: list[str]) -> set[str]:
-        ignored = set(names) & {".git", ".probe-tmp", "node_modules"}
-        if Path(directory) == REPO / ".claude":
-            ignored.add("worktrees")
-        return ignored
-
-    shutil.copytree(REPO, plugin_copy, ignore=_ignore)
+    # The exclusions are the kernel's (fleet/fs.py), shared with the test pool so the two can no
+    # longer drift apart by hand.
+    shutil.copytree(REPO, plugin_copy, ignore=_fs.copytree_ignore(REPO))
     hook_log = workspace / "hook-log.jsonl"
     hooks_path = plugin_copy / "hooks" / "hooks.json"
     hooks = json.loads(hooks_path.read_text(encoding="utf-8"))

@@ -14,10 +14,13 @@ validate_fleet.py now rejects that key outright.
 
 Nor can the `tools:` field do this job. A scoped grant like `tools: Bash(git diff:*)` LOOKS like it
 narrows Bash, and does nothing: probed on CLI 2.1.200, agents granted `Bash(git diff:*)` and
-`Bash(git diff *)` both ran `git status` exactly like an agent granted a bare `Bash`. Scoped
-specifiers are real, but only in settings.json permission rules — which are session-wide and would
-restrict the USER's Bash too. There is no native per-agent command scoping. This hook is not a
-workaround for a better mechanism; it is the only mechanism.
+`Bash(git diff *)` both ran `git status` exactly like an agent granted a bare `Bash`. Re-probed
+2026-09-13 on CLI 2.1.270 (three runs: both spellings, `default` and `dontAsk` permission modes,
+project-scope subagent, the subagent's own Bash tool_result as the oracle): unchanged, `git status`
+ran every time — even though the subagent reference now describes the specifier as an enforced
+allowlist. Scoped specifiers are real, but only in settings.json permission rules — which are
+session-wide and would restrict the USER's Bash too. There is no native per-agent command
+scoping. This hook is not a workaround for a better mechanism; it is the only mechanism.
 
 ALLOWLIST, NOT DENYLIST — the load-bearing design decision.
 

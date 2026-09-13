@@ -5,10 +5,8 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
-import hashlib
 import json
 import shutil
-import subprocess
 import sys
 import time
 from collections import Counter
@@ -16,6 +14,13 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
+
+_REPO_ROOT = str(Path(__file__).resolve().parents[1])
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)  # `import fleet` when run as `python3 scripts/<name>.py`
+
+from fleet import digest as _digest  # noqa: E402
+from fleet import proc as _proc  # noqa: E402
 
 try:
     from scripts import generate_platform_adapters, stream_events
@@ -78,26 +83,17 @@ def _timestamp() -> str:
 
 
 def _run(argv: Sequence[str], cwd: Path, timeout: int) -> CommandResult:
-    try:
-        result = subprocess.run(
-            list(argv),
-            cwd=cwd,
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            timeout=timeout,
-        )
-    except subprocess.TimeoutExpired as exc:
-        return CommandResult(
-            None,
-            str(exc.stdout or ""),
-            str(exc.stderr or ""),
-            timed_out=True,
-        )
-    except OSError as exc:
-        return CommandResult(127, "", str(exc))
-    return CommandResult(result.returncode, result.stdout, result.stderr)
+    """The kernel runner, narrowed to this module's result shape.
+
+    A timed-out stream used to be rendered with `str()` on the bytes `TimeoutExpired` hands
+    back, so a partial transcript read as the literal text `b'...'`; the kernel decodes it.
+    """
+    result = _proc.run(argv, cwd=cwd, timeout=timeout)
+    if result.failed_to_start:
+        return CommandResult(127, "", result.error or "")
+    return CommandResult(
+        result.returncode, result.stdout, result.stderr, timed_out=result.timed_out
+    )
 
 
 def load_manifest(path: Path) -> dict[str, object]:
@@ -201,9 +197,9 @@ def _discovery_lane(
         details["fleet_plugin_present"] = (
             listing.returncode == 0 and "sde-agents" in listing.stdout.lower()
         )
-        details["plugin_inventory_digest"] = hashlib.sha256(
+        details["plugin_inventory_digest"] = _digest.sha256_hex(
             (listing.stdout + listing.stderr).encode("utf-8")
-        ).hexdigest()
+        )
         if listing.returncode != 0:
             verdict = "inconclusive"
         elif not details["fleet_plugin_present"]:
@@ -246,7 +242,7 @@ def _behavioral_lane(root: Path, lane: Mapping[str, object], runner: Runner) -> 
         duration_ms=round((time.monotonic() - start) * 1000),
         timeout_seconds=timeout,
         exit_code=result.returncode,
-        transcript_digest=hashlib.sha256(transcript.encode("utf-8")).hexdigest(),
+        transcript_digest=_digest.sha256_hex(transcript.encode("utf-8")),
         details={"timed_out": result.timed_out, "output_tail": transcript[-800:]},
     )
 
@@ -342,7 +338,7 @@ def _model_lane(
     start = time.monotonic()
     executable = which("codex")
     prompt = case["prompt"]
-    prompt_digest = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+    prompt_digest = _digest.sha256_hex(prompt.encode("utf-8"))
     if executable is None:
         return HostResult(
             lane_id=lane["id"],
@@ -416,7 +412,7 @@ def _model_lane(
         prompt_digest=prompt_digest,
         timeout_seconds=lane["timeout_seconds"],
         exit_code=result.returncode,
-        transcript_digest=hashlib.sha256(transcript.encode("utf-8")).hexdigest(),
+        transcript_digest=_digest.sha256_hex(transcript.encode("utf-8")),
         details=details,
     )
 
@@ -482,9 +478,7 @@ def run_manifest(
                     duration_ms=0,
                     requested_model=lane["model"],
                     reasoning_effort=lane["reasoning_effort"],
-                    prompt_digest=hashlib.sha256(
-                        cases[lane["case"]]["prompt"].encode("utf-8")
-                    ).hexdigest(),
+                    prompt_digest=_digest.sha256_hex(cases[lane["case"]]["prompt"].encode("utf-8")),
                     timeout_seconds=lane["timeout_seconds"],
                     details={"reason": "model lanes require --models"},
                 )
@@ -494,7 +488,7 @@ def run_manifest(
         "schema_version": 1,
         "generated_at": _timestamp(),
         "root": str(root.resolve()),
-        "manifest_digest": hashlib.sha256(_canonical_manifest(manifest)).hexdigest(),
+        "manifest_digest": _digest.sha256_hex(_canonical_manifest(manifest)),
         "summary": {verdict: counts.get(verdict, 0) for verdict in sorted(VERDICTS)},
         "results": [asdict(result) for result in results],
     }

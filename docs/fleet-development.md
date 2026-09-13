@@ -355,9 +355,17 @@ paragraph is its summary and loses to it on conflict.
 
 ```bash
 python3 scripts/validate_fleet.py                       # every edit — subsumes the adapter byte-drift check
+ruff check .                                            # every edit — the lint gate (pyproject.toml)
 python3 -m unittest discover -s tests                   # before push — full offline suite
 python3 scripts/validate_claude_plugin.py                # before push — marketplace and canonical plugin
 ```
+
+The instruments share the `fleet/` kernel (link-safe filesystem reads, one subprocess runner,
+stream-json decoding with the `tool_use_id` oracle, digests, the exit ladder, and the frontmatter
+dialect with its strict scalar check and emitter). `ruff` and the kernel's differential YAML
+tripwire come from the pinned dev group: `uv sync`, or the `pip install` line
+`.github/workflows/validate.yml` runs. The rewrite's design and phase plan are in
+`docs/decisions/2026-09-13-machinery-rewrite.md`.
 
 The validator checks frontmatter, names, descriptions, explicit agent tool authority (against a
 known tool vocabulary), models, bundled skill references, the canonical evidence-label phrasing,

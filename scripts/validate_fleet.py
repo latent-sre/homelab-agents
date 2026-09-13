@@ -68,13 +68,20 @@ INVENTORY_RE = re.compile(
 # model at all) — never report them as the same thing.
 ALIAS_MODELS = {"inherit", "haiku", "sonnet", "opus", "fable"}
 FULL_MODEL_ID_RE = re.compile(r"^claude-[a-z0-9]+(?:-[a-z0-9]+)+$")
-# Every frontmatter key Claude Code defines for a subagent (code.claude.com/docs/en/sub-agents).
+# Every frontmatter key Claude Code defines for a subagent (code.claude.com/docs/en/sub-agents,
+# checked against the published table on 2026-09-13 with CLI 2.1.270 current; the test
+# `test_known_fields_cover_the_keys_documented_on_2026_09_13` pins that reading).
 # This exists to close a silent-disarm hole, not for tidiness: the validator used to check only the
 # VALUES of keys it knew and never the KEY NAMESPACE, so a misspelled key was dropped on the floor.
 # That matters because `hooks:` on code-reviewer is what installs the read-only guard on an agent
 # holding Bash — misspell it `hook:` and (before this check) the validator passed, the hook-wiring
 # test passed, and the guard was gone. Whether the runtime errors or silently ignores an unknown key
 # is UNDOCUMENTED, so we refuse to depend on the answer: an unknown key fails here.
+#
+# A key whose documented VALUE is a nested mapping (`hooks`, `mcpServers`, `experimental`) is
+# named here so the namespace rule reports it accurately, but the frontmatter dialect
+# (fleet/frontmatter.py) refuses a nested mapping as malformed frontmatter — loudly, which is the
+# right direction; reading such values is phase 1 of the machinery rewrite.
 KNOWN_AGENT_FIELDS = {
     "name",
     "description",
@@ -92,8 +99,11 @@ KNOWN_AGENT_FIELDS = {
     "isolation",
     "color",
     "initialPrompt",
+    "experimental",
 }
-# Every documented SKILL.md frontmatter field (code.claude.com/docs/en/skills, frontmatter table).
+# Every documented SKILL.md frontmatter field (code.claude.com/docs/en/skills, frontmatter table,
+# checked 2026-09-13 with CLI 2.1.270 current; `metadata`, `license`, and `compatibility` are the
+# Agent Skills spec fields Claude Code accepts but does not act on).
 # Same rationale as KNOWN_AGENT_FIELDS: an unrecognized key is not guaranteed to fail loudly, so a
 # typo silently drops what it configured — a `disable-model-invocaton` or `user-invokable` slip would
 # quietly turn a side-effect skill model-invocable, or expose a background skill, with no error. The
@@ -117,6 +127,9 @@ KNOWN_SKILL_FIELDS = {
     "hooks",
     "paths",
     "shell",
+    "metadata",
+    "license",
+    "compatibility",
 }
 # Claude Code SILENTLY IGNORES these three on a PLUGIN-SHIPPED agent: "For security reasons,
 # `hooks`, `mcpServers`, and `permissionMode` are not supported for plugin-shipped agents"
@@ -410,9 +423,11 @@ def validate_agents(root: Path) -> tuple[list[str], list[str]]:
                 elif scope is not None:
                     issues.append(
                         f"{path}: scoped grant {tool!r} uses permission-rule syntax that the "
-                        f"frontmatter 'tools:' field SILENTLY IGNORES. Probed on CLI 2.1.200: an agent "
-                        f"granted `Bash(git diff:*)` ran `git status` exactly like one granted a bare "
-                        f"`Bash` — the specifier restricts nothing while reading as though it does. "
+                        f"frontmatter 'tools:' field SILENTLY IGNORES. Probed on CLI 2.1.200 and again "
+                        f"on 2.1.270 (2026-09-13, both `Bash(git diff:*)` and `Bash(git diff *)`, under "
+                        f"default and dontAsk): an agent granted either ran `git status` exactly like "
+                        f"one granted a bare `Bash` — the specifier restricts nothing while reading as "
+                        f"though it does, whatever the subagent reference currently says. "
                         f"Specifiers work only in settings.json permission rules (session-wide) or a "
                         f"PreToolUse hook; narrow there, not here."
                     )
@@ -586,117 +601,9 @@ def validate_skills(root: Path) -> tuple[list[str], list[str]]:
     return issues, sorted(names)
 
 
-# YAML's complete double-quoted escape set (spec 1.2 §7.3.1): these single characters, plus
-# `\x`/`\u`/`\U` with exactly 2/4/8 hex digits. Anything else is "found unknown escape character"
-# and the parser refuses the document. Skipping backslash-plus-one unconditionally let
-# `description: "Use C:\q"` through (review finding, PR #120) — a Windows path in a description is
-# exactly how an author writes that by accident. Single-quoted scalars are deliberately absent from
-# this map: YAML gives them no backslash escapes at all, so a backslash there is one literal
-# character and validating it would invent a rule the parser does not have.
-_DOUBLE_QUOTE_ESCAPES = frozenset('0abtnvfre"/\\N_LP \t')
-_HEX_ESCAPE_WIDTHS = {"x": 2, "u": 4, "U": 8}
-_HEX_DIGITS = frozenset("0123456789abcdefABCDEF")
-# A well-formed `\u`/`\U` escape can still name something that is not a character. YAML escapes
-# denote scalar VALUES, and the surrogate block exists only to encode pairs inside UTF-16 — a lone
-# one is not a code point a loader can produce, and nothing above U+10FFFF exists at all. Counting
-# hex digits accepted both (review finding, PR #120), so a description could carry `\uD800` and
-# still ship: this validator keeps the bytes, a strict loader refuses the document, and the
-# component goes missing with no error. `\x` needs no range check — two hex digits cannot leave
-# 0x00-0xFF.
-_SURROGATE_RANGE = range(0xD800, 0xE000)
-_MAX_CODE_POINT = 0x10FFFF
-
-
-def _flow_scalar_defect(value: str) -> str | None:
-    """Name why a quoted YAML flow scalar is unusable here, or return None when it is fine.
-
-    YAML ends a flow scalar at the FIRST unescaped matching quote, so "does a quote appear later
-    in the line" is not the question. Asking only that let `description: "ok"oops` through, and —
-    worse, because it reads as ordinary prose — `description: 'Use the agent's output`, which
-    closes at the apostrophe in "agent's" and leaves `s output` as trailing tokens.
-
-    **One case is deliberately stricter than YAML**, and it is the only place in this rule that
-    rejects a legal document. YAML drops a ` # comment` after a closing quote; `parse_frontmatter`
-    above is not comment-aware — it takes the line and calls `.strip("'\\"")`, which removes the
-    outer quote characters and nothing else. So `description: "Use when routing." # note` parses to
-    `Use when routing." # note` and every generated host copy ships that string as the description
-    (executed, PR #120). Accepting it because YAML would was the wrong call: the fleet's readers are
-    this parser and the hosts downstream of it, not a conforming one.
-
-    Escapes are honored in both directions — a doubled `''` inside a single-quoted scalar and the
-    real escape set inside a double-quoted one — because a value that merely LOOKS malformed would
-    be a false red on a legal file, and the caller's whole point is that only the strict parser can
-    see the difference.
-    """
-    quote = value[0]
-    index = 1
-    while index < len(value):
-        char = value[index]
-        if quote == '"' and char == "\\":
-            following = value[index + 1: index + 2]
-            if not following:
-                return (
-                    "ends on a dangling backslash with nothing to escape, so the scalar never "
-                    "closes"
-                )
-            width = _HEX_ESCAPE_WIDTHS.get(following)
-            if width is not None:
-                digits = value[index + 2: index + 2 + width]
-                if len(digits) != width or not set(digits) <= _HEX_DIGITS:
-                    return (
-                        f"carries the malformed hex escape "
-                        f"{value[index: index + 2 + width]!r}, which needs exactly {width} hex "
-                        f"digits; a conforming YAML parser refuses the document over it"
-                    )
-                if following in "uU":
-                    code_point = int(digits, 16)
-                    if code_point in _SURROGATE_RANGE:
-                        return (
-                            f"escapes the lone surrogate U+{code_point:04X} "
-                            f"({value[index: index + 2 + width]!r}); surrogates encode UTF-16 "
-                            f"pairs and are not scalar values, so a strict loader refuses the "
-                            f"document while this parser keeps the bytes"
-                        )
-                    if code_point > _MAX_CODE_POINT:
-                        return (
-                            f"escapes U+{code_point:04X} "
-                            f"({value[index: index + 2 + width]!r}), above the Unicode maximum "
-                            f"U+{_MAX_CODE_POINT:04X}; no such character exists, so a strict "
-                            f"loader refuses the document while this parser keeps the bytes"
-                        )
-                index += 2 + width
-                continue
-            if following not in _DOUBLE_QUOTE_ESCAPES:
-                return (
-                    f"carries the invalid escape sequence {value[index: index + 2]!r}; a "
-                    f"conforming YAML parser refuses the document with 'found unknown escape "
-                    f"character', while this validator's parser keeps the backslash and every "
-                    f"generated copy ships it"
-                )
-            index += 2
-            continue
-        if char == quote:
-            if quote == "'" and value[index + 1: index + 2] == "'":
-                index += 2
-                continue
-            tail = value[index + 1:].strip()
-            if not tail:
-                return None
-            if tail.startswith("#"):
-                return (
-                    f"closes its {quote} quote and then carries the comment {tail!r}. YAML would "
-                    f"drop that comment, but `parse_frontmatter` in this file is not "
-                    f"comment-aware: it strips only the outer quote characters, so the value "
-                    f"becomes {value.strip(chr(39) + chr(34))!r} and every generated host copy "
-                    f"ships the comment as literal description text. This rule is deliberately "
-                    f"stricter than YAML here"
-                )
-            return (
-                f"closes its {quote} quote and then carries the trailing token(s) {tail!r}, which "
-                f"a conforming YAML parser refuses"
-            )
-        index += 1
-    return f"opens a {quote} quote that never closes on its line"
+# The strict quoted-scalar check lives beside the dialect it compensates for, in
+# fleet/frontmatter.py; the name below is what the tests and this file's rule call.
+_flow_scalar_defect = fleet_records._frontmatter.flow_scalar_defect
 
 
 def validate_yaml_scalar_quoting(root: Path) -> list[str]:
