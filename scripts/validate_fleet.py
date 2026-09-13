@@ -68,13 +68,20 @@ INVENTORY_RE = re.compile(
 # model at all) — never report them as the same thing.
 ALIAS_MODELS = {"inherit", "haiku", "sonnet", "opus", "fable"}
 FULL_MODEL_ID_RE = re.compile(r"^claude-[a-z0-9]+(?:-[a-z0-9]+)+$")
-# Every frontmatter key Claude Code defines for a subagent (code.claude.com/docs/en/sub-agents).
+# Every frontmatter key Claude Code defines for a subagent (code.claude.com/docs/en/sub-agents,
+# checked against the published table on 2026-09-13 with CLI 2.1.270 current; the test
+# `test_known_fields_cover_the_keys_documented_on_2026_09_13` pins that reading).
 # This exists to close a silent-disarm hole, not for tidiness: the validator used to check only the
 # VALUES of keys it knew and never the KEY NAMESPACE, so a misspelled key was dropped on the floor.
 # That matters because `hooks:` on code-reviewer is what installs the read-only guard on an agent
 # holding Bash — misspell it `hook:` and (before this check) the validator passed, the hook-wiring
 # test passed, and the guard was gone. Whether the runtime errors or silently ignores an unknown key
 # is UNDOCUMENTED, so we refuse to depend on the answer: an unknown key fails here.
+#
+# A key whose documented VALUE is a nested mapping (`hooks`, `mcpServers`, `experimental`) is
+# named here so the namespace rule reports it accurately, but the frontmatter dialect
+# (fleet/frontmatter.py) refuses a nested mapping as malformed frontmatter — loudly, which is the
+# right direction; reading such values is phase 1 of the machinery rewrite.
 KNOWN_AGENT_FIELDS = {
     "name",
     "description",
@@ -92,8 +99,11 @@ KNOWN_AGENT_FIELDS = {
     "isolation",
     "color",
     "initialPrompt",
+    "experimental",
 }
-# Every documented SKILL.md frontmatter field (code.claude.com/docs/en/skills, frontmatter table).
+# Every documented SKILL.md frontmatter field (code.claude.com/docs/en/skills, frontmatter table,
+# checked 2026-09-13 with CLI 2.1.270 current; `metadata`, `license`, and `compatibility` are the
+# Agent Skills spec fields Claude Code accepts but does not act on).
 # Same rationale as KNOWN_AGENT_FIELDS: an unrecognized key is not guaranteed to fail loudly, so a
 # typo silently drops what it configured — a `disable-model-invocaton` or `user-invokable` slip would
 # quietly turn a side-effect skill model-invocable, or expose a background skill, with no error. The
@@ -117,6 +127,9 @@ KNOWN_SKILL_FIELDS = {
     "hooks",
     "paths",
     "shell",
+    "metadata",
+    "license",
+    "compatibility",
 }
 # Claude Code SILENTLY IGNORES these three on a PLUGIN-SHIPPED agent: "For security reasons,
 # `hooks`, `mcpServers`, and `permissionMode` are not supported for plugin-shipped agents"
@@ -410,9 +423,11 @@ def validate_agents(root: Path) -> tuple[list[str], list[str]]:
                 elif scope is not None:
                     issues.append(
                         f"{path}: scoped grant {tool!r} uses permission-rule syntax that the "
-                        f"frontmatter 'tools:' field SILENTLY IGNORES. Probed on CLI 2.1.200: an agent "
-                        f"granted `Bash(git diff:*)` ran `git status` exactly like one granted a bare "
-                        f"`Bash` — the specifier restricts nothing while reading as though it does. "
+                        f"frontmatter 'tools:' field SILENTLY IGNORES. Probed on CLI 2.1.200 and again "
+                        f"on 2.1.270 (2026-09-13, both `Bash(git diff:*)` and `Bash(git diff *)`, under "
+                        f"default and dontAsk): an agent granted either ran `git status` exactly like "
+                        f"one granted a bare `Bash` — the specifier restricts nothing while reading as "
+                        f"though it does, whatever the subagent reference currently says. "
                         f"Specifiers work only in settings.json permission rules (session-wide) or a "
                         f"PreToolUse hook; narrow there, not here."
                     )

@@ -16,10 +16,10 @@ dependencies = []
 [dependency-groups]
 dev = [
     # Lint and formatting gate; version pinned so CI and the edit loop agree byte-for-byte.
-    "ruff==0.15.8",
+    "ruff==0.16.7",
     # Test runner that executes the existing unittest suite unchanged and adds -k, --durations
     # on every supported Python, and fixtures for the kernel tests.
-    "pytest==9.0.2",
+    "pytest==9.1.1",
     # A CONFORMING YAML parser, used only as a differential tripwire against the fleet's own
     # frontmatter dialect (tests/test_fleet_frontmatter.py). It is never the reader: the hosts
     # that load the definitions are the oracle, and they are not conforming parsers either.

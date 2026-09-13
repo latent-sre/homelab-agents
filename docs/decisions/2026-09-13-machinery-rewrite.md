@@ -42,8 +42,9 @@ substrings of them, so a reworded diagnostic is a test failure and no consumer c
 rule, path, or severity. Files are parsed up to four times per run because no rule shares a
 loaded snapshot.
 
-**Contract drift against the platform, found while checking the design.** All four facts are
-`[sourced]` from code.claude.com on 2026-09-13 and none is yet `[verified]` against a session:
+**Contract drift against the platform, found while checking the design.** All four facts were
+`[sourced]` from code.claude.com on 2026-09-13; facts 2 and 4 were then `[verified]` the same
+day and the pins moved ([pin refresh evidence](../archive/2026-09/pin-refresh-evidence-2026-09-13.md)):
 
 1. `claude plugin eval` shipped in Claude Code 2.1.269 (2026-09-11) and its documentation now
    lists the grader set, an isolated per-run configuration, `tool_used` graders with
@@ -54,15 +55,17 @@ loaded snapshot.
 2. The subagent reference now documents `tools: Bash(git diff *)` as an enforced allowlist
    ("This allows only `git diff` and `git log` commands via Bash"). The validator rejects those
    specifiers citing a 2.1.200 probe in which they did nothing, and the guard docstring rests on
-   the same probe. One of the two is stale; only a re-probe on the pinned CLI can say which.
+   the same probe. Re-probed on 2.1.270 (three runs, both spellings, two permission modes): the
+   specifier still restricts nothing. The validator's claim stands; the documentation's does not
+   hold under a session that grants Bash.
 3. The agent frontmatter reference lists `effort`, `maxTurns`, `memory`, `background`,
    `isolation`, `initialPrompt`, `experimental`, and `disallowedTools`; the skill reference
    lists `when_to_use`, `arguments`, `user-invocable`, `disallowed-tools`, `paths`, `shell`,
    `context`, `agent`, `effort`, `hooks`, `metadata`, `license`, `compatibility`. The validator's
    known-key sets carry no record of which documentation revision they were checked against.
-4. `claude plugin validate --json` exists since 2.1.268; CI pins 2.1.219 and the wrapper parses
-   console text. The installed CLI in the design session was 2.1.270 and passed both the
-   marketplace and the canonical plugin copy under `--strict`.
+4. `claude plugin validate --json` exists since 2.1.268 and the wrapper still parses console
+   text. CI pinned 2.1.219; it now pins 2.1.270, the version that passed both the marketplace and
+   the canonical plugin copy under `--strict` and the runtime probe's contract checks.
 
 ## Decision
 
@@ -187,9 +190,9 @@ violated on 2026-09-13; a module leaves the table in the phase that migrates it.
 - Two behaviours changed on purpose in phase 0 and are tested: a timed-out `probe_hosts`
   command now carries its partial transcript as text, and the test pool now excludes
   `node_modules` exactly as the probe's plugin copy always did.
-- Drift facts 1–4 above are recorded here, not fixed here: each needs a live session (a
-  re-probe on the pinned CLI for the `tools:` specifier claim; a native eval run for phase 4).
-  `MACH-001` carries them as its first live actions.
+- Drift facts 2 and 4 were resolved by measurement the same day; fact 3 by refreshing the
+  known-key sets with a dated test. Fact 1 (native evals) needs a live run and stays MACH-001's
+  first live action.
 
 ## Reopen triggers
 

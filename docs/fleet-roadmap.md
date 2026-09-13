@@ -92,9 +92,13 @@ change; the routing runner is not wired onto the kernel before it retires (prove
 **Acceptance:** Per phase, the oracle named in the record's phase table, plus green tiers.
 Closes when phase 5 merges and the lint ratchet table in `pyproject.toml` is empty.
 
-**Next action:** Operator ruling on the record. First live actions after acceptance: re-probe
-the `tools: Bash(git diff *)` specifier claim on the pinned CLI (the docs and the validator now
-disagree), and run one native `claude plugin eval` case with a `tool_used: Agent` grader.
+**Evidence disposition:** The specifier claim was re-probed on 2.1.270 on 2026-09-13 (three
+runs; the specifier restricts nothing, the validator's rule stands) and the CI pin moved to
+2.1.270 with the probe re-run — [pin refresh evidence](archive/2026-09/pin-refresh-evidence-2026-09-13.md).
+
+**Next action:** Operator ruling on the record. First live action after acceptance: run one
+native `claude plugin eval` case with a `tool_used: Agent` grader against a plugin-namespaced
+`subagent_type`.
 
 #### LABFLOW-001 — simplify the homelab operating path
 
@@ -170,7 +174,10 @@ covered by deterministic tests. Retro-boundary and continuous-improvement routin
 but they do not substitute for every affected agent's before/after routing. A complete green
 runtime probe, remaining affected-agent routing, and per-skill before/after preload byte deltas
 are still owed. Doctor listing-budget and installed-agent drift warnings remain open; no host
-installation or warning waiver is implied by publication of LABFLOW-001.
+installation or warning waiver is implied by publication of LABFLOW-001. The 2026-09-13 probe on
+CLI 2.1.270 FAILED the conditional-reference check once (the builder wrote an API client without
+reading `references/consuming-apis.md`), while the three preload canaries were inconclusive —
+[evidence](archive/2026-09/pin-refresh-evidence-2026-09-13.md); a single run, not a rate.
 
 **Next action:** Compare the existing LABFLOW-001 evidence with those remaining checks, bind any
 new measurement to immutable before/after plugin bytes, and run only the missing checks. Do not

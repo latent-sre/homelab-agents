@@ -712,5 +712,32 @@ class FleetValidatorTests(unittest.TestCase):
         self.assertEqual([], [i for i in issues if "skills:" in i], issues)
 
 
+class DocumentedFrontmatterKeysTests(unittest.TestCase):
+    """The known-key sets must cover every key the platform documents, as read on a stated date.
+
+    Risk hypothesis: a key added upstream and used in a definition fails the namespace rule as
+    "unknown" with no hint that the SET is stale rather than the file. Pinning the documented
+    reading here makes a stale set a test failure with the date it was last checked in its name.
+    """
+
+    AGENT_KEYS_2026_09_13 = {
+        "name", "description", "tools", "disallowedTools", "model", "permissionMode",
+        "maxTurns", "skills", "mcpServers", "hooks", "memory", "background", "effort",
+        "isolation", "color", "initialPrompt", "experimental",
+    }
+    SKILL_KEYS_2026_09_13 = {
+        "name", "description", "when_to_use", "argument-hint", "arguments",
+        "disable-model-invocation", "user-invocable", "allowed-tools", "disallowed-tools",
+        "model", "effort", "context", "agent", "background", "hooks", "paths", "shell",
+        "metadata", "license", "compatibility",
+    }
+
+    def test_known_fields_cover_the_keys_documented_on_2026_09_13(self) -> None:
+        # code.claude.com/docs/en/sub-agents and /docs/en/skills, frontmatter tables, CLI 2.1.270.
+        self.assertEqual(set(), self.AGENT_KEYS_2026_09_13 - validate_fleet.KNOWN_AGENT_FIELDS)
+        self.assertEqual(set(), self.SKILL_KEYS_2026_09_13 - validate_fleet.KNOWN_SKILL_FIELDS)
+
+
+
 if __name__ == "__main__":
     unittest.main()

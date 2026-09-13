@@ -25,6 +25,7 @@ below are live. Everything else here is historical evidence.
 
 | Document | State | Read it for |
 |---|---|---|
+| [`archive/2026-09/pin-refresh-evidence-2026-09-13.md`](archive/2026-09/pin-refresh-evidence-2026-09-13.md) | Verification evidence | The 2026-09-13 pin refresh: every stale pin with its verified replacement, the full probe verdict on CLI 2.1.270 with each non-pass dispositioned, and the three-run `tools:` specifier re-probe that keeps the validator's claim over the documentation's |
 | [`archive/2026-09/fleet-scan-repairs-2026-09-12.md`](archive/2026-09/fleet-scan-repairs-2026-09-12.md) | Local repair evidence | Disposition of the 29 agent/skill findings, explicit platform validation, regression and full-suite evidence, unchanged authority/frontmatter, and unmeasured runtime/installation limits |
 | [`archive/2026-09/pr178-repair-budget-check-2026-09-10.md`](archive/2026-09/pr178-repair-budget-check-2026-09-10.md) | Behavioral evidence | Paired fresh-context repair-budget decisions and return packets; four synthetic cases, with real delegation and repeated-run reliability unmeasured |
 | [`fleet-roadmap.md`](fleet-roadmap.md) | Live | Every unfinished, blocked, deferred, and decision-needed item. Nothing else adds work |
