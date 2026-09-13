@@ -17,6 +17,7 @@ import tomllib
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 
 POLICY_PATH = Path(__file__).with_name("policy.toml")
 
@@ -166,10 +167,12 @@ def load(path: Path = POLICY_PATH) -> Policy:
         fleet_tools=frozenset(_strings(tools, "fleet", "tools")),
         write_tools=frozenset(_strings(tools, "write", "tools")),
         subagent_unavailable_tools=frozenset(_strings(tools, "subagent_unavailable", "tools")),
-        tool_groups=dict(groups),
-        roles=roles,
+        # Read-only views: a consumer that mutated a mapping in place would make every later
+        # validation diverge from the file the policy claims to be, with nothing to notice.
+        tool_groups=MappingProxyType(dict(groups)),
+        roles=MappingProxyType(dict(roles)),
         evidence_label_stems=tuple(_strings(evidence, "stems", "evidence")),
-        perishable_tokens=dict(perishable),
+        perishable_tokens=MappingProxyType(dict(perishable)),
         guide_import=_string(guide, "import_line", "guide"),
         program_doc=_string(guide, "program_doc", "guide"),
         conformance_required_hosts=frozenset(

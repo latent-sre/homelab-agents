@@ -134,12 +134,15 @@ def plugin_reference_findings(
         agents = set(agent_names)
         skills = set(skill_names)
         # One shared extraction (fleet.references). Deduping per file to (slash, target) keeps
-        # one message per distinct reference however many times a file repeats it.
-        by_path: dict[Path, set[tuple[bool, str]]] = {}
+        # one message per distinct reference however many times a file repeats it; the first
+        # occurrence's line is kept so the finding can point at a source line.
+        by_path: dict[Path, dict[tuple[bool, str], int]] = {}
         for record in collect_references(fleet.root, plugin_name, texts=fleet.markdown_texts):
-            by_path.setdefault(record.path, set()).add((record.is_slash_command, record.target))
+            lines = by_path.setdefault(record.path, {})
+            lines.setdefault((record.is_slash_command, record.target), record.line)
         for path, references in by_path.items():
             for is_slash_command, target in sorted(references):
+                line = references[(is_slash_command, target)]
                 reference = f"{'/' if is_slash_command else ''}{plugin_name}:{target}"
                 if not NAME_RE.fullmatch(target):
                     findings.append(
@@ -152,6 +155,7 @@ def plugin_reference_findings(
                             f"a different live member while this token fails to resolve at "
                             f"runtime.",
                             path,
+                            line,
                         )
                     )
                     continue
@@ -165,6 +169,7 @@ def plugin_reference_findings(
                             f"cannot "
                             f"resolve at runtime.",
                             path,
+                            line,
                         )
                     )
                     continue
@@ -178,6 +183,7 @@ def plugin_reference_findings(
                             f"rename or removal must update every referrer, and this rule is what "
                             f"makes the miss loud.",
                             path,
+                            line,
                         )
                     )
     return findings

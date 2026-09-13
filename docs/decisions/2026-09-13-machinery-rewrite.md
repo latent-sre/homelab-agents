@@ -216,8 +216,11 @@ run in the legacy `validate_repo` order, each declaring its scope (`fleet` or `d
 every id it emits, with the runner sequencing definition-scoped findings definition-major as the
 legacy per-definition loops did; `fleet/cli.py` with `validate` (`--json`, `--github`,
 `--write-inventory`, `--no-adapters`) and `rules`; hook rosters read through `ast` in
-`fleet.snapshot.read_rosters` and captured once per load as `HookScript` records, so the
-validator neither executes a hook script nor re-reads one after the snapshot;
+`fleet.snapshot.read_rosters` and captured once per load as `HookScript` records, alongside
+the manifest's presence and each skill's bundle inventory, so the validator neither executes a
+hook script nor re-reads any input after the snapshot; the group vocabulary is closed (an
+unknown group is refused at registration and at selection) and the policy's mappings are
+read-only views;
 `fleet/modules.py` as the one content-keyed script loader. `scripts/validate_fleet.py` shrank to
 a compatibility layer whose `validate_*` functions and constants are views of the rules and the
 policy, and whose roster-taking wrappers honour the caller's roster.
@@ -232,9 +235,11 @@ found identical message lists, order included, on every tree. Four diagnostics a
 text deltas, mapped explicitly in the harness: the three tool-adoption messages and the guide's
 alias message now name their `fleet/policy.toml` table instead of `FLEET_TOOLS`,
 `FLEET_MCP_TOOLS`, and `ALIAS_MODELS`, which no longer govern anything. The suite grew from 550
-to 587 tests, the new ones pinning rule ids per fixture, the registry's uniqueness, group
+to 593 tests, the new ones pinning rule ids per fixture, the registry's uniqueness, group
 coverage, run order, and scope set, policy loading, snapshot reads (definition bytes and hook
 rosters judged as loaded, never re-read), the roster reader's refusal to execute, the finding
-renderers, and the CLI. Two Codex review rounds (seven and five findings) drove the order, the
-snapshot-captured rosters, the declared ids, the honoured rosters, and the policy-pointing
+renderers, and the CLI. Three Codex review rounds (seven, five, and seven findings) drove the
+order, the snapshot-captured rosters, manifest presence, and bundle inventories, the declared
+ids, the closed group vocabulary, the honoured rosters, the read-only policy views, the
+source line on reference findings, the tolerant hook reader, and the policy-pointing
 diagnostics; one finding was declined, with the reason in `fleet/policy.py`'s docstring.

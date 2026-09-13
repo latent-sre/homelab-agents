@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -114,12 +115,19 @@ def skill_identity(fleet: Fleet) -> list[Finding]:
     return findings
 
 
+def _resolves(base: Path, reference: str, inventory: frozenset[Path]) -> bool:
+    """Whether `reference` names a captured bundle path under `base`. `normpath` folds a `./`
+    or `../` segment the way the filesystem would have, so the record answers the same question
+    an existence check did."""
+    return Path(os.path.normpath(base / reference)) in inventory
+
+
 def _bundle_link_findings(fleet: Fleet, skill: Definition) -> list[Finding]:
     findings: list[Finding] = []
     for reference in sorted(bundle_references(skill.text or "")):
-        local_target = skill.directory / Path(reference)
-        shared_target = fleet.root / Path(reference)
-        if not local_target.exists() and not shared_target.exists():
+        if not _resolves(skill.directory, reference, skill.bundle_paths) and not _resolves(
+            fleet.root, reference, fleet.shared_bundle_paths
+        ):
             findings.append(
                 Finding(
                     "skill.bundle.links",
@@ -135,11 +143,9 @@ def _orphan_findings(skill: Definition) -> list[Finding]:
     A references/*.md file with no routing-table row is dead knowledge that looks shipped."""
     findings: list[Finding] = []
     references_dir = skill.directory / "references"
-    if not references_dir.is_dir():
-        return findings
     linked = bundle_references(skill.text or "")
-    for ref_file in sorted(references_dir.rglob("*")):
-        if not ref_file.is_file():
+    for ref_file in skill.bundle_files:
+        if references_dir not in ref_file.parents:
             continue
         rel = ref_file.relative_to(skill.directory).as_posix()
         if rel not in linked:

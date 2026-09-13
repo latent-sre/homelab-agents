@@ -52,6 +52,23 @@ class Rule:
 REGISTRY: dict[str, Rule] = {}
 _ORDER: list[str] = []
 
+# The legacy `validate_repo` sequence, by group, so the wrappers and the CLI agree on order. It
+# is also the closed vocabulary of groups: registration and selection both refuse a name outside
+# it.
+REPO_GROUP_ORDER: tuple[str, ...] = (
+    "agents",
+    "skills",
+    "scalars",
+    "plugin",
+    "adapters",
+    "guide",
+    "routing",
+    "conformance",
+    "references",
+    "workflows",
+    "inventory",
+)
+
 
 def rule(
     id: str, *, group: str, why: str, emits: tuple[str, ...] = (), scope: str = "fleet"
@@ -65,6 +82,12 @@ def rule(
             raise ValueError(f"rule {id} must list itself among the ids it emits")
         if scope not in SCOPES:
             raise ValueError(f"rule {id} has unknown scope {scope!r}; expected one of {SCOPES}")
+        if group not in REPO_GROUP_ORDER:
+            # A mistyped group would register fine and then never be visited by the default
+            # traversal: a rule that exists, passes every registry test, and runs nowhere.
+            raise ValueError(
+                f"rule {id} names unknown group {group!r}; expected one of {REPO_GROUP_ORDER}"
+            )
         REGISTRY[id] = Rule(id, group, why, function, emits, scope)
         _ORDER.append(id)
         return function
@@ -78,6 +101,11 @@ def rules(*, groups: Iterable[str] | None = None) -> list[Rule]:
     groups is an import-dependency accident (a module that imports another registers the other's
     rules first), so the group sequence is the only order a caller may rely on."""
     sequence = tuple(REPO_GROUP_ORDER if groups is None else groups)
+    unknown = [group for group in sequence if group not in REPO_GROUP_ORDER]
+    if unknown:
+        # A caller asking for a group that does not exist would otherwise get an empty, clean
+        # report that ran no check at all.
+        raise ValueError(f"unknown rule group(s) {unknown}; expected from {REPO_GROUP_ORDER}")
     ordered: list[Rule] = []
     for group in sequence:
         ordered.extend(REGISTRY[i] for i in _ORDER if REGISTRY[i].group == group)
@@ -148,21 +176,6 @@ def _home_rank(path: Path | None, homes: dict[Path, int]) -> int:
                 return homes[candidate]
     return len(homes)
 
-
-# The legacy `validate_repo` sequence, by group, so the wrappers and the CLI agree on order.
-REPO_GROUP_ORDER: tuple[str, ...] = (
-    "agents",
-    "skills",
-    "scalars",
-    "plugin",
-    "adapters",
-    "guide",
-    "routing",
-    "conformance",
-    "references",
-    "workflows",
-    "inventory",
-)
 
 # Importing the rule modules registers them. Order matters: it is the legacy validate_repo order.
 from fleet.rules import (  # noqa: E402,F401

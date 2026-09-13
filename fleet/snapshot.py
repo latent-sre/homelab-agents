@@ -36,6 +36,11 @@ class Definition:
     lines: tuple[str, ...]
     span: int | None  # closing frontmatter marker index, or None
     fields: dict[str, str] | None  # None when absent, unterminated, or refused
+    # A skill's bundle as loaded: every path under its references/, assets/, and scripts/ (files
+    # and directories, so a link to either resolves) and the files alone, in walk order. The
+    # bundle rules judge these records, not the disk, so one report never mixes two trees.
+    bundle_paths: frozenset[Path] = field(default_factory=frozenset)
+    bundle_files: tuple[Path, ...] = ()
 
     @property
     def stem(self) -> str:
@@ -72,14 +77,36 @@ class Definition:
         return [entry.strip() for entry in self.field("skills").split(",") if entry.strip()]
 
 
+BUNDLE_DIRS = ("references", "assets", "scripts")
+
+
+def _bundle_inventory(directory: Path) -> tuple[frozenset[Path], tuple[Path, ...]]:
+    """Every path and every file under the bundle directories of `directory`, walked once."""
+    paths: set[Path] = set()
+    files: list[Path] = []
+    for name in BUNDLE_DIRS:
+        bundle_dir = directory / name
+        if not bundle_dir.is_dir():
+            continue
+        paths.add(bundle_dir)
+        for entry in sorted(bundle_dir.rglob("*")):
+            paths.add(entry)
+            if entry.is_file():
+                files.append(entry)
+    return frozenset(paths), tuple(files)
+
+
 def _load_definition(kind: str, path: Path) -> Definition:
+    bundle_paths, bundle_files = (
+        _bundle_inventory(path.parent) if kind == "skill" else (frozenset(), ())
+    )
     text = fs.try_read_text(path)
     if text is None:
-        return Definition(kind, path, None, (), None, None)
+        return Definition(kind, path, None, (), None, None, bundle_paths, bundle_files)
     lines = text.splitlines()
     span = frontmatter.span(lines)
     fields = None if span is None else frontmatter.parse_lines(lines, span)
-    return Definition(kind, path, text, tuple(lines), span, fields)
+    return Definition(kind, path, text, tuple(lines), span, fields, bundle_paths, bundle_files)
 
 
 @dataclass(frozen=True)
@@ -97,6 +124,11 @@ class Fleet:
     plugin_manifest_error: str | None
     hooks_path: Path
     hook_commands: tuple[str, ...] = field(default=())
+    # Whether the manifest existed when the tree was read: every plugin-gated rule gates on this
+    # record, so a manifest created or removed afterwards changes nothing in this report.
+    plugin_manifest_present: bool = False
+    # The repository-level bundle directories a skill link may resolve to instead of its own.
+    shared_bundle_paths: frozenset[Path] = field(default_factory=frozenset)
     # The two hook scripts and their rosters, read as data at load time. The plugin rules judge
     # these against the same agents and hook file the rest of the report describes; a script
     # rewritten after the snapshot changes nothing in this report.
@@ -152,6 +184,8 @@ class Fleet:
             plugin_manifest_path=manifest_path,
             plugin_manifest=manifest,
             plugin_manifest_error=manifest_error,
+            plugin_manifest_present=manifest_path.is_file(),
+            shared_bundle_paths=_bundle_inventory(root)[0],
             hooks_path=hooks_path,
             hook_commands=tuple(_hook_commands(hooks_path)),
             guard=guard,
@@ -163,7 +197,7 @@ class Fleet:
 
     @property
     def ships_as_plugin(self) -> bool:
-        return self.plugin_manifest_path.is_file()
+        return self.plugin_manifest_present
 
     @property
     def plugin_name(self) -> str:
@@ -221,11 +255,17 @@ def _hook_commands(path: Path) -> list[str]:
         config = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return []
+    # A file that parses but has the wrong shape (a top-level list, a string where a table
+    # belongs) is recorded as declaring no commands, so the plugin rules report the missing
+    # hooks rather than the whole snapshot refusing to load an unrelated agent check.
     commands: list[str] = []
-    for entry in config.get("hooks", {}).get("PreToolUse", []):
-        if entry.get("matcher") == "Bash":
-            for hook in entry.get("hooks", []):
-                if hook.get("type") == "command" and hook.get("command"):
+    hooks = config.get("hooks") if isinstance(config, dict) else None
+    entries = hooks.get("PreToolUse") if isinstance(hooks, dict) else None
+    for entry in entries if isinstance(entries, list) else []:
+        if isinstance(entry, dict) and entry.get("matcher") == "Bash":
+            hook_list = entry.get("hooks")
+            for hook in hook_list if isinstance(hook_list, list) else []:
+                if isinstance(hook, dict) and hook.get("type") == "command" and hook.get("command"):
                     commands.append(hook["command"])
     return commands
 

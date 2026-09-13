@@ -56,6 +56,16 @@ class PolicyLoadTests(unittest.TestCase):
             with self.assertRaises(policy.PolicyError):
                 policy.load(broken)
 
+    def test_policy_mappings_are_read_only_views(self) -> None:
+        # A consumer that emptied a mapping in place would make every later validation diverge
+        # from fleet/policy.toml with nothing to notice; the views refuse the write.
+        p = policy.POLICY
+        for mapping in (p.roles, p.tool_groups, p.perishable_tokens):
+            with self.assertRaises((AttributeError, TypeError)):
+                mapping.clear()  # type: ignore[attr-defined]
+            with self.assertRaises(TypeError):
+                mapping["x"] = None  # type: ignore[index]
+
     def test_every_table_carries_a_checked_date_or_the_meta_date(self) -> None:
         self.assertRegex(policy.POLICY.checked, r"^\d{4}-\d{2}-\d{2}$")
         self.assertRegex(policy.POLICY.cli, r"^\d+\.\d+\.\d+$")

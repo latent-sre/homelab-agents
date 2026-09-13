@@ -121,6 +121,17 @@ class RegistryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             rules.rule("scope.bogus", group="agents", why="w", scope="file")(lambda fleet: [])
 
+    def test_an_unknown_group_is_refused_at_registration_and_at_selection(self) -> None:
+        # A mistyped group would register fine and never be visited; a mistyped selection would
+        # return a clean report that ran nothing. Both are loud instead.
+        with self.assertRaises(ValueError):
+            rules.rule("group.bogus", group="agent", why="w")(lambda fleet: [])
+        self.assertNotIn("group.bogus", rules.REGISTRY)
+        with self.assertRaises(ValueError):
+            rules.rules(groups=("agent",))
+        with self.assertRaises(ValueError):
+            rules.run(Fleet.load(REPO), groups=("agents", "skill"))
+
     def test_run_sequences_definition_findings_definition_major(self) -> None:
         # The legacy loops emitted every finding about one definition before the next; a run
         # that went rule by rule would report agent b's malformed frontmatter before agent a's
@@ -266,6 +277,72 @@ class PluginRuleIdTests(unittest.TestCase):
                 "plugin.guard.roster",
                 {f.rule for f in rules.run(Fleet.load(dst), groups=("plugin",))},
             )
+
+    def test_plugin_gated_rules_judge_the_snapshot_manifest_not_the_disk(self) -> None:
+        # Plugin presence is part of the snapshot: a manifest removed after the load must not
+        # silently switch off every plugin-gated group for the tree that was loaded.
+        with repo_copy() as dst:
+            fleet = Fleet.load(dst)
+            guard = dst / "scripts" / "readonly-guard.py"
+            (dst / ".claude-plugin" / "plugin.json").unlink()
+            self.assertTrue(fleet.ships_as_plugin)
+            self.assertFalse(Fleet.load(dst).ships_as_plugin)
+            guard.write_text(
+                guard.read_text(encoding="utf-8").replace('"code-reviewer", ', "", 1),
+                encoding="utf-8",
+            )
+            self.assertEqual([], rules.run(fleet, groups=("plugin",)))
+            self.assertEqual([], rules.run(Fleet.load(dst), groups=("plugin",)))
+
+    def test_bundle_rules_judge_the_snapshot_inventory_not_the_disk(self) -> None:
+        # A reference file added after the load is a different tree; the loaded snapshot keeps
+        # reporting the bundle it read, and a fresh load reports the orphan.
+        with repo_copy() as dst:
+            fleet = Fleet.load(dst)
+            late = dst / "skills" / "runbook" / "references" / "late.md"
+            late.parent.mkdir(exist_ok=True)
+            late.write_text("x", encoding="utf-8")
+            self.assertEqual([], rules.run(fleet, groups=("skills",)))
+            fresh = rules.run(Fleet.load(dst), groups=("skills",))
+            self.assertEqual(["skill.bundle.orphans"], [f.rule for f in fresh])
+            self.assertEqual(late, fresh[0].path)
+            # And the other direction: a linked file removed after the load stays resolvable in
+            # the report about the tree that still had it.
+            skill = next(s for s in fleet.skills if s.stem == "runbook")
+            linked = sorted(skill.bundle_files)[0]
+            linked.unlink()
+            self.assertEqual([], rules.run(fleet, groups=("skills",)))
+            after = {f.rule for f in rules.run(Fleet.load(dst), groups=("skills",))}
+            self.assertIn("skill.bundle.links", after)
+
+    def test_namespaced_reference_findings_carry_the_source_line(self) -> None:
+        # The collector knows the line of every occurrence; a finding that dropped it could
+        # only annotate the whole file.
+        with repo_copy() as dst:
+            agent = dst / "agents" / "sde-fullstack.md"
+            text = agent.read_text(encoding="utf-8")
+            agent.write_text(text + "\nHand off to sde-agents:no-such-agent.\n", encoding="utf-8")
+            expected_line = len(text.splitlines()) + 2
+            findings = [
+                f
+                for f in rules.run(Fleet.load(dst), groups=("plugin",))
+                if f.rule == "plugin.references.namespaced"
+            ]
+        self.assertEqual(1, len(findings), [f.text for f in findings])
+        self.assertEqual((agent, expected_line), (findings[0].path, findings[0].line))
+
+    def test_compatibility_validators_survive_a_malformed_unrelated_file(self) -> None:
+        # The legacy validate_agents inspected only agents/; a hooks.json with the wrong shape
+        # must not stop it from returning its verdict now that one snapshot feeds every rule.
+        from scripts import validate_fleet
+
+        with repo_copy() as dst:
+            (dst / "hooks" / "hooks.json").write_text("[]", encoding="utf-8")
+            issues, names = validate_fleet.validate_agents(dst)
+            self.assertEqual([], issues)
+            self.assertEqual(10, len(names))
+            self.assertEqual((), Fleet.load(dst).hook_commands)
+            self.assertIn("plugin.hooks.guard", {f.rule for f in rules.run(Fleet.load(dst))})
 
     def test_reference_rules_judge_the_snapshot_bytes_not_the_disk(self) -> None:
         # The definitions are read once; a file rewritten after the snapshot must not make the
