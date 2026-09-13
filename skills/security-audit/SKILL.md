@@ -41,8 +41,9 @@ loaded when that row trips.
 Open with the coverage denominator — zones and checks swept vs. skipped, with why — then findings
 ranked `[P0]`–`[P3]`, each with its evidence (command + output — for secrets and credentials,
 names and paths only, never values: a report that quotes a secret is itself a leak), its attack
-path (position → crossing → reach), and the one-line fix class. P0 = reachable from outside a
-trust boundary without auth, or family data exposed. End with the top three things to fix this
+path (position → crossing → reach), and the one-line fix class. Grade severity by the unauthorized
+capability or data reached and the prerequisites; intended public content and permitted,
+authenticated access are not findings by themselves. End with the top three things to fix this
 weekend, then emit the findings-ledger rows in `sde-agents:lab-audit`'s table format for the
 operator to append to the lab repo's ledger — this skill holds no write tools, so the emitted
 block IS the ledger entry.

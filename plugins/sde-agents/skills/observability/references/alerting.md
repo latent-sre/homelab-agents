@@ -11,14 +11,14 @@ live in the installed `observability` skill. On any conflict, SKILL.md wins.
 groups:
   - name: paperless
     rules:
-      - alert: PaperlessDown
+      - alert: PaperlessScrapeFailed
         expr: up{job="paperless"} == 0
         for: 5m                     # survive a scrape blip; short enough to matter
         labels:
-          severity: page            # page | ticket — see routing below
+          severity: ticket          # monitoring failure; user impact needs its own signal
         annotations:
-          summary: "Paperless has been unreachable for 5m"
-          description: "Documents cannot be uploaded or searched."
+          summary: "Prometheus has failed to scrape Paperless metrics for 5m"
+          description: "Check the scrape error and the user-path probe before declaring a service outage."
           runbook_url: "https://git.lan/lab/docs/runbooks/paperless.md"
 
       # The monitoring-broke case. Without this, every rule above silently stops firing
@@ -47,6 +47,9 @@ these household-critical examples, an `absent()` companion so a dead target can'
 staleness alert on the job whose failure is otherwise silent (26h, not 24h — a daily job that runs
 at a slightly different time must not page every morning). A lightweight service without a runbook
 still needs an actionable annotation, but it may name the first action and owner inline.
+
+`up` records scrape success, not document upload/search success. A service-outage page needs an
+appropriate user-path probe or SLI; keep scrape failure and missing-target evidence separate.
 
 The backup metric must identify each required target/dataset. Preserve that identity in the rule
 and notification: a fresh target must not clear a different target's stale backup. The Paperless
@@ -108,7 +111,10 @@ want the numbers.
 
 ## Verify the rule fires
 
-`promtool check rules` proves it parses; it does not prove it fires. Force the condition (stop a test
-container, add a temporary rule with an always-true expression, or `promtool test rules` with a
-crafted series) and watch it move through pending → firing → resolved. A rule that has only ever
-evaluated to zero is unverified, and the first time it's needed is the wrong time to find out.
+`promtool check rules` proves it parses; it does not prove it fires. Test the actual rule with
+crafted series using `promtool test rules`, or an authorized controlled condition. Cover the label
+identity, threshold and pending duration, relevant missing-data cases, and resolution.
+
+Notification delivery is a separate check. A temporary always-true rule can exercise the routing
+and receiver selected by its labels, but says nothing about the real expression. Rule unit tests
+prove evaluation, not a delivered notification. Report each result and any unexercised boundary.

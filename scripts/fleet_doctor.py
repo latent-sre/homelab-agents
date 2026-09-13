@@ -155,10 +155,10 @@ def _git_checks(root: Path, run: CommandRunner) -> list[Check]:
 
 # The skill listing sent to the model is budgeted in CHARACTERS: context-window tokens x 4
 # chars/token x `skillListingBudgetFraction` (default 0.01) -- exactly 8,000 on a 200k-token
-# model, and OpenAI Codex applies the same 8,000-char default when the window is unknown. Over
+# Claude model under those settings. This estimate does not measure the active host's catalog. Over
 # budget, Claude Code does not drop a skill; it silently degrades plugin entries to bare
 # `- name` lines with no description (bundled skills are exempt and charge the budget first),
-# and Codex shortens descriptions then omits entries. Probed on CLI 2.1.233: binary constants
+# independently of Codex's token-based catalog budget. Probed on Claude CLI 2.1.233: binary constants
 # (fraction 0.01, 4 chars/token, 200k default window, 1536-char per-description cap) plus live
 # headless sessions -- a 200k-window model rendered 18 of this fleet's 19 entries name-only
 # while larger-window models rendered all of them in full. The failure is silent at runtime:
@@ -309,6 +309,9 @@ def _skill_listing_budget_check(root: Path) -> Check:
     over = total > _SKILL_LISTING_BUDGET_CHARS
     largest = sorted(entry_lengths, key=lambda item: -item[1])[:3]
     details = {
+        "host": "claude",
+        "assumed_context_window_tokens": 200000,
+        "observed_host_listing": False,
         "total_chars": total,
         "budget_chars": _SKILL_LISTING_BUDGET_CHARS,
         "entries": len(entry_lengths),
@@ -339,20 +342,20 @@ def _skill_listing_budget_check(root: Path) -> Check:
     shared_note = (
         " Budget is shared with budget-exempt bundled skills charged first, so this is the "
         "fleet's own footprint only — a live listing probe on the target host is the "
-        "sufficiency check."
+        "sufficiency check. The active host's context and settings were not measured."
     )
     return Check(
         "repository.skill-listing-budget",
         "warn" if over else "pass",
         (
-            f"Model-visible skill listing is ~{total} chars for {len(entry_lengths)} entries, "
-            f"over the {_SKILL_LISTING_BUDGET_CHARS}-char budget a 200k-context host applies -- "
-            f"over-budget entries silently degrade to bare names there (and Codex shortens then "
-            f"omits at the same default), so description-driven routing quietly stops. Trim the "
+            f"Estimated Claude skill listing is ~{total} chars for {len(entry_lengths)} entries, "
+            f"over the assumed {_SKILL_LISTING_BUDGET_CHARS}-char budget at 200k context -- "
+            f"over-budget entries can degrade to bare names under those settings. The active "
+            f"host's context and settings were not measured. Trim the "
             f"largest descriptions, or raise skillListingBudgetFraction in the consuming "
             f"repository's settings."
             if over
-            else f"Model-visible skill listing is ~{total} chars for {len(entry_lengths)} "
+            else f"Estimated Claude skill listing is ~{total} chars for {len(entry_lengths)} "
             f"entries, within the {_SKILL_LISTING_BUDGET_CHARS}-char worst-case budget "
             f"({headroom} chars of headroom).{shared_note}{dmi_note}"
         ),

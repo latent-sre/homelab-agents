@@ -54,6 +54,11 @@ The universal backend rules live in the installed `backend-craft` skill. On any 
 
 - Integration tests drive the real app over ASGI: `httpx.AsyncClient(transport=ASGITransport(app=...))`
   — no live server, real routing, real validation, real problem+json responses.
+- Enter the application's lifespan before opening that client and exit it after the client closes;
+  HTTPX's ASGITransport does not run startup/shutdown. Use the repository's existing lifecycle
+  fixture, or a lifespan manager when none exists, so startup resources and cleanup are exercised.
+  Set the client's `base_url` when tests use relative request paths.
+  [HTTPX owns this contract](https://www.python-httpx.org/advanced/transports/#asgi-startup-and-shutdown).
 - Fixtures compose: fresh schema per test, a session-override `client`, then `registered_user` →
   `auth_token` → `auth_client` so authenticated tests cost one fixture argument. The DB is a real
   ephemeral one per SKILL.md's testing gate — in-memory SQLite only where the SQL stays portable.

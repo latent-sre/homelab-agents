@@ -23,9 +23,10 @@ inventory.
   `docker network ls` plus `docker network inspect <net>` for container-level reachability.
 - Ask, per attacker position (guest wifi, IoT VLAN, a compromised container, the LAN, the WAN):
   what is reachable at all, and what of that is reachable *without* crossing the proxy.
-- Finding: `[P0]` a service reachable from a lower-trust zone without auth; `[P1]` flat container
-  networking that lets one compromised service reach every other; `[P2]` reachable but
-  authenticated and patched.
+- Finding: a caller can cross the intended boundary to read protected data or use an unauthorized
+  capability. Grade the impact and prerequisites; shared container networking needs a demonstrated
+  path beyond intended access. A permitted authenticated service or intentionally public content
+  is not a finding solely because it is reachable.
 - Attack path: "on guest wifi → 10.0.0.0/24 unfiltered → Grafana admin on :3000 with no auth."
 - Fix class: an inter-zone rule, a proxy-only binding, or a segmented docker network.
 
@@ -36,8 +37,9 @@ inventory.
 - Ask: which exposed routes have *no* authentication, which have app-native auth only, and which
   sit behind the lab's SSO or forward-auth. An unauthenticated route that "nobody knows the URL
   of" is unauthenticated.
-- Finding: `[P0]` WAN-reachable with no auth; `[P1]` LAN-reachable admin surface with no auth or
-  with app-native auth that has no lockout/2FA on an account that can change the system.
+- Finding: an unauthorized caller can read protected data or change the system; grade severity
+  from that impact and the access needed. Missing lockout/2FA is evaluated against the identity
+  policy and a supported attack path, not assigned a severity from reachability alone.
 - Attack path: name the reachable URL and what the unauthenticated caller can do with it.
 - Fix class: auth in front at the proxy, or remove the exposure.
 
@@ -49,9 +51,10 @@ inventory.
   (`docker inspect` for `/var/run/docker.sock` in Mounts).
 - Ask: is each management plane reachable only from the management zone or VPN? A mounted docker
   socket is root on the host — treat any container holding it as a management plane.
-- Finding: `[P0]` a management plane reachable from a user or guest zone, or from the WAN;
-  `[P0]` docker socket mounted into an internet-exposed container; `[P1]` management plane on the
-  ordinary LAN with default or shared credentials.
+- Finding: management access violates the declared zone/identity boundary, or compromising an
+  exposed container yields unauthorized control through its socket access. Grade by what that
+  position can control and the remaining authentication/exploit prerequisites. Reachability
+  through an intended protected management path is not by itself a vulnerability.
 - Attack path: position → management plane → what it controls (all VMs, all containers, the
   network itself).
 - Fix class: bind to the management interface, VPN-only, or remove the socket mount.
@@ -98,8 +101,9 @@ inventory.
 - Ask: at home scale the question is not compliance but "what would hurt": whose data, who can
   reach it, whether backups of it are encrypted before leaving the house, and whether an ex-guest
   or old device still has a path to it.
-- Finding: `[P0]` family data reachable from a lower-trust zone or backed up unencrypted off-site;
-  `[P1]` camera or document storage with weak auth; `[P2]` data whose retention nobody chose.
+- Finding: unauthorized access to household data, an evidenced weakness in its identity boundary,
+  or backup encryption/retention that violates the declared policy. Grade the data and capability
+  exposed to the named position; unencrypted off-site storage alone does not prove public access.
 - Attack path: position → data store → what is readable or downloadable in bulk.
 - Fix class: encrypt the backup destination, tighten the reach, or delete what nobody needs.
 

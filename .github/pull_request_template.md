@@ -44,7 +44,7 @@ genuinely does not apply and say so in one line; do not leave a heading with not
 
 - [ ] `python3 scripts/validate_fleet.py` — clean
 - [ ] `python3 -m unittest discover -s tests` — all passing (count: )
-- [ ] `claude plugin validate . --strict` — passing
+- [ ] `python3 scripts/validate_claude_plugin.py` — marketplace and plugin contents passing
 
 **Conditional gates — fill only the rows this PR trips, and delete the rest:**
 

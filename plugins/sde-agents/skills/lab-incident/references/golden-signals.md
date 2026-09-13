@@ -13,12 +13,12 @@ The universal rules live in the installed `lab-incident` skill. On any conflict,
 Whatever the stack, ask for these four in this order. (Lab equivalents: Grafana dashboards, Loki
 for logs, `docker compose ps`/`logs`, `systemctl status`, the reverse proxy's own status page.)
 
-| Signal | Read it as | What it rules in |
+| Signal | Read it as | Next observation |
 |---|---|---|
-| **Traffic** | Is anything reaching it at all? | Zero traffic on a service that normally has some means the failure is *upstream* — DNS, proxy, network — not the service. Chasing the service wastes the outage. |
-| **Errors** | What kind, and from which layer? | 5xx from the app = the app. 502/503/504 from the proxy = the proxy can't reach a healthy upstream (or the upstream is slow, not down). Connection refused = nothing listening. TLS errors = certificate or SNI, not the app. |
-| **Latency** | Slow or stopped? | Rising latency with successes is saturation (CPU, disk, connection pool, upstream). Instant failures are a broken path. "Slow" and "down" have different mitigations — do not treat a saturated service as a wedged one. |
-| **Saturation** | What resource is exhausted? | Disk full, memory pressure/OOM kills, CPU pinned, connection or file-descriptor limits. This is the signal most often *actually* responsible and least often looked at first. |
+| **Traffic** | Is anything reaching it at all? | Zero observed traffic can mean no demand, an upstream path failure, a stopped application, or failed telemetry. Compare proxy/client requests, the application listener, and scrape/log freshness. |
+| **Errors** | What kind, and from which layer? | Identify who generated the error and correlate that request across proxy and application logs. A 502 is an invalid upstream response, a 503 can be overload/maintenance, and a 504 is an upstream response timeout; none proves the upstream is healthy. For refused connections or TLS errors, inspect the listener/path or exact handshake failure before selecting a cause. |
+| **Latency** | Slow or stopped? | Saturation, a slow dependency, retries, and packet loss are candidates. Compare resource pressure with request timing at the next boundary; successful requests alone do not distinguish them. |
+| **Saturation** | What resource is exhausted? | Check disk space, memory pressure/OOM kills, CPU, connection and file-descriptor limits; correlate the constrained resource with the affected operation. |
 
 Check disk and memory early and explicitly. "Everything got weird" is a full filesystem more often
 than it is anything interesting, and it is the cheapest thing on this list to rule out.
@@ -42,10 +42,12 @@ Most outages are the last change. In rough order of likelihood:
 
 ## Failure patterns worth recognizing on sight
 
-- **Everything unreachable by name, reachable by IP** → DNS. Whatever else you were told, the
-  resolver is the problem.
-- **Three unrelated services down at once** → shared dependency (DNS, proxy, storage mount,
-  network). Do not restart the three; find the one.
+- **Unreachable by name, reachable by IP** → check DNS answers, then compare requests while
+  preserving Host/SNI and the destination address. A different virtual host or address family can
+  make a raw-IP request succeed without proving the resolver caused the original failure.
+- **Three unrelated services down at once** → check shared DNS, proxy, storage, and network paths
+  first, plus the signal reporting all three failures. Shared failure is a hypothesis to confirm
+  before changing the dependency or restarting the services.
 - **A service that restarts every couple of minutes** → crash loop. Read the logs from *before* the
   most recent start; the last start's log shows the symptom, the earlier one shows the cause.
 - **Healthy container, failing route** → compare the failing request through the proxy and
@@ -54,8 +56,9 @@ Most outages are the last change. In rough order of likelihood:
   health check can pass while the application handler or its dependency fails; proxy routing,
   network, application, and dependency faults remain hypotheses until these observations
   distinguish them.
-- **Slow, then fine, then slow** → saturation or a retry storm, not a hard failure. A restart
-  "fixes" it briefly and it comes back, which is the tell.
+- **Slow, then fine, then slow** → compare resource pressure, retries, dependency timing, and
+  network errors during both states. A temporary improvement after restart does not identify the
+  cause.
 - **Works locally on the host, not from anywhere else** → binding to `127.0.0.1`, a firewall rule,
   or a network the container isn't on.
 - **Fails only on first request after idle** → a cold dependency, an expiring connection pool, or a

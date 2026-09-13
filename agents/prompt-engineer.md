@@ -68,15 +68,14 @@ another agent cannot supply it. Without a project cap, the caller may authorize 
 
 ## Craft knowledge
 
-**Match the form to the observed failure:**
+**Match the form to the observed failure.** The candidate forms in
+`skills/prompt-craft/SKILL.md` are starting points to test, not guarantees. That skill owns the
+shared writing method; apply it to the actual target model and preserve necessary exceptions.
 
-| Observed failure | Right form | Wrong form |
-|---|---|---|
-| Knows the rule, breaks it under pressure | Hard prohibition + rationalization table + red-flag list | Soft guidance ("prefer…", "consider…") |
-| Complies, but output has the wrong shape | Positive recipe: state what the output IS — its parts, in order | A list of don'ts |
-| Omits a required element | A required slot in a template it must fill | Prose reminders near the template |
-| Behavior should depend on a condition | Conditional keyed to an observable predicate | Unconditional rule + exemption clauses |
-| Output order or precedence loses to an earlier sentence in the same file | Reword the incumbent claim that already occupies that position, then measure; report the residual rate rather than claiming the new rule holds | Adding a new rule lower in the file and leaving the earlier claim intact |
+For a pressure failure, state the boundary and permitted alternative; add a counterexample only
+when it addresses the observed failure. Enforce authority outside the prompt. For an output-shape
+failure, specify the required parts and order, including how to report missing evidence. Repetition
+and emphasis do not establish compliance; use the paired results to judge the change.
 
 **The description trap.** Descriptions state when to trigger; procedures belong in the body.
 Workflow-heavy descriptions can encourage acting on their summary without loading that body.
@@ -86,7 +85,9 @@ topic-shaped wording over-fires. Use substantive positive cases and near-misses 
 domains; a trivial ask may be answered directly without consulting a skill, so it provides weak
 evidence about description quality.
 
-**Positive shape beats prohibition** for output-shaping problems: a recipe leaves nothing to negotiate — the output matches the stated shape or it doesn't. Avoid nuance clauses ("don't X unless it matters"); they reopen the negotiation.
+**Make conditions observable.** Replace vague exceptions such as "unless it matters" with the
+condition that changes the action. Correct a conflicting instruction at its source instead of
+adding a competing rule later in the file; measure the remaining failure rate.
 
 **Use examples that cover the behavior.** Keep compact, representative examples and add distinct
 cases when observed failures need them. Judge coverage and fresh outcomes; no fixed example count

@@ -18,7 +18,7 @@
 #        docker://rhysd/actionlint:v1.7.4`)
 #
 # A commit SHA on a `docker://` line is an image reference that does not exist, so the job never
-# starts. Keep the trailing `# v4.2.2` comment either way, so the next reader knows what is pinned.
+# starts. Keep the trailing version comment so the next reader knows which release was pinned.
 #
 #   REPLACE_WITH_VERSION       — a tool fetched at run time (`pipx run zizmor==1.2.3`). Not a pin
 #                                by SHA, but a pin: an unpinned `pipx run` fetches whatever PyPI
@@ -43,7 +43,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-24.04        # pinned, not `latest`, so the image moves when you decide
+    runs-on: ubuntu-24.04        # fixes the OS release; hosted image software still updates
     timeout-minutes: 15          # a hung job otherwise holds a runner for hours
     steps:
       - uses: actions/checkout@REPLACE_WITH_SHA # v4.2.2
@@ -93,7 +93,7 @@ jobs:
         with:
           persist-credentials: false
       # A `docker://` step pins differently from a GitHub Action: the ref after `@` is an IMAGE
-      # MANIFEST DIGEST (`sha256:...`), not a git commit SHA, so the REPLACE_WITH_SHA above is the
+      # MANIFEST DIGEST (`sha256:...`), not a git commit SHA, so the SHA placeholder above is the
       # wrong kind of identifier here. Resolve it with:
       #   docker buildx imagetools inspect rhysd/actionlint:v1.7.4 --format '{{.Manifest.Digest}}'
       # then use `docker://rhysd/actionlint@sha256:<digest>`.

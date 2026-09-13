@@ -87,21 +87,23 @@ reloading Prometheus, importing to Grafana, or restarting Alloy is an apply unde
   is it up, is it erroring, is it slow, is it saturated.
 - Overview at the top (a few big numbers), detail below. Time range and interval as variables so
   the same panel works at 5 minutes and 7 days.
-- **Dashboards as code**, provisioned from the repo — a dashboard edited only in the UI is lost with
-  the container and cannot be reviewed.
+- **Dashboards as code**, provisioned from the repo for review and reproducible deployment. UI edits
+  live in Grafana's database; they survive container replacement only when its storage persists.
 - Label every axis with its unit, and set thresholds where the color means something specific.
 - A panel per *question*, not per available metric. The temptation is to plot everything the
   exporter offers; that dashboard is unreadable exactly when it matters.
 
 ## Verify it before calling it done
 
-An alert that has never fired and a dashboard that has never been read during a real problem are
-both unverified. Before "done":
+Report which behavior each check exercises. Before "done":
 
 - The query returns what you expect against **real data** — paste the query and its result.
-- The alert rule **fires** when you force its condition (a deliberately failing check, a test rule
-  with an always-true expression, or `promtool test rules` for the arithmetic) and resolves after.
-  A rule that only ever evaluated to zero is written, not verified.
+- Test the **actual alert rule** with representative series (`promtool test rules`) or an
+  authorized controlled condition. Check its labels, threshold/timing, relevant missing-data
+  behavior, and resolution; a rule that only evaluated to zero is not behavior-verified.
+- Test notification delivery separately when it is in scope. An always-true temporary rule can
+  exercise its configured delivery path, but does not verify the real expression. Rule unit tests
+  do not prove live delivery; retain that gap when the path was not exercised.
 - Reloads were validated first: `promtool check rules` / `promtool check config`, and
   `alloy validate <path>` with the deployed version and matching feature settings. `alloy fmt`
   checks formatting, not component correctness. Dashboard JSON imports cleanly; a known signal

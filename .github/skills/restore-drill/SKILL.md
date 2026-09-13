@@ -12,9 +12,9 @@ argument-hint: "[the service whose restore to rehearse]"
 
 # Restore drill
 
-**A backup you have never restored is a hope with a cron job.** The drill converts it into a number:
-this service, restored in this long, verified this way, on this date. That number is the only honest
-input to an RTO, and finding out it's wrong today costs an afternoon instead of the data.
+**A backup you have never restored is a hope with a cron job.** The drill records this service's
+measured recovery time, verification, and date. Compare that result with its recovery time objective
+(RTO): the acceptable recovery duration, not the duration the rehearsal happened to achieve.
 
 Every apply here is under `homelab-engineer`'s change tiers. A drill that touches the live
 service is Tier 3 — but the whole point is that it usually doesn't need to.
@@ -32,12 +32,12 @@ first.
 ## The drill
 
 1. **State what you're proving.** Which service, which backup (the specific file or snapshot, by
-   name), and what "restored" means for it — the database answers a query, the documents are
-   searchable, the config loads. Vague success criteria produce drills that pass while the real
-   restore fails.
-2. **Start the clock.** Wall-clock time from "decide to restore" to "verified working" *is* the RTO.
-   Include the parts nobody counts: finding the backup, reading the runbook, fetching from the
-   off-site copy.
+    name), and what "restored" means for it — the database answers a query, the documents are
+    searchable, the config loads. Record the operator's recovery-time objective before timing;
+    if none is established, measure the duration but leave the time objective unassessed.
+2. **Start the clock.** Measure wall-clock time from "decide to restore" to "verified working".
+   Include finding the backup, reading the runbook, and fetching the off-site copy. Compare the
+   measurement with the RTO, identifying scratch conditions that differ from an actual outage.
 3. **Use the runbook, exactly as written.** This is the second thing being tested. If you deviate,
    improvise, or already know a step is wrong — that is the finding, and the runbook edit is part of
    the drill's output. A restore performed from memory by the person who set it up proves nothing
@@ -60,13 +60,15 @@ first.
 
 ## What a drill is allowed to conclude
 
-- **Pass** — restored within the expected time and verified. Record the number.
+- **Pass** — restored and verified; the measured duration meets the stated time objective. Without
+  an established RTO, report functional success and the duration, with timing acceptance unassessed.
 - **Pass with findings** — it worked, but the runbook was wrong, a step was missing, or something
   outside the backup had to be recreated. This is the most common and most valuable outcome; each
   finding is a runbook edit.
-- **Fail** — the backup is unusable, incomplete, or unreadable. This is an urgent finding, not a
-  scheduling problem: right now, the service has no recovery path. Fix the backup, then re-drill,
-  and treat the interval since the last good backup as data you would have lost.
+- **Fail** — the selected backup or restore path did not satisfy the criteria. Record the failure
+  and any separately verified alternative, including its recovery point and resulting data-loss
+  exposure. Untested alternatives remain unknown; one failed newest copy does not prove every
+  recovery path is lost. Correct the affected backup/procedure within authority, then re-drill.
 
 Never conclude "probably fine" from a partial drill. State what you verified and what you didn't,
 labelled `[verified]` / `[unverified]` per the fleet convention.
@@ -85,3 +87,5 @@ A quarterly rehearsal of one important service beats an annual plan for all of t
 - **Verified**: the criteria and the evidence (the query, the output, the page).
 - **Findings**: runbook edits made, backup-scope gaps, anything outside the backup.
 - **Verdict**: pass / pass with findings / fail, and the runbook lines updated.
+
+RTO terminology: [NIST Recovery Time Objective](https://csrc.nist.gov/glossary/term/Recovery_Time_Objective).

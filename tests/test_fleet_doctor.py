@@ -166,6 +166,19 @@ class SkillListingBudgetCheck(support.TempDirTestCase):
         self.assertIn("bare names", check.summary)
         self.assertGreater(check.details["total_chars"], check.details["budget_chars"])
 
+    def test_listing_estimate_states_its_host_assumptions_in_both_verdicts(self) -> None:
+        for count in (1, 10):
+            with self.subTest(count=count):
+                check = self._check(self._tree(
+                    skills={f"skill-{i}": "d" * 900 for i in range(count)},
+                    label=f"host-assumptions-{count}",
+                ))
+                self.assertEqual("claude", check.details["host"])
+                self.assertEqual(200000, check.details["assumed_context_window_tokens"])
+                self.assertFalse(check.details["observed_host_listing"])
+                self.assertIn("Claude", check.summary)
+                self.assertIn("not measured", check.summary)
+
     def test_a_listing_within_budget_passes_and_states_headroom(self) -> None:
         check = self._check(self._tree(skills={"one": "short description"}))
         self.assertEqual("pass", check.status)

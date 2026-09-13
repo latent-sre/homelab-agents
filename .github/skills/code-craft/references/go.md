@@ -89,9 +89,10 @@ SKILL.md wins; the repository's own conventions and declared Go version outrank 
   output order; collect and sort keys when determinism is part of the contract.
 - **Struct assignment copies the value.** A value-receiver mutation changes only the copy. Use a
   pointer receiver when the method mutates, and keep receiver choice consistent across the type.
-- Loop-variable capture follows the module language version. Modules declaring Go 1.22 or later get
-  a new variable per iteration; older modules reuse the loop variable. Read `go.mod` before
-  deciding whether an explicit per-iteration copy is required.
+- Loop-variable capture follows both the module language version and the declaration form. In Go
+  1.22+ modules, variables declared by the loop (`:=`) get a new variable per iteration; older
+  modules reuse them. A pre-existing variable assigned with `=` is still reused, including in
+  `for _, value = range values`. Read `go.mod` and the loop before removing a capture copy.
 
 ## Generics, interfaces, and reflection
 

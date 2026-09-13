@@ -92,6 +92,8 @@ function Get-Thing {
   `PSAvoidUsingInvokeExpression`, `PSAvoidUsingPlainTextForPassword`,
   `PSAvoidUsingConvertToSecureStringWithPlainText`.
 - Test with Pester 5, which runs **Discovery, then Run** as separate phases: bare code inside
-  `Describe` executes during Discovery, so setup belongs in `BeforeAll`/`BeforeEach`, state crosses
-  phases only via `$script:`, and mock assertions use `Should -Invoke`. Tests-first process:
-  [tdd.md](tdd.md).
+  `Describe` executes during Discovery. Generate test data in `BeforeDiscovery` and pass it through
+  `-ForEach`/`-TestCases`; put execution setup in `BeforeAll`/`BeforeEach`. Use `$script:` only when
+  that shared lifetime is intentional, not as the default bridge between phases. Mock assertions
+  use `Should -Invoke`. [Pester's data-driven tests](https://pester.dev/docs/usage/data-driven-tests)
+  own the phase-data contract; the tests-first process lives in [tdd.md](tdd.md).

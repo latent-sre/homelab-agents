@@ -10,7 +10,7 @@ wins. The baseline (semantic elements, labeled inputs, keyboard reachability, vi
 there; this file owns the interaction-level wiring. Attribute names are the web platform's and
 apply in any stack; form-field wiring (labels, error linking) lives in `references/forms.md`.
 
-## Overlays — focus is part of the state change
+## Modal dialogs — focus is part of the state change
 
 - Opening moves focus into the overlay; closing returns it to the element that opened it. Store
   the opener before moving focus — the browser won't restore it for you.
@@ -18,17 +18,25 @@ apply in any stack; form-field wiring (labels, error linking) lives in `referenc
   dialog/focus-trap primitive — never hand-rolled: dynamic content and nested portals break naive
   traps.
 - `role="dialog"`, `aria-modal="true"`, labeled by the overlay's heading; Escape closes it.
+- Apply these rules only to a modal dialog (including a drawer implemented as one). A tooltip keeps
+  focus on its trigger and connects through `aria-describedby`; it does not trap focus or become a
+  dialog. Non-modal popovers and drawers follow their chosen interaction pattern without claiming
+  `aria-modal`. See the [APG patterns](https://www.w3.org/WAI/ARIA/apg/patterns/).
 
 ## Custom widgets — you own the whole keyboard grammar
 
 - Reach for the platform element (`<select>`, `<details>`, `<dialog>`) or the repo's component
   library first; building custom means owning everything below.
-- The trigger carries `aria-expanded` and `aria-controls`; options carry `role="option"` and
-  `aria-selected`. When focus stays on the trigger while arrow keys move a highlight (combobox,
-  listbox), set `aria-activedescendant` to the highlighted option's id — without it, a screen
-  reader announces nothing as the user arrows through the options.
-- Keyboard grammar: arrows move within the widget, Enter/Space activates, Escape closes or
-  cancels, Tab leaves the widget — it never cycles inside one.
+- Select the widget's APG pattern before assigning roles or key handling. Listboxes contain
+  `option` elements; menus use `menuitem` variants; tabs use `tab` inside `tablist` with associated
+  `tabpanel` elements. These roles and selection/expansion attributes are not interchangeable.
+- For a combobox or listbox using active-descendant focus, keep DOM focus on the combobox/listbox
+  and set `aria-activedescendant` to the highlighted option's id. An expandable trigger carries
+  `aria-expanded` and `aria-controls`; selected options carry `aria-selected`. A roving-tabindex
+  implementation instead moves DOM focus according to that pattern.
+- Implement that pattern's keyboard grammar, including arrow orientation, selection versus
+  activation, and optional keys. Tab normally leaves a composite widget; trapping it belongs to a
+  containing modal dialog, not to a menu, listbox, or tablist.
 
 ## Announcing async status
 

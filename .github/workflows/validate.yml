@@ -105,5 +105,12 @@ jobs:
       - name: Install the Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code@2.1.219
 
-      - name: Validate the plugin manifest, frontmatter, and hooks
-        run: claude plugin validate . --strict
+      # Naming the repository selects marketplace validation and skips component files.
+      # The wrapper checks that manifest and an unchanged canonical plugin copy separately.
+      - name: Validate the marketplace and canonical plugin contents
+        run: python3 scripts/validate_claude_plugin.py
+
+      # The general unit-test job has no Claude CLI, so its native malformed-input case skips.
+      # Run that negative contract here, where the pinned CLI is available.
+      - name: Verify malformed plugin contents are rejected
+        run: python3 -m unittest tests.test_validate_claude_plugin.NativeClaudeContentsTests -v

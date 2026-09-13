@@ -87,8 +87,12 @@ Work in this order — it is roughly cheapest-first:
    (`sde-agents:backend-craft` requires it from day one).
 5. Only then consider caching, denormalization, or hardware — each adds a new failure mode.
 
-Watch for the index that costs more than it saves: every index slows writes and consumes space, and an
-unused index is pure overhead (`pg_stat_user_indexes` shows which are never scanned).
+Watch for the index that costs more than it saves: indexes add write and storage cost. Zero scans in
+`pg_stat_user_indexes` are a lead, not proof an index can be removed: check when counters reset,
+observe representative workload (including rare jobs and reads on replicas), and check constraint
+ownership and uniqueness enforcement before proposing removal. A unique index can protect an
+invariant even without query scans. PostgreSQL's [statistics contract](https://www.postgresql.org/docs/current/monitoring-stats.html)
+and [constraint rules](https://www.postgresql.org/docs/current/sql-createtable.html) own those limits.
 
 ## Connections, locks, and saturation
 
@@ -118,8 +122,12 @@ unused index is pure overhead (`pg_stat_user_indexes` shows which are never scan
 - **Logical dumps** (`pg_dump`) are portable and slow to restore; **physical/PITR** is fast and
   version-bound. Most home labs want nightly logical dumps plus, for anything whose loss would hurt,
   WAL archiving.
-- **A restore over a non-empty database fails** — plan the drop/recreate, and put the exact commands
-  in the runbook rather than deriving them under pressure.
+- **Choose the restore mode and conflict policy before execution.** An empty target is the default
+  for a full restore; existing conflicting objects or rows can fail or duplicate data. A selective,
+  data-only, or deliberately configured `--clean` restore can use an existing database. Preserve
+  unrelated objects and put the chosen commands in the runbook rather than assuming drop/recreate
+  is always required. [pg_restore](https://www.postgresql.org/docs/current/app-pgrestore.html) owns
+  the mode-specific behavior.
 - Test the restore **after a major version upgrade**, because that's exactly when a physical backup
   stops being restorable.
 - Encrypt backups at rest, keep one copy off the box, and verify the copy is readable — a backup on

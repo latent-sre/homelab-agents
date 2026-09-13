@@ -9,12 +9,15 @@ in `skills/observability/SKILL.md`. On any conflict, SKILL.md wins.
 # 1. Rate of a counter — ALWAYS rate() before aggregating, never the raw counter
 sum(rate(http_requests_total[5m])) by (service)
 
-# 2. Error ratio — the numerator's label set must be a subset of the denominator's
+# 2. Error ratio — align both sides' labels for the default one-to-one match
 sum(rate(http_requests_total{status=~"5.."}[5m])) by (service)
   / sum(rate(http_requests_total[5m])) by (service)
 
-# 3. Latency percentile from a histogram — by (le) is mandatory
+# 3. Classic histogram percentile — preserve le when aggregating buckets
 histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service))
+
+# Native histograms carry their buckets in each sample; no le label is needed
+histogram_quantile(0.99, sum(rate(http_request_duration_seconds[5m])) by (service))
 
 # 4. Staleness of each backup target/dataset — retain the series identity
 time() - backup_last_success_timestamp_seconds > 26 * 3600
@@ -35,15 +38,16 @@ a threshold cannot alert on a series that is absent.
 - **The range must exceed the scrape interval, comfortably.** `rate(x[1m])` with a 60s scrape often
   has one point and returns nothing. Rule of thumb: at least 4× the interval — `[5m]` for a 15s or
   30s scrape.
-- **Division by zero yields no data, not zero.** An error-ratio panel goes blank on an idle service,
-  which reads as "healthy" and hides a service receiving no traffic at all. Guard it, or pair the
-  panel with a traffic panel so blank is distinguishable from fine.
+- **Zero division and missing series differ.** Float `0/0` yields `NaN`; positive finite division
+  by zero yields `+Inf`. A missing or unmatched series instead leaves no result for that identity.
+  A panel may render these alike. Handle zero traffic deliberately and pair the ratio with traffic
+  and missing-series checks so an invalid or absent value is not read as healthy.
 - **Binary operators match on the full label set.** If the numerator carries a label the denominator
   lacks, you get an empty result. Use `on(...)`/`ignoring(...)` deliberately; `group_left` when a
   many-to-one join is genuinely intended.
-- **`histogram_quantile` needs the `le` label**, and interpolates *within* buckets: with coarse
-  buckets your p99 is an artifact of bucket boundaries, not a measurement. Choose bucket edges
-  around the latencies you care about before trusting the number.
+- **Classic histograms need `le`; native histograms do not.** `histogram_quantile` estimates within
+  buckets, so coarse buckets reduce percentile accuracy. Choose classic bucket boundaries or
+  native histogram resolution for the latencies you need to distinguish.
 - **Averaging percentiles across instances is arithmetically wrong** (`avg(histogram_quantile(...))`
   means nothing). Aggregate the buckets, then take the quantile — as in shape 3.
 - **`absent()` is how you alert on something that stopped existing.** A target that disappears emits
@@ -61,3 +65,6 @@ evaluation interval, so add them for queries that are slow *and* frequent, not o
 
 Validate before reload: `promtool check rules <file>`, and `promtool test rules` when the arithmetic
 is worth pinning with a unit test — which it is for anything driving an alert.
+
+Contracts: [operators and vector matching](https://prometheus.io/docs/prometheus/latest/querying/operators/)
+and [histogram quantiles](https://prometheus.io/docs/prometheus/latest/querying/functions/#histogram_quantile).

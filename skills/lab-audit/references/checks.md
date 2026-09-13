@@ -17,16 +17,24 @@ row 1; a finding here that needs an attack path belongs there.
 
 - Read: `ss -tlnp` per Linux host (`netstat -ano` on a Windows host); the reverse-proxy config
   from the lab repo; the router/firewall forward table where the repo exports it.
-- Compare: every listening socket vs what the proxy fronts; anything bound to `0.0.0.0`/`[::]`
-  that is not the proxy or a deliberate LAN service; WAN-reachable ports vs the declared forward
-  list; anything answering without auth in front.
-- Finding: `[P0]` WAN-reachable without auth; `[P1]` LAN-wide listener bypassing the proxy.
-- Fix class: front it with the proxy + auth, close the port, or justify the exception in writing.
+- Compare: listening sockets and WAN-reachable ports with the declared consumers, proxy/native
+  exposure, and forward list. Check which routes require an identity boundary; an intentionally
+  public read-only page does not require auth merely because it is reachable.
+- Finding: unauthorized exposure of sensitive data or administrative capability; grade severity by
+  reachable impact and prerequisites. An unexpected listener is a lead until its purpose and reach
+  are established, not automatically P0/P1.
+- Fix class: restore the intended access boundary, close an unintended port, or record an accepted
+  exception with its scope and justification.
 
 ## 2. Container hygiene
 
-- Read: `docker ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}'`; `docker inspect <name>` for
-  restart policy, healthcheck, and limits; `docker compose config` rendered from the repo file.
+- Read: `docker ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}'`; project only restart policy,
+  health status/check presence, numeric resource limits, and privilege flags from container
+  inspection. For example, `docker inspect --format '{{json .HostConfig.RestartPolicy}}' <name>`
+  returns just restart policy. Read the corresponding declared fields from the repo configuration.
+  Select fields before output reaches the transcript: do not print bare `docker inspect` or
+  resolved `docker compose config`, environment values, labels, or healthcheck command bodies,
+  which can contain credentials. Do not expand env files merely to inspect these settings.
 - Finding: `:latest` or untagged images; restart behavior is undeclared; no useful health signal;
   exited or restart-looping containers; privileged or resource-contentious workloads have no
   isolation or limits.
@@ -67,9 +75,12 @@ row 1; a finding here that needs an attack path belongs there.
 
 ## 6. Drift
 
-- Read: `docker compose config` (rendered intent) vs `docker inspect` of what runs — image, mounts,
-  ports, env-file names (names, never values); `git -C <lab-repo> status --short` plus recent log
-  for the config dirs.
+- Read: selected image, mount, and port fields from declared configuration and runtime inspection;
+  apply check 2's output selection before emitting either side. Read env-file paths from source,
+  not resolved environment values; runtime inspection does not retain their source filenames.
+  If comparing a setting needs a private substitution, compare within its authorized environment
+  and emit only the field name and match/mismatch. Also read `git -C <lab-repo> status --short`
+  plus recent log for the config dirs.
 - Finding: a running container that differs from the repo's rendering; console changes never
   reconciled back to code.
 - Fix class: reconcile the repo (Tier 1), then re-apply from code (Tier 2).
