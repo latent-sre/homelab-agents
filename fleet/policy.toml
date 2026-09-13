@@ -1,0 +1,180 @@
+# The fleet's validation POLICY as data: every vocabulary, roster, and threshold the validator
+# judges against, with the reason each exists and the date it was last checked against its
+# authority. Rules (fleet/rules/) consume this file through fleet/policy.py and never carry a
+# vocabulary of their own; a second copy of any table here is the drift this file was created to
+# end. Edit a table deliberately -- every entry is authority -- and move its `checked` date only
+# after re-reading the named source.
+
+[meta]
+checked = "2026-09-13"
+cli = "2.1.270"
+
+# Two different questions, two different errors: runtime schema ("is this a real Claude Code
+# value?") stays separate from fleet policy ("do we permit it?"). Claude Code accepts these
+# aliases AND any full model ID `--model` takes; this fleet allows only the aliases, because a
+# pinned ID goes stale silently while an alias follows the model upgrade. A full ID is a POLICY
+# failure and anything else is a SCHEMA failure -- never reported as the same thing.
+[models]
+source = "code.claude.com/docs/en/sub-agents"
+checked = "2026-09-13"
+aliases = ["inherit", "haiku", "sonnet", "opus", "fable"]
+
+# Every frontmatter key Claude Code defines for a subagent. The KEY NAMESPACE is checked because
+# the validator once checked only the values of keys it knew: a misspelled `hook:` removed the
+# read-only guard while every check stayed green. Whether the runtime errors or silently ignores
+# an unknown key is undocumented, so an unknown key fails here. A key whose documented value is a
+# nested mapping (`hooks`, `mcpServers`, `experimental`) is listed so the namespace rule reports
+# it accurately; the frontmatter dialect refuses a nested mapping as malformed -- loudly.
+[agent_frontmatter]
+source = "code.claude.com/docs/en/sub-agents"
+checked = "2026-09-13"
+known = [
+    "name", "description", "tools", "disallowedTools", "model", "permissionMode", "maxTurns",
+    "skills", "mcpServers", "hooks", "memory", "background", "effort", "isolation", "color",
+    "initialPrompt", "experimental",
+]
+# Claude Code SILENTLY IGNORES these three on a PLUGIN-SHIPPED agent ("For security reasons,
+# `hooks`, `mcpServers`, and `permissionMode` are not supported for plugin-shipped agents";
+# probed on CLI 2.1.200: a plugin agent's frontmatter hook never fired). This fleet ships as a
+# plugin, so any of them is configuration that does not exist -- `hooks:` being the dangerous
+# one, since it once carried the read-only guard and would read as armor while providing none.
+plugin_inert = ["hooks", "mcpServers", "permissionMode"]
+
+# Every documented SKILL.md frontmatter field, same rationale as the agent namespace: a
+# `disable-model-invocaton` slip would quietly turn a side-effect skill model-invocable.
+# `metadata`, `license`, `compatibility` are Agent Skills spec fields Claude Code accepts but
+# does not act on. `claude plugin validate --strict` is the backstop for anything added upstream.
+[skill_frontmatter]
+source = "code.claude.com/docs/en/skills"
+checked = "2026-09-13"
+known = [
+    "name", "description", "when_to_use", "argument-hint", "arguments",
+    "disable-model-invocation", "user-invocable", "allowed-tools", "disallowed-tools", "model",
+    "effort", "context", "agent", "background", "hooks", "paths", "shell", "metadata", "license",
+    "compatibility",
+]
+# The free-prose frontmatter fields -- the only ones whose value is a sentence, so the only ones
+# that can carry a colon-space into a plain YAML scalar (the scalar-quoting rule).
+prose_scalar_fields = ["description", "argument-hint"]
+
+[tools]
+source = "code.claude.com/docs/en/tools-reference"
+checked = "2026-09-13"
+# RUNTIME answers "is this a real Claude Code tool?"; FLEET answers "do we grant it here?". A
+# typo (`Wrte`) is a schema error; a real-but-unadopted tool (`PowerShell`) is a policy error you
+# can lift deliberately. "Task" was renamed "Agent" in 2.1.63 and survives only as a deprecated
+# alias, so a legacy `Task` grant fails and gets rewritten -- do not "fix" Agent -> Task.
+# `BashOutput`, `KillShell`, and `SlashCommand` were once accepted here and appear nowhere in the
+# canonical table: names that grant nothing.
+runtime = [
+    "Agent", "Artifact", "AskUserQuestion", "Bash", "CronCreate", "CronDelete", "CronList", "Edit",
+    "EnterPlanMode", "EnterWorktree", "ExitPlanMode", "ExitWorktree", "Glob", "Grep",
+    "ListMcpResourcesTool", "LSP", "Monitor", "NotebookEdit", "PowerShell", "PushNotification",
+    "Read", "ReadMcpResourceTool", "RemoteTrigger", "ReportFindings", "ScheduleWakeup",
+    "SendMessage", "SendUserFile", "ShareOnboardingGuide", "Skill", "TaskCreate", "TaskGet",
+    "TaskList", "TaskOutput", "TaskStop", "TaskUpdate", "TodoWrite", "ToolSearch",
+    "WaitForMcpServers", "WebFetch", "WebSearch", "Workflow", "Write",
+]
+# What this fleet actually grants. Widen deliberately; every entry is authority.
+fleet = [
+    "Agent", "Bash", "Edit", "Glob", "Grep", "NotebookEdit", "Read", "Skill", "TodoWrite",
+    "ToolSearch", "WebFetch", "WebSearch", "Write",
+]
+# Tools that make an agent a WRITER. An agent holding Bash but none of these is a read-only agent
+# whose only route to mutation is the shell -- exactly what the guard exists to close.
+write = ["Write", "Edit", "NotebookEdit"]
+# Real tools a SUBAGENT never receives however they are listed, because they depend on the main
+# conversation's UI or session state. Everything in agents/ is a subagent definition, so granting
+# one is a no-op that reads like a capability. (`ExitPlanMode` only under `permissionMode: plan`,
+# which a plugin-shipped agent cannot set.)
+subagent_unavailable = [
+    "AskUserQuestion", "EnterPlanMode", "ExitPlanMode", "ScheduleWakeup", "WaitForMcpServers",
+]
+
+# MCP tools share the `tools:` availability allowlist with built-ins, but their namespace is
+# runtime-configured rather than a closed table, so every external capability is an explicit
+# fleet decision listed exactly. Server-level grants (`mcp__server`, `mcp__server__*`) are valid
+# runtime syntax but forbidden: they silently acquire whatever a future server release adds --
+# already unsafe for GitHits, whose read-only evidence tools sit beside `feedback`, an external
+# write. Groups are referenced from role rules below as `@name`.
+[tools.groups]
+evidence_mcp = [
+    "mcp__claude_ai_Context7__query-docs",
+    "mcp__claude_ai_Context7__resolve-library-id",
+    "mcp__plugin_context7_context7__query-docs",
+    "mcp__plugin_context7_context7__resolve-library-id",
+    "mcp__plugin_githits_githits__code_files",
+    "mcp__plugin_githits_githits__code_grep",
+    "mcp__plugin_githits_githits__code_read",
+    "mcp__plugin_githits_githits__docs_list",
+    "mcp__plugin_githits_githits__docs_read",
+    "mcp__plugin_githits_githits__get_example",
+    "mcp__plugin_githits_githits__pkg_changelog",
+    "mcp__plugin_githits_githits__pkg_deps",
+    "mcp__plugin_githits_githits__pkg_info",
+    "mcp__plugin_githits_githits__pkg_upgrade_review",
+    "mcp__plugin_githits_githits__pkg_vulns",
+    "mcp__plugin_githits_githits__search",
+    "mcp__plugin_githits_githits__search_language",
+    "mcp__plugin_githits_githits__search_status",
+]
+local_repository = ["Glob", "Grep", "Read"]
+external_research = ["ToolSearch", "WebFetch", "WebSearch", "@evidence_mcp"]
+
+# Investigation roles are split at the tool layer: a role holding private source AND fetched
+# external content can leak one into the other through prompt injection even when its prose says
+# not to, so both required and forbidden authority are pinned and a one-line frontmatter edit
+# cannot silently collapse the boundary. `repository-investigator` REQUIRES Bash for git history
+# and revision identity -- admissible only because the read-only guard covers it and scopes the
+# allowlist's one network family (`gh`) away from it (PR #141). The application-security-auditor
+# keeps Bash forbidden: its mandate is to be safe against a HOSTILE repository, and the guard's
+# own docstring names the git-config ext-diff vector a shell opens against one.
+[[roles]]
+name = "application-security-auditor"
+required = ["@local_repository"]
+forbidden = [
+    "Agent", "Bash", "Edit", "NotebookEdit", "ToolSearch", "WebFetch", "WebSearch", "Write",
+    "@evidence_mcp",
+]
+
+[[roles]]
+name = "repository-investigator"
+required = ["@local_repository", "Bash"]
+forbidden = [
+    "Agent", "Edit", "NotebookEdit", "ToolSearch", "WebFetch", "WebSearch", "Write",
+    "@evidence_mcp",
+]
+
+[[roles]]
+name = "researcher"
+required = ["@external_research"]
+forbidden = ["Agent", "Bash", "Edit", "Glob", "Grep", "NotebookEdit", "Read", "Write"]
+
+# Canonical evidence-label phrasing; an agent may extend a definition but must contain these
+# exact stems so the triad cannot drift file by file. The workflow packet schemas carry the same
+# triad as a bare enum, derived from these stems so it has exactly one authoring point -- a
+# drifted enum surfaces as a schema failure five retries deep inside a live workflow run.
+[evidence]
+stems = [
+    "**[verified]** (you ran or observed it",
+    "**[sourced]** (cited to file:line, URL, or query)",
+    "**[unverified]** (assumption or couldn't check)",
+]
+
+# Perishable platform facts get exactly ONE home inside agents/ and skills/, so when the platform
+# moves the correction lands once. Keys are literal substrings; values the only file (repo-relative
+# POSIX path) allowed to carry them. The full issue identifier is pinned, not its numeric suffix,
+# so unrelated ports and record IDs stay valid content.
+[perishable_tokens]
+"anthropics/claude-code#22345" = "skills/prompt-craft/references/claude-code-frontmatter.md"
+
+# AGENTS.md drift tripwires: Claude Code loads CLAUDE.md (not AGENTS.md), so a lost import
+# orphans the guide without an error; the program map is held to the same stale-path rule.
+[guide]
+import_line = "@AGENTS.md"
+program_doc = "docs/engineering-program.md"
+
+# Cross-host conformance coverage policy, applied after the shared manifest schema validates.
+[conformance]
+required_static_hosts = ["claude", "codex", "vscode"]
+required_baseline_model = "gpt-5.6-sol"

@@ -1,10 +1,10 @@
 # Rebuild the fleet machinery on one kernel
 
 - Date: 2026-09-13
-- Status: **proposed** — the operator asked for a from-scratch design of the maintainer
-  machinery under `scripts/` and for the first slice to land on
-  `claude/machinery-rewrite-fresh-ar08n6`. Phase 0 below is implemented on that branch; phases
-  1–5 carry no implementation authority until this record is accepted (docs/README.md rule 3).
+- Status: **accepted** by the operator on 2026-09-13 ("approved for the code rewrite"), after
+  phase 0 merged in PR #187 and both live preconditions were met (the unprivileged probe re-run
+  and the native eval pilot, both in `docs/archive/2026-09/`). Phases 1–5 now carry
+  implementation authority in the order the phase table states, one PR each.
 - Owner of the live work item: `MACH-001` in `docs/fleet-roadmap.md`.
 - Amends nothing yet. Accepting phase 4 amends `evals/README.md` and the routing-eval sentence
   in `AGENTS.md`; accepting phase 5 amends `docs/fleet-development.md`'s hook section.
@@ -203,3 +203,45 @@ violated on 2026-09-13; a module leaves the table in the phase that migrates it.
 - `claude plugin eval` loses the `tool_used` grader over `Agent` input, or its isolation stops
   matching the clean-room guarantees the retired runner gave — phase 4 is then reversed, not
   patched.
+
+## Amendment, 2026-09-13 — phase 1 landed
+
+Phase 1 is implemented on `claude/machinery-rewrite-fresh-ar08n6` after acceptance, with two
+naming departures from the plan above, both because the planned name was already taken:
+the typed snapshot is `fleet/snapshot.py` (the member and cross-reference records moved into
+`fleet/references.py`, and `scripts/fleet_records.py` re-exports both), and the finding type is
+`fleet/findings.py` as planned. What landed: `fleet/policy.toml` with every vocabulary and roster
+stamped with its source and check date; `fleet/rules/` with 24 registered rules in eleven groups
+run in the legacy `validate_repo` order, each declaring its scope (`fleet` or `definition`) and
+every id it emits, with the runner sequencing definition-scoped findings definition-major as the
+legacy per-definition loops did; `fleet/cli.py` with `validate` (`--json`, `--github`,
+`--write-inventory`, `--no-adapters`) and `rules`; hook rosters read through `ast` in
+`fleet.snapshot.read_rosters` and captured once per load as `HookScript` records, alongside
+the manifest's presence and each skill's bundle inventory, so the validator neither executes a
+hook script nor re-reads any input after the snapshot; the group vocabulary is closed (an
+unknown group is refused at registration and at selection) and the policy's mappings are
+read-only views;
+`fleet/modules.py` as the one content-keyed script loader. `scripts/validate_fleet.py` shrank to
+a compatibility layer whose `validate_*` functions and constants are views of the rules and the
+policy, and whose roster-taking wrappers honour the caller's roster.
+
+Oracle met: a scratch harness ran the pre-phase validator and the rule-based validator over the
+repository, all fourteen fixtures, and eleven fresh mutations of a repository copy (a dropped
+guard roster entry, a pinned model plus a scoped tool, a hook roster drift, a stale guide path, a
+non-member routing entry, a workflow with a statement ahead of `meta`, an orphaned reference
+file, a manifest without an author, all of those combined, three failing agents plus four failing
+skills at once for the definition-major order, and unadopted tool grants plus alias drift) and
+found identical message lists, order included, on every tree. Four diagnostics are the only
+text deltas, mapped explicitly in the harness: the three tool-adoption messages and the guide's
+alias message now name their `fleet/policy.toml` table instead of `FLEET_TOOLS`,
+`FLEET_MCP_TOOLS`, and `ALIAS_MODELS`, which no longer govern anything. The suite grew from 550
+to 596 tests, the new ones pinning rule ids per fixture, the registry's uniqueness, group
+coverage, run order, and scope set, policy loading, snapshot reads (definition bytes and hook
+rosters judged as loaded, never re-read), the roster reader's refusal to execute, the finding
+renderers, and the CLI. Three Codex review rounds (seven, five, and seven findings) and one Copilot review (seven
+findings, four still open on the head it reviewed) drove the
+order, the snapshot-captured rosters, manifest presence, and bundle inventories, the declared
+ids, the closed group vocabulary, the honoured rosters, the read-only policy views, the
+source line on reference findings, the tolerant hook reader, the policy-pointing diagnostics,
+the preload check judged against the captured roster, one snapshot per CLI run, and a load that
+opens no file twice; one finding was declined, with the reason in `fleet/policy.py`'s docstring.
