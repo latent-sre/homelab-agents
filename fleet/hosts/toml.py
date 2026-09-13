@@ -9,9 +9,14 @@ same bug, and Codex reads a truncated instruction set or refuses the profile at 
 The answer is not care, it is a check. Every document this module emits is parsed straight back
 with `tomllib` and compared to the mapping it was asked to write. A wrong escape, a delimiter
 inside a value, or a stray control character therefore fails at generation time, on a bare
-interpreter, with no dependency to install. `tomli-w` is the third-party tripwire over the same
-data in `tests/test_fleet_hosts.py`, the way PyYAML is the tripwire for the frontmatter dialect:
-useful as an independent opinion, never in the path that writes the file.
+interpreter, with no dependency to install.
+
+No third-party tripwire sits beside that check, unlike PyYAML beside the frontmatter dialect, and
+the difference is the point: PyYAML is an independent *parser* of a dialect the fleet reads
+itself, while the fleet has no TOML reader of its own -- `tomllib` is the oracle here and in
+every consumer. A third-party *writer* compared through that same parser could not fail for any
+defect the round-trip above does not already catch, so adding one would be a check that re-proves
+an existing fact (AGENTS.md, proportionality).
 """
 
 from __future__ import annotations

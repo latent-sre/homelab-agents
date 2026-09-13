@@ -60,6 +60,25 @@ class RewriteContractTests(unittest.TestCase):
         apply_rewrites("some text", [dead], host="codex", ledger=ledger)
         self.assertIn("matched nothing in the whole fleet", ledger.shortfalls([dead])[0])
 
+    def test_a_mismatch_names_the_repair_its_direction_calls_for(self) -> None:
+        # Guessing the direction costs a correction: too few means an anchor was lost, too many
+        # usually means a legitimate new occurrence that should be reviewed and counted. A
+        # message that said "unintended" either way would send half of them to undo the rewrite.
+        rewrite = Rewrite(id="counted", why="the reason", find="a", replace="b", expect=2)
+        short = Ledger()
+        short.record(rewrite, 1)
+        under = short.shortfalls([rewrite])[0]
+        self.assertIn("Re-anchor the rewrite", under)
+        self.assertNotIn("raise `expect`", under)
+
+        long = Ledger()
+        long.record(rewrite, 3)
+        over = long.shortfalls([rewrite])[0]
+        self.assertIn("raise `expect`", over)
+        self.assertNotIn("Re-anchor the rewrite", over)
+        for message in (under, over):
+            self.assertIn("the reason", message)
+
     def test_rewrites_run_in_table_order(self) -> None:
         # Order is load-bearing: the fleet's own chain rewrites "its preloaded skills" before a
         # later regex that matches only the rewritten form.
@@ -200,29 +219,6 @@ class TomlEmitterTests(unittest.TestCase):
                 fleet_toml.render_document([("name", 'a " quote')])
         finally:
             fleet_toml.basic_string = original
-
-    def test_tomli_w_agrees_with_the_emitter(self) -> None:
-        # The third-party tripwire, as PyYAML is for the frontmatter dialect: an independent
-        # writer must produce a document that parses to the same data. It is never in the path
-        # that writes the file, so the fleet keeps working on a bare interpreter.
-        try:
-            import tomli_w
-        except ImportError:  # pragma: no cover - exercised in CI, which installs the dev group
-            self.skipTest("tomli-w is not installed (dev group); the emitter never needs it")
-        data = {
-            "name": "code-reviewer",
-            "description": 'quotes " backslash \\ em dash —',
-            "developer_instructions": "first\nsecond\n",
-        }
-        ours = fleet_toml.render_document(
-            [
-                ("name", data["name"]),
-                ("description", data["description"]),
-                ("developer_instructions", fleet_toml.Multiline(data["developer_instructions"])),
-            ]
-        )
-        self.assertEqual(data, tomllib.loads(ours))
-        self.assertEqual(data, tomllib.loads(tomli_w.dumps(data)))
 
     def test_the_committed_codex_adapters_parse(self) -> None:
         agents = sorted((REPO / ".codex" / "agents").glob("*.toml"))

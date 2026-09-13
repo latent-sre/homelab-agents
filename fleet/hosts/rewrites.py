@@ -157,13 +157,26 @@ class Ledger:
                     )
                 continue
             if landed != rewrite.expect:
+                # The two directions need different repairs, and guessing wrong costs a
+                # correction: too few means an anchor was lost and must be re-anchored; too many
+                # usually means a legitimate new occurrence, which is reviewed and then counted.
+                if landed < rewrite.expect:
+                    repair = (
+                        "Canonical text this rewrite anchors on was reworded or removed without "
+                        "the rewrite following, so an adapter would ship without that correction "
+                        "and byte-drift validation could not see it. Re-anchor the rewrite on the "
+                        "new wording, or delete it if what it corrected is gone."
+                    )
+                else:
+                    repair = (
+                        "The rewrite matched more places than the table expects. Read the new "
+                        "occurrences: if each genuinely needs this projection, raise `expect` to "
+                        "the new total; if one was duplicated or matched by accident, fix the "
+                        "canonical text instead. Do not weaken the rewrite to silence this."
+                    )
                 problems.append(
                     f"{rewrite.id}: landed {landed} time(s), the table declares "
-                    f"{rewrite.expect}. The canonical text it anchors on changed without this "
-                    f"rewrite following, so the adapter would ship "
-                    f"{'without that' if landed < rewrite.expect else 'with an unintended'} "
-                    f"correction and byte-drift validation could not see it. "
-                    f"Why it exists: {rewrite.why}"
+                    f"{rewrite.expect}. {repair} Why it exists: {rewrite.why}"
                 )
         return problems
 

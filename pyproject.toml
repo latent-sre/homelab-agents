@@ -24,11 +24,6 @@ dev = [
     # frontmatter dialect (tests/test_fleet_frontmatter.py). It is never the reader: the hosts
     # that load the definitions are the oracle, and they are not conforming parsers either.
     "pyyaml==6.0.3",
-    # A third-party TOML writer, used only as a differential tripwire against the fleet's own
-    # Codex emitter (tests/test_fleet_hosts.py). It is never the writer: `fleet/hosts/toml.py`
-    # parses every document it emits back with the standard library's `tomllib`, so generation
-    # keeps working on a bare interpreter.
-    "tomli-w==1.2.0",
 ]
 
 [tool.ruff]

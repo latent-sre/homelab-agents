@@ -399,8 +399,9 @@ byte-drift check blind to it because the committed adapter was produced with the
 rewrite that matches nothing anywhere is dead rather than cautious, so the table has no
 zero-expectation form. `--diff` renders what `--write` would change without writing, and the Codex
 profile is emitted by `fleet/hosts/toml.py`, which parses every document it writes back with
-`tomllib` and compares it to the mapping it was asked to write (`tomli-w` is the differential
-tripwire in the tests, never the writer).
+`tomllib` and compares it to the mapping it was asked to write. No third-party writer sits beside
+that check: the fleet has no TOML reader of its own, so `tomllib` is the oracle for both sides and
+a second writer could not fail for anything the round-trip already catches.
 
 The same validator loads the adapter generator as a library. It rejects missing, extra, or
 byte-drifted generated files;

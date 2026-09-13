@@ -276,13 +276,17 @@ shipping.
 
 Two deliberate departures from the plan above:
 
-- **`tomli-w` is a tripwire, not the writer.** The plan added it "when the Codex TOML emitter has
-  a consumer". Making it the emitter would put a dependency in the path that `--check` runs, and
-  the T0 validator must keep working on a bare interpreter (Consequences, above). `fleet/hosts/
-  toml.py` therefore emits and then parses its own document back with the standard library's
+- **`tomli-w` is not adopted at all.** The plan added it "when the Codex TOML emitter has a
+  consumer". Making it the emitter would put a dependency in the path that `--check` runs, and
+  the T0 validator must keep working on a bare interpreter (Consequences, above), so
+  `fleet/hosts/toml.py` emits and then parses its own document back with the standard library's
   `tomllib`, comparing it to the mapping it was asked to write — an always-on check that needs no
-  install — and `tomli-w` is the independent opinion in `tests/test_fleet_hosts.py`, exactly as
-  PyYAML is for the frontmatter dialect.
+  install. It was then added as a differential tripwire beside that check, on the PyYAML
+  precedent, and review showed the analogy does not hold: PyYAML is an independent *parser* of a
+  dialect the fleet reads itself, while the fleet has no TOML reader — `tomllib` is the oracle
+  here and in every consumer, so a third-party *writer* compared through that same parser cannot
+  fail for any defect the round-trip already catches. It was removed as a check that re-proves an
+  existing fact, and the dev group and CI install lines go back to what they were.
 - **`expected_outputs(root, verify_rewrites=False)` exists for synthetic trees.** The counts
   describe *this fleet's* canonical corpus, so a two-file fixture would report every rewrite as
   missing and say nothing true. Every path that generates the real fleet — the CLI's `--write`,
@@ -301,3 +305,8 @@ in the table now. `--diff` also rendered two real changes as nothing: a differen
 endings or the final newline (which `splitlines()` discards, so the preview exited 0 on a tree
 `--write` would still rewrite) and the retired roots `--write` deletes outright, which appear in
 no expected-output map. Both are reported explicitly.
+
+A second review round retired the `tomli-w` tripwire for the reason recorded above, and split the
+count-mismatch diagnostic by direction: too few means an anchor was lost and must be re-anchored;
+too many usually means a legitimate new occurrence to review and count. One message calling both
+"unintended" would have sent half the failures to undo a correction that was working.
