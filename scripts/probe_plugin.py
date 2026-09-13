@@ -233,17 +233,23 @@ class Probe:
         """
         self._truncated = unanswered_cause(result)
 
-    def check(self, status: str, label: str, detail: str = "", *, observed: bool = False) -> None:
-        """Record one verdict. `observed` marks a verdict that a truncation cannot undo.
+    def check(self, status: str, label: str, detail: str = "", *, absence: bool = False) -> None:
+        """Record one verdict. `absence=True` says this FAIL rests on something NOT found.
 
-        The downgrade below is only ever sound for an ABSENCE: "the canary is not in the
-        transcript" means nothing when the transcript stops early. A verdict resting on
-        something the oracle positively SAW -- a denylisted command that ran unguarded, the gate
-        firing on the user's own Bash -- is conclusive whatever happened afterwards, and
-        downgrading it silences a proven security regression because the session later timed
-        out (Codex, PR #190). Absence downgrades; observation does not.
+        The truncation downgrade is only ever sound for an absence: "the canary is not in the
+        transcript" means nothing once the transcript stops early, while a verdict resting on
+        something the oracle positively SAW is conclusive whatever happened afterwards.
+
+        The flag marks the ABSENCE side, and that direction is the whole design. Marking the
+        observation side instead meant an unclassified verdict was downgraded BY DEFAULT, so a
+        presence-based FAIL that was added later or simply missed became a silent INCONCLUSIVE
+        and a proven regression disappeared. Three review rounds found three more unmarked ones
+        (`code_status`, the literal-plugin-root read, the gate arms), which is the evidence that
+        enumerating them by hand does not converge. The unmarked default is now to REPORT:
+        forgetting yields a possibly-noisy FAIL on partial evidence, never a silent pass. For a
+        security instrument that is the only safe direction to err (Codex and Copilot, PR #190).
         """
-        if status == FAIL and not observed and self._truncated is not None:
+        if status == FAIL and absence and self._truncated is not None:
             # Not a downgrade of a real defect: the evidence for this verdict is known to be
             # incomplete, so the honest verdict is "unproven", not "broken".
             status = SKIP
@@ -797,6 +803,7 @@ def probe_workflow_contract(probe: "Probe") -> None:
         "the Workflow tool never acknowledged a launch -- the workflow errored before running, "
         "so the agent_type checks below are meaningless this run: "
         + session.stderr[:200],
+        absence=True,
     )
     events = (
         list(stream_events.iter_events(hook_log.read_text(encoding="utf-8")))
@@ -810,6 +817,7 @@ def probe_workflow_contract(probe: "Probe") -> None:
         "PreToolUse fired inside the workflow-spawned guarded agent with namespaced agent_type",
         "no hook payload carried agent_type 'sde-agents:code-reviewer' -- the guard is "
         "undeliverable inside workflows and every guarded agent there is silently unguarded",
+        absence=True,
     )
     probe.check(
         PASS if default_hits else FAIL,
@@ -832,6 +840,7 @@ def probe_workflow_contract(probe: "Probe") -> None:
         "no hook payload shows the guarded agent attempting `sort` -- the deny path was never "
         "exercised, so 'guard works in workflows' rests on an allowlisted command that cannot "
         "be denied",
+        absence=True,
     )
     probe.check(
         PASS if GUARD_DENIAL_MARKER in text else FAIL,
@@ -883,18 +892,19 @@ def _probe_live_effect_gate(probe, project) -> None:
             env=dict(os.environ, SDE_AGENTS_LIVE_EFFECT_POLICY="prompt"),
         )
     for marker, gate_session in gate_sessions.items():
-        # A differential needs both arms: with one missing there is nothing to compare, so the
-        # whole leg is unproven rather than half-answered.
-        if not probe.answered(
-            gate_session, f"the live-effect gate differential ({marker} arm)"
-        ):
-            return
+        # Report the unanswered arm, but do NOT return: an arm that completed carries evidence
+        # of its own. If AGENT proves the live verb ran while MAIN times out, returning here
+        # discarded a security regression the probe had already paid to observe (Codex, PR #190).
+        # Each arm below reports what its own transcript supports; an empty one reads as
+        # unattempted, which its own branch already handles.
+        probe.answered(gate_session, f"the live-effect gate differential ({marker} arm)")
     agent_attempted, agent_res = result_for(
         "GATEPROBE_AGENT", bash_results(gate_sessions["AGENT"].stdout),
         exact=GATE_CMD.format(marker="AGENT"),
     )
     agent_seen = observed(agent_res)
     agent_ran = [r for r in unguarded_runs(agent_seen) if GATE_DENY not in r]
+    probe.reading(gate_sessions["AGENT"])
     title = "the gate DENIED homelab-engineer's live verb under dontAsk"
     if not agent_attempted:
         probe.check(
@@ -914,7 +924,6 @@ def _probe_live_effect_gate(probe, project) -> None:
             FAIL, title,
             f"the live verb RAN for homelab-engineer under dontAsk in {len(agent_ran)} of "
             f"{len(agent_seen)} correlated result(s): {agent_ran[0].strip()[:160]!r}",
-            observed=True,
         )
     else:
         probe.check(
@@ -927,6 +936,7 @@ def _probe_live_effect_gate(probe, project) -> None:
         exact=GATE_CMD.format(marker="MAIN"),
     )
     main_seen = observed(main_res)
+    probe.reading(gate_sessions["MAIN"])
     title = "the gate IGNORED the main loop's identical live verb"
     if not main_attempted:
         probe.check(
@@ -939,7 +949,6 @@ def _probe_live_effect_gate(probe, project) -> None:
             FAIL,
             title,
             "the gate fired for a payload with no agent_type: the user's own Bash is gated.",
-            observed=True,
         )
     elif not unguarded_runs(main_seen):
         # Claude Code's own layer refused it, so the command never reached a point where the
@@ -1016,6 +1025,7 @@ def main(argv: list[str] | None = None) -> int:
         PASS if session.returncode == 0 else FAIL,
         "headless session exited cleanly",
         session.stderr[:300],
+        absence=True,
     )
 
     print("\n== the plugin loaded, and its components are namespaced ==")
@@ -1025,6 +1035,7 @@ def main(argv: list[str] | None = None) -> int:
             f"{agent} spawned and returned without error",
             "no Agent call naming this agent came back with a non-error result -- the plugin "
             "did not load, or the namespaced name did not resolve",
+            absence=True,
         )
 
     print("\n== builder skills load only when needed ==")
@@ -1047,12 +1058,26 @@ def main(argv: list[str] | None = None) -> int:
         PASS if onboard_reads else FAIL,
         "homelab-engineer resolved service-onboard by path",
         "no Read of skills/service-onboard/SKILL.md in the transcript",
+        absence=True,
     )
-    probe.check(
-        PASS if onboard_reads and all("CLAUDE_PLUGIN_ROOT" not in p for p in onboard_reads) else FAIL,
-        "the path was EXPANDED, not a literal ${CLAUDE_PLUGIN_ROOT}",
-        f"agent read an unexpanded path: {onboard_reads}",
-    )
+    literal_reads = [path for path in onboard_reads if "CLAUDE_PLUGIN_ROOT" in path]
+    if literal_reads:
+        # OBSERVED: the transcript already proves expansion failed, and a later timeout cannot
+        # un-prove it. Unmarked, so it reports (Copilot, PR #190).
+        probe.check(
+            FAIL,
+            "the path was EXPANDED, not a literal ${CLAUDE_PLUGIN_ROOT}",
+            f"agent read an unexpanded path: {literal_reads}",
+        )
+    else:
+        # ABSENCE: with no read at all there is nothing to judge, so a partial transcript makes
+        # this unevaluated rather than failed.
+        probe.check(
+            PASS if onboard_reads else FAIL,
+            "the path was EXPANDED, not a literal ${CLAUDE_PLUGIN_ROOT}",
+            "no Read of the skill resolved a path, so expansion was never exercised",
+            absence=True,
+        )
 
     print("\n== the guard denies the reviewer, and ONLY the reviewer ==")
     pairs = bash_results(text)
@@ -1085,7 +1110,6 @@ def main(argv: list[str] | None = None) -> int:
             f"the command RAN UNGUARDED in {len(reviewer_ran)} of {len(reviewer_seen)} correlated "
             f"result(s). code-reviewer executed `find -exec` against the repository under review. "
             f"Result: {reviewer_ran[0].strip()[:160]!r}",
-            observed=True,
         )
     elif any(GUARD_DENY in result for result in reviewer_seen):
         probe.check(PASS, "the guard DENIED the reviewer's denylisted command")
@@ -1123,7 +1147,6 @@ def main(argv: list[str] | None = None) -> int:
             f"the session-wide guard caught the USER'S OWN Bash in {len(mainloop_denied)} of "
             f"{len(mainloop_seen)} correlated result(s). This would make the plugin unusable: "
             "you could not run an ordinary command in your own session.",
-            observed=True,
         )
     else:
         # Anything other than the guard's voice is a pass here: even a permission prompt proves
@@ -1182,7 +1205,6 @@ def main(argv: list[str] | None = None) -> int:
             "session launched as a guarded agent carries no agent_type the hook can scope on. "
             "Every subagent check above can pass while this is broken: "
             f"{agent_flag_ran[0].strip()[:160]!r}",
-            observed=True,
         )
     elif any(GUARD_DENY in result for result in agent_flag_seen):
         probe.check(PASS, "the guard DENIED a --agent main session's denylisted command")
@@ -1225,6 +1247,7 @@ def main(argv: list[str] | None = None) -> int:
         "the routing table did not fire: the builder wrote an API client without loading the "
         "integration discipline. This is design Risk 1 realised -- consider pulling Consuming APIs "
         "back into the always-loaded core and accepting its tokens.",
+        absence=True,
     )
 
     probe_workflow_contract(probe)

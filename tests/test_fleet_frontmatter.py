@@ -167,6 +167,46 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class LineBreakerEscapingTests(unittest.TestCase):
+    """Deterministic pins for the three characters that motivated `_escape_line_breakers`.
+
+    The property test next door found this defect, but a property is not a regression pin: a
+    fresh Hypothesis run draws a few hundred strings and may never produce NEL, LINE SEPARATOR
+    or PARAGRAPH SEPARATOR, so reverting the fix could pass wherever the local example database
+    is absent -- CI included (Copilot, PR #190). These cases always run, and they run without
+    the dev group.
+    """
+
+    # `str.splitlines()` breaks on all three; `json.dumps(ensure_ascii=False)` escapes none of
+    # them, because none is a JSON control character. That disagreement is the whole defect.
+    LINE_BREAKERS = {"NEL": "\x85", "LINE SEPARATOR": "\u2028", "PARAGRAPH SEPARATOR": "\u2029"}
+
+    def test_each_line_breaker_is_escaped_rather_than_emitted_raw(self) -> None:
+        for name, character in self.LINE_BREAKERS.items():
+            with self.subTest(character=name):
+                rendered = fm.yaml_scalar(f"before{character}after")
+                self.assertNotIn(character, rendered, f"{name} was emitted raw")
+                self.assertEqual(1, len(rendered.splitlines()), f"{name} still splits the line")
+
+    def test_a_description_carrying_one_does_not_tear_the_frontmatter(self) -> None:
+        for name, character in self.LINE_BREAKERS.items():
+            with self.subTest(character=name):
+                value = f"Routes work{character}to the right altitude"
+                document = (
+                    f"---\nname: demo\ndescription: {fm.yaml_scalar(value)}\n---\n\nBody.\n"
+                )
+                parsed = fm.parse_text(document)
+                self.assertIsNotNone(parsed, f"{name} ended the frontmatter block early")
+                self.assertEqual({"name", "description"}, set(parsed))
+                self.assertEqual("demo", parsed["name"])
+
+    def test_the_flow_list_emitter_escapes_them_too(self) -> None:
+        for name, character in self.LINE_BREAKERS.items():
+            with self.subTest(character=name):
+                rendered = fm.yaml_flow_list([f"a{character}b"])
+                self.assertNotIn(character, rendered, f"{name} was emitted raw in a flow list")
+
+
 @unittest.skipUnless(HAS_HYPOTHESIS, HYPOTHESIS_REQUIRED)
 class DialectPropertyTests(unittest.TestCase):
     """Properties over arbitrary text, where a hand-picked corpus stops being convincing.

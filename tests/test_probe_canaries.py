@@ -520,14 +520,14 @@ class ProbeTimeoutRecoveryTests(unittest.TestCase):
                 self.assertEqual([probe_plugin.SKIP], [s for s, *_ in probe.results])
                 self.assertNotIn(probe_plugin.FAIL, [s for s, *_ in probe.results])
 
-    def test_an_observed_failure_survives_a_truncated_transcript(self) -> None:
-        """A security regression the oracle SAW is conclusive, whatever happened after.
+    def test_an_unclassified_failure_is_reported_not_silenced(self) -> None:
+        """The default is to REPORT. Forgetting a classification must never hide a regression.
 
-        The downgrade is only sound for an absence. "The canary is not in the transcript" means
-        nothing once the transcript stops early; "code-reviewer ran a denylisted command
-        unguarded" means exactly what it says, and turning that into INCONCLUSIVE because the
-        session later timed out silences a proven guard failure — the one verdict this probe
-        exists to deliver.
+        The flag marks the ABSENCE side precisely so this is true: a presence-based FAIL added
+        later, or simply missed, stays a FAIL on partial evidence. Noisy is recoverable; a
+        silently downgraded security regression is not. Four unmarked presence-based verdicts
+        were found across three review rounds under the opposite default, which is why the
+        default moved rather than the list growing again.
         """
         timed_out = probe_plugin._proc.CommandResult(
             ("claude",), None, "partial", "", timed_out=True, error="timed out"
@@ -535,41 +535,76 @@ class ProbeTimeoutRecoveryTests(unittest.TestCase):
         probe = probe_plugin.Probe()
         with contextlib.redirect_stdout(io.StringIO()):
             probe.reading(timed_out)
-            probe.check(probe_plugin.FAIL, "a canary was not present")
-            probe.check(
-                probe_plugin.FAIL, "a denylisted command RAN unguarded", observed=True
-            )
+            probe.check(probe_plugin.FAIL, "a denylisted command RAN unguarded")
+            probe.check(probe_plugin.FAIL, "a canary was not present", absence=True)
         statuses = {label: status for status, label, _ in probe.results}
-        self.assertEqual(probe_plugin.SKIP, statuses["a canary was not present"])
         self.assertEqual(
             probe_plugin.FAIL,
             statuses["a denylisted command RAN unguarded"],
-            "an observed security failure was silenced by a later timeout",
+            "an unclassified verdict was silenced by a truncated transcript",
         )
+        self.assertEqual(probe_plugin.SKIP, statuses["a canary was not present"])
 
-    def test_every_observed_verdict_in_the_probe_is_a_security_control(self) -> None:
-        """The `observed=True` marks stay where they belong, and stay complete.
+    def test_only_absence_based_verdicts_are_downgradable(self) -> None:
+        """Every `absence=True` in the probe is genuinely a not-found verdict.
 
-        Read from the source rather than asserted from memory: a new presence-based guard
-        verdict added without the mark would be silently downgradable, and a mark drifting onto
-        an absence-based check would defeat the cascade suppression PROBE-002 needs.
+        Read from the source rather than asserted from memory. This is the direction that is
+        safe to enumerate: a mark that drifts onto a presence-based verdict would silence it,
+        and there is no count to keep in step -- adding an unmarked check is always safe.
         """
         source = Path(probe_plugin.__file__).read_text(encoding="utf-8")
         tree = ast.parse(source)
-        marked = []
-        for node in ast.walk(tree):
-            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
-                continue
-            if node.func.attr != "check":
-                continue
-            if any(kw.arg == "observed" for kw in node.keywords):
-                marked.append(node.lineno)
+        marked = [
+            node.lineno
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "check"
+            and any(kw.arg == "absence" for kw in node.keywords)
+        ]
+        self.assertTrue(marked, "no absence-based verdicts marked; the cascade is unsuppressed")
+        lines = source.split("\n")
+        for lineno in marked:
+            window = "\n".join(lines[max(0, lineno - 1) : lineno + 8])
+            with self.subTest(line=lineno):
+                self.assertTrue(
+                    any(
+                        phrase in window
+                        for phrase in ("never", "no ", "not ", "did not", "stayed", "exited")
+                    ),
+                    f"the verdict at line {lineno} is marked downgradable but does not read as "
+                    f"an absence; a presence-based verdict marked this way is silenced",
+                )
+
+    def test_an_answered_gate_arm_is_graded_even_when_its_peer_times_out(self) -> None:
+        """An arm that completed carries evidence of its own.
+
+        The loop used to return on the first unanswered arm, throwing away a completed
+        transcript the probe had already paid to observe — so an AGENT arm proving the live verb
+        ran was discarded because MAIN timed out.
+        """
+        answered = probe_plugin._proc.CommandResult(("claude",), 0, "", "")
+        timed_out = probe_plugin._proc.CommandResult(
+            ("claude",), None, "", "", timed_out=True, error="timed out"
+        )
+        probe = probe_plugin.Probe()
+        with contextlib.redirect_stdout(io.StringIO()):
+            for marker, result in (("AGENT", answered), ("MAIN", timed_out)):
+                probe.answered(result, f"the live-effect gate differential ({marker} arm)")
+            # Standing in for the AGENT arm's own grading, which the early return skipped.
+            probe.reading(answered)
+            probe.check(probe_plugin.FAIL, "the live verb RAN for homelab-engineer")
+
+        statuses = {label: status for status, label, _ in probe.results}
         self.assertEqual(
-            5,
-            len(marked),
-            "the set of observation-based verdicts changed; each one is a guard or gate "
-            "control that must survive a truncated transcript, so confirm the new call is "
-            "presence-based before updating this count",
+            probe_plugin.SKIP,
+            statuses["the live-effect gate differential (MAIN arm)"],
+            "the unanswered arm must still be reported",
+        )
+        self.assertEqual(
+            probe_plugin.FAIL,
+            statuses["the live verb RAN for homelab-engineer"],
+            "the answered arm's observed regression was discarded with its peer",
         )
 
     def test_an_answering_leg_clears_the_previous_session_truncation(self) -> None:
@@ -651,14 +686,14 @@ class ProbeTimeoutRecoveryTests(unittest.TestCase):
         answered = probe_plugin._proc.CommandResult(("claude",), 0, "ok", "")
         probe = probe_plugin.Probe()
         with contextlib.redirect_stdout(io.StringIO()):
-            probe.check(probe_plugin.FAIL, "before truncation")
+            probe.check(probe_plugin.FAIL, "before truncation", absence=True)
             probe.reading(timed_out)
-            probe.check(probe_plugin.FAIL, "after truncation")
+            probe.check(probe_plugin.FAIL, "after truncation", absence=True)
             probe.check(probe_plugin.PASS, "a pass is still a pass")
             # A later leg drives its OWN session; a timeout in the previous one must not
             # silence its verdicts.
             probe.reading(answered)
-            probe.check(probe_plugin.FAIL, "the next session answered")
+            probe.check(probe_plugin.FAIL, "the next session answered", absence=True)
 
         statuses = {label: status for status, label, _ in probe.results}
         self.assertEqual(probe_plugin.FAIL, statuses["before truncation"])

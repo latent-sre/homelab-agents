@@ -454,3 +454,33 @@ so it never decodes the escapes the hosts do decode, and it eats a trailing apos
 latent — nothing compares a description read back from a generated file against its canonical
 source — and the fix changes what every rule sees for every quoted value, which is a phase of its
 own rather than a change smuggled into this one.
+
+**The hook probe was run, and the gate is discharged.** `python3 scripts/probe_plugin.py` against
+CLI 2.1.270 — the pinned version — passed every guard and gate assertion: the guard denied the
+reviewer and a `--agent` main session, ignored the main loop, the live-effect gate denied
+homelab-engineer's live verb under `dontAsk` and ignored the main loop's identical one, and
+`${CLAUDE_PLUGIN_ROOT}` expanded. So the pinned CLI still supplies the scoped `agent_type` the
+guard's contract rests on, after the tokenizer change. Two failures and one inconclusive are
+recorded with their dispositions in
+[guard bypass probe evidence](../archive/2026-09/guard-bypass-probe-2026-09-13.md): both failures
+reproduce prior results on this same pin in code this phase does not touch, and the inconclusive
+is PROBE-003's root-session verdict observed live — one line with its own cause rather than five
+cascading FAILs, which is the polarity contract working.
+
+I had earlier reported this gate as impossible to discharge here, on the grounds that the
+environment had no `claude` CLI. That was wrong, and wrong in the way this whole phase is about: I
+asserted it without running `which claude`. The CLI was present at the pinned version the whole
+time, and the claim reached the pull request body before anyone checked it.
+
+A fourth round then found three more presence-based verdicts the truncation logic would silence
+(`code_status`, the literal-plugin-root read, and a completed gate arm discarded when its peer
+timed out). Enumerating them by hand had now failed three times, so the default moved instead of
+the list growing: `check()` downgrades only when the caller passes `absence=True`. An unclassified
+verdict is REPORTED. Forgetting now costs a noisy FAIL on partial evidence rather than a silent
+pass, which is the only safe direction for a security instrument. The absence side is the safe one
+to enumerate, because a mark that drifts there is visible as noise rather than as silence.
+
+Copilot separately observed that the property test never *pins* NEL, LINE SEPARATOR and PARAGRAPH
+SEPARATOR: a few hundred generated strings may include none of them, so reverting
+`_escape_line_breakers` could pass wherever the example database is absent. A property is not a
+regression pin, and `LineBreakerEscapingTests` now covers all three deterministically.

@@ -102,7 +102,9 @@ runs; the specifier restricts nothing, the validator's rule stands) and the CI p
 
 **Next action:** Merge the phase-3 PR (#190 — the probes and the doctor as verbs over the
 kernel's subprocess runner, stream decoder and findings type; PROBE-006 closed by the runner's
-timeout result; a read-only guard bypass closed by the new property tests), then open phase 4.
+timeout result; a read-only guard bypass closed by the new property tests and re-verified by a
+runtime probe on the pinned CLI —
+[evidence](archive/2026-09/guard-bypass-probe-2026-09-13.md)), then open phase 4.
 The phase-4 live precondition is met: the
 native pilot ran on 2026-09-13 (CLI 2.1.270, sonnet, two runs of three), the `tool_used: Agent`
 grader matched `sde-agents:homelab-engineer` in five of six runs and the observed
