@@ -6,6 +6,7 @@ comments and these source checks keep a copy-edit from silently invalidating tha
 """
 from __future__ import annotations
 
+import ast
 import contextlib
 import io
 import json
@@ -518,6 +519,58 @@ class ProbeTimeoutRecoveryTests(unittest.TestCase):
                 self.assertFalse(proceeded)
                 self.assertEqual([probe_plugin.SKIP], [s for s, *_ in probe.results])
                 self.assertNotIn(probe_plugin.FAIL, [s for s, *_ in probe.results])
+
+    def test_an_observed_failure_survives_a_truncated_transcript(self) -> None:
+        """A security regression the oracle SAW is conclusive, whatever happened after.
+
+        The downgrade is only sound for an absence. "The canary is not in the transcript" means
+        nothing once the transcript stops early; "code-reviewer ran a denylisted command
+        unguarded" means exactly what it says, and turning that into INCONCLUSIVE because the
+        session later timed out silences a proven guard failure — the one verdict this probe
+        exists to deliver.
+        """
+        timed_out = probe_plugin._proc.CommandResult(
+            ("claude",), None, "partial", "", timed_out=True, error="timed out"
+        )
+        probe = probe_plugin.Probe()
+        with contextlib.redirect_stdout(io.StringIO()):
+            probe.reading(timed_out)
+            probe.check(probe_plugin.FAIL, "a canary was not present")
+            probe.check(
+                probe_plugin.FAIL, "a denylisted command RAN unguarded", observed=True
+            )
+        statuses = {label: status for status, label, _ in probe.results}
+        self.assertEqual(probe_plugin.SKIP, statuses["a canary was not present"])
+        self.assertEqual(
+            probe_plugin.FAIL,
+            statuses["a denylisted command RAN unguarded"],
+            "an observed security failure was silenced by a later timeout",
+        )
+
+    def test_every_observed_verdict_in_the_probe_is_a_security_control(self) -> None:
+        """The `observed=True` marks stay where they belong, and stay complete.
+
+        Read from the source rather than asserted from memory: a new presence-based guard
+        verdict added without the mark would be silently downgradable, and a mark drifting onto
+        an absence-based check would defeat the cascade suppression PROBE-002 needs.
+        """
+        source = Path(probe_plugin.__file__).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        marked = []
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
+                continue
+            if node.func.attr != "check":
+                continue
+            if any(kw.arg == "observed" for kw in node.keywords):
+                marked.append(node.lineno)
+        self.assertEqual(
+            5,
+            len(marked),
+            "the set of observation-based verdicts changed; each one is a guard or gate "
+            "control that must survive a truncated transcript, so confirm the new call is "
+            "presence-based before updating this count",
+        )
 
     def test_an_answering_leg_clears_the_previous_session_truncation(self) -> None:
         """`answered` begins reading its result, so a leg that answered is judged on its own.

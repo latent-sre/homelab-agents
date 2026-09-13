@@ -233,8 +233,17 @@ class Probe:
         """
         self._truncated = unanswered_cause(result)
 
-    def check(self, status: str, label: str, detail: str = "") -> None:
-        if status == FAIL and self._truncated is not None:
+    def check(self, status: str, label: str, detail: str = "", *, observed: bool = False) -> None:
+        """Record one verdict. `observed` marks a verdict that a truncation cannot undo.
+
+        The downgrade below is only ever sound for an ABSENCE: "the canary is not in the
+        transcript" means nothing when the transcript stops early. A verdict resting on
+        something the oracle positively SAW -- a denylisted command that ran unguarded, the gate
+        firing on the user's own Bash -- is conclusive whatever happened afterwards, and
+        downgrading it silences a proven security regression because the session later timed
+        out (Codex, PR #190). Absence downgrades; observation does not.
+        """
+        if status == FAIL and not observed and self._truncated is not None:
             # Not a downgrade of a real defect: the evidence for this verdict is known to be
             # incomplete, so the honest verdict is "unproven", not "broken".
             status = SKIP
@@ -905,6 +914,7 @@ def _probe_live_effect_gate(probe, project) -> None:
             FAIL, title,
             f"the live verb RAN for homelab-engineer under dontAsk in {len(agent_ran)} of "
             f"{len(agent_seen)} correlated result(s): {agent_ran[0].strip()[:160]!r}",
+            observed=True,
         )
     else:
         probe.check(
@@ -926,7 +936,10 @@ def _probe_live_effect_gate(probe, project) -> None:
         probe.check(SKIP, title, "no tool_result correlated to the call. Re-run.")
     elif any(GATE_DENY in result for result in main_seen):
         probe.check(
-            FAIL, title, "the gate fired for a payload with no agent_type: the user's own Bash is gated."
+            FAIL,
+            title,
+            "the gate fired for a payload with no agent_type: the user's own Bash is gated.",
+            observed=True,
         )
     elif not unguarded_runs(main_seen):
         # Claude Code's own layer refused it, so the command never reached a point where the
@@ -1072,6 +1085,7 @@ def main(argv: list[str] | None = None) -> int:
             f"the command RAN UNGUARDED in {len(reviewer_ran)} of {len(reviewer_seen)} correlated "
             f"result(s). code-reviewer executed `find -exec` against the repository under review. "
             f"Result: {reviewer_ran[0].strip()[:160]!r}",
+            observed=True,
         )
     elif any(GUARD_DENY in result for result in reviewer_seen):
         probe.check(PASS, "the guard DENIED the reviewer's denylisted command")
@@ -1109,6 +1123,7 @@ def main(argv: list[str] | None = None) -> int:
             f"the session-wide guard caught the USER'S OWN Bash in {len(mainloop_denied)} of "
             f"{len(mainloop_seen)} correlated result(s). This would make the plugin unusable: "
             "you could not run an ordinary command in your own session.",
+            observed=True,
         )
     else:
         # Anything other than the guard's voice is a pass here: even a permission prompt proves
@@ -1167,6 +1182,7 @@ def main(argv: list[str] | None = None) -> int:
             "session launched as a guarded agent carries no agent_type the hook can scope on. "
             "Every subagent check above can pass while this is broken: "
             f"{agent_flag_ran[0].strip()[:160]!r}",
+            observed=True,
         )
     elif any(GUARD_DENY in result for result in agent_flag_seen):
         probe.check(PASS, "the guard DENIED a --agent main session's denylisted command")
