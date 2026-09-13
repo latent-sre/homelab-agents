@@ -212,18 +212,29 @@ the typed snapshot is `fleet/snapshot.py` (the member and cross-reference record
 `fleet/references.py`, and `scripts/fleet_records.py` re-exports both), and the finding type is
 `fleet/findings.py` as planned. What landed: `fleet/policy.toml` with every vocabulary and roster
 stamped with its source and check date; `fleet/rules/` with 24 registered rules in eleven groups
-run in the legacy `validate_repo` order; `fleet/cli.py` with `validate` (`--json`, `--github`,
+run in the legacy `validate_repo` order, each declaring its scope (`fleet` or `definition`) and
+every id it emits, with the runner sequencing definition-scoped findings definition-major as the
+legacy per-definition loops did; `fleet/cli.py` with `validate` (`--json`, `--github`,
 `--write-inventory`, `--no-adapters`) and `rules`; hook rosters read through `ast` in
-`fleet.snapshot.read_rosters`, so the validator no longer executes a hook script;
+`fleet.snapshot.read_rosters` and captured once per load as `HookScript` records, so the
+validator neither executes a hook script nor re-reads one after the snapshot;
 `fleet/modules.py` as the one content-keyed script loader. `scripts/validate_fleet.py` shrank to
 a compatibility layer whose `validate_*` functions and constants are views of the rules and the
-policy.
+policy, and whose roster-taking wrappers honour the caller's roster.
 
 Oracle met: a scratch harness ran the pre-phase validator and the rule-based validator over the
-repository, all fourteen fixtures, and eight fresh mutations of a repository copy (a dropped guard
-roster entry, a pinned model plus a scoped tool, a hook roster drift, a stale guide path, a
+repository, all fourteen fixtures, and eleven fresh mutations of a repository copy (a dropped
+guard roster entry, a pinned model plus a scoped tool, a hook roster drift, a stale guide path, a
 non-member routing entry, a workflow with a statement ahead of `meta`, an orphaned reference
-file, a manifest without an author) and found identical message multisets on every tree. The
-suite grew from 550 to 576 tests, the new ones pinning rule ids per fixture, the registry's
-uniqueness and group coverage, policy loading, snapshot reads, the roster reader's refusal to
-execute, the finding renderers, and the CLI.
+file, a manifest without an author, all of those combined, three failing agents plus four failing
+skills at once for the definition-major order, and unadopted tool grants plus alias drift) and
+found identical message lists, order included, on every tree. Four diagnostics are the only
+text deltas, mapped explicitly in the harness: the three tool-adoption messages and the guide's
+alias message now name their `fleet/policy.toml` table instead of `FLEET_TOOLS`,
+`FLEET_MCP_TOOLS`, and `ALIAS_MODELS`, which no longer govern anything. The suite grew from 550
+to 587 tests, the new ones pinning rule ids per fixture, the registry's uniqueness, group
+coverage, run order, and scope set, policy loading, snapshot reads (definition bytes and hook
+rosters judged as loaded, never re-read), the roster reader's refusal to execute, the finding
+renderers, and the CLI. Two Codex review rounds (seven and five findings) drove the order, the
+snapshot-captured rosters, the declared ids, the honoured rosters, and the policy-pointing
+diagnostics; one finding was declined, with the reason in `fleet/policy.py`'s docstring.
