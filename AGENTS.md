@@ -36,12 +36,12 @@ mechanisms and checks — read it before touching a discipline.
   artifact when authorized, or report the evidence, destination, and owner. They do not emit an
   empty Learning form or start a promotion lifecycle merely to finish a task.
 
-The reading rule for any review of fleet prose: **the reader is the next session, not the
-operator's memory.** Apparent ceremony here is usually a strand mechanism. Two questions decide
-any trim: who is the real reader, and what consumes the artifact — "only the operator" and
-"nothing" means trim it; a future session, script, grader, or guard as consumer means the trim
-is a regression. The counterweight: coordination is not free — fewer handoffs over richer ones,
-one writer per artifact, structure only at the boundaries that remain.
+**When reviewing fleet prose, identify the reader or consumer and the decision, action, recovery,
+or check that needs each detail.** Preserve those facts and boundaries; remove repetition or link
+the owning source when the reader can resolve it at the point of use. A future reader alone does
+not justify a field. Preserve machine-consumed contracts or migrate their consumers and checks
+together, then verify the result against its consumer or a representative task. Prefer fewer
+handoffs and one owned record per fact. `docs/engineering-program.md` owns this reading rule.
 
 ## Validate before you push
 

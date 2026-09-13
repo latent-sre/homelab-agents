@@ -93,18 +93,18 @@ in `docs/decisions/2026-09-07-homelab-operating-flow.md`.
 
 ## The reading rule
 
-The reader of fleet prose is the next session, not the operator's memory. A fleet of stateless
-workers re-creates the conditions organizations invented coordination ceremony for — no shared
-memory, artifact-only communication, claims that cannot be trusted unverified — so owner slots,
-status lifecycles, contemporaneous capture, and written justifications here are often mechanisms
-of the strands above wearing organizational vocabulary. Two questions decide any trim: **who is
-the real reader, and what consumes this artifact.** If the honest answers are "only the operator,
-today" and "nothing", trim it. If the reader is a future session, or the consumer is a script, a
-grader, or a guard, the ceremony is a mechanism and the trim is a regression. The dated records
-under `docs/archive/` hold both kinds of verdict with their evidence; re-reading them is cheaper
-than re-litigating them.
+Before trimming fleet prose, identify its reader or consumer and the decision, action, recovery,
+or check that depends on it. A future session needs enough context to act without the operator's
+memory; that need does not make every repeated paragraph or template field necessary.
 
-The counterweight binds with equal force, and the same archive paid for it: coordination is not
-free. Prefer fewer handoffs over richer ones; keep one writer per artifact; add structure only at
-the boundaries that remain after the handoff count is minimized. A mechanism nobody consumes is
-not rigor — it is the next round's finding.
+Preserve decision-changing facts, authority boundaries, unresolved uncertainty, and evidence
+needed to resume. Remove redundant wording or replace it with a reference when the reader can
+resolve the owning source at the point of use. If a script, grader, or guard consumes an exact
+field or shape, preserve that contract or migrate the consumer and its checks in the same change;
+do not delete it as prose cleanup. Check the resulting artifact against its actual consumer or a
+representative task, and state what was not exercised.
+
+Prefer fewer handoffs, one writer per artifact, and one owned record for each fact. Add structure
+only where a remaining handoff, recovery step, or check needs it. The dated records under
+`docs/archive/` retain prior decisions and evidence; consult the relevant record when a proposed
+trim would change that decision.
