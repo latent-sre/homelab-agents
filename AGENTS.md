@@ -36,12 +36,12 @@ mechanisms and checks — read it before touching a discipline.
   artifact when authorized, or report the evidence, destination, and owner. They do not emit an
   empty Learning form or start a promotion lifecycle merely to finish a task.
 
-The reading rule for any review of fleet prose: **the reader is the next session, not the
-operator's memory.** Apparent ceremony here is usually a strand mechanism. Two questions decide
-any trim: who is the real reader, and what consumes the artifact — "only the operator" and
-"nothing" means trim it; a future session, script, grader, or guard as consumer means the trim
-is a regression. The counterweight: coordination is not free — fewer handoffs over richer ones,
-one writer per artifact, structure only at the boundaries that remain.
+**When reviewing fleet prose, identify the reader or consumer and the decision, action, recovery,
+or check that needs each detail.** Preserve those facts and boundaries; remove repetition or link
+the owning source when the reader can resolve it at the point of use. A future reader alone does
+not justify a field. Preserve machine-consumed contracts or migrate their consumers and checks
+together, then verify the result against its consumer or a representative task. Prefer fewer
+handoffs and one owned record per fact. `docs/engineering-program.md` owns this reading rule.
 
 ## Validate before you push
 
@@ -69,10 +69,11 @@ red check is fixed if trivial, else recorded in `docs/fleet-roadmap.md`.
   recorded conditions — requested model, clean-room setting, threshold, timeout — equal the run
   you are about to make; only then is the before-side reusable. The after-side stays fresh.
 
-Static review converges or stops: at most two deep-review rounds for prose-behavior changes
-(agent/skill text), three for other fleet prose. Divergence signal: criticals land in
-sentences the prior fix introduced. Close with a behavioral instrument (a routing round
-or executed verification); a round past the cap needs an explicit operator ruling.
+Limit new broad static reviews to two rounds for prose-behavior changes (agent/skill text), three
+for other fleet prose. These caps bound repeated broad reviews, not focused checks and corrections
+of demonstrated defects within scope. Stop oscillation or repeated failed corrections without
+new evidence; retain the unresolved defect. Close with a behavioral instrument or executed
+verification. Another broad round beyond the cap requires an explicit operator ruling.
 
 ## Development loop
 
@@ -136,7 +137,7 @@ then run the tests *and* the probe. Non-negotiables: the guard's allowlist grows
 own scripts); the gate's roster grows by adding a *live effect an incident or drill showed
 unlisted*, never by exempting one; both resolve their script through `${CLAUDE_PLUGIN_ROOT}` so a
 repository under review or operation can never supply it; the guard fails closed for guarded
-agents, the gate falls back to `ask` (and to `deny` when the payload says prompts are suppressed)
+agents; in `prompt` policy the optional gate falls back to `ask` (or `deny` when prompts are suppressed)
 for the gated agent, and both no-op for everyone else; and the 42/43/44/45 exit-code contract
 between the scripts and the hook shell strings stays intact — it is how the hook tells a script's
 answer from a stand-in interpreter that merely exits 0. An agent is on one roster or neither,
@@ -181,12 +182,21 @@ inventory, a guard-list entry — land in the same commit, keeping every commit 
 bisect and revert (writer discipline, not an enforced gate: CI validates the PR head, not each
 commit).
 
-Wait for both review passes **on the current head** — a review-driven edit mints bytes the cleared
-passes never saw, so the last edit owes another wait — and disposition every comment: applied, or
-declined with the reason. At most **three** review-driven edit rounds per PR; a later finding is
-dispositioned in the thread without new bytes (declined with the reason, or recorded as owed work
-in `docs/fleet-roadmap.md`) unless an explicit operator ruling buys one further round, the same
-one-round escape as the deep-review bound's round past the cap. The cap bounds edits, never waits.
+Obtain one independent review by default. Add a second for changes to authority or security
+boundaries, broad refactors, or unresolved material disagreement. Record each review's commit
+and scope; disposition every comment as applied or declined with its reason.
+
+After an edit, inspect the delta from the reviewed commit. Material changes require fresh,
+focused independent review of affected behavior and interfaces; unchanged scope retains its
+earlier evidence. Record non-material final deltas and why they need no additional review.
+Never describe an earlier review as having examined later bytes.
+
+Limit new broad PR review rounds to three. This bounds repeated broad reviews and speculative
+redesign, not bounded corrections to demonstrated in-scope defects. Make those corrections, run
+affected checks, and obtain focused review when needed under existing authorization. Stop an
+oscillating correction loop or repeated failures without new evidence; report the unresolved
+issue. Exhausting a review budget never makes a material defect merge-safe. Another broad round
+beyond the cap or material scope expansion requires an explicit operator ruling.
 
 `CONTRIBUTING.md` owns the procedure and is read before opening or updating a PR: branch naming,
 the pull-request template and its conditional gates, and supported reviewer triggers, with operator

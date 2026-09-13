@@ -1,13 +1,14 @@
-<!-- Spawn-prompt handoff — the shape of every builder/reviewer spawn in Phase 2/3. Agents do not
-     inherit this conversation: an underspecified handoff is the #1 multi-agent bug, and what you
-     omit here the agent will improvise. Every slot: fill it, or write "n/a — <why>". Prose in the
-     spawn never grants authority the agent's own definition (tools, tiers) doesn't already carry. -->
+<!-- Spawn-prompt guide for Phase 2/3. Supply the objective, owned scope, acceptance criteria and
+     return boundary; include material exclusions and authority limits. Reuse accessible current
+     references and omit inapplicable fields without placeholders. Missing decision-changing facts
+     are gaps, not inapplicable fields. Do not rely on implicit conversation inheritance or infer
+     authority beyond the user's task and the agent's actual tool/host controls. -->
 
 **Objective**: <!-- required: one sentence — what done looks like, not how -->
 
 **Scope in**: <!-- required: the components/files this agent owns (disjoint from every parallel builder) -->
 
-**Scope out / non-goals**: <!-- required: what it must NOT touch or attempt, incl. tempting adjacencies -->
+**Scope out / non-goals**: <!-- include material exclusions or constraints when they exist -->
 
 **Acceptance criteria**: <!-- required: checkable statements the agent self-verifies before returning -->
 

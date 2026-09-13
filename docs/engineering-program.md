@@ -64,13 +64,12 @@ enforced per host, never inferred from prose.
   `scripts/readonly-guard.py`'s roster; unguarded, "read-only" is a promise, not a control. The
   emitter/consumer splits this creates — an auditor that cannot flip its own findings — are
   deliberate edges, not indirection.
-- **Enforced interposition.** A live-effect agent gets a fleet-owned prompt, not a promise:
-  `scripts/live-effect-gate.py` answers `ask` for listed live-effect argv `homelab-engineer` invokes
-  and `deny` when the session cannot prompt, so "managed gate" names a hook the plugin ships
-  rather than evidence the model must produce. Unbound/unparseable forms also ask/deny; only a
-  no-decision result leaves the call to the host's own permission flow. The filter is not a sandbox. The same scoping rule as the guard — the payload's
-  `agent_type`, never prose — and the same structural exclusion from hosts whose payload cannot be
-  scoped.
+- **Optional interposition.** `scripts/live-effect-gate.py` defaults to no decision (`host`
+  policy), preserving the host's actual permission flow. Operator-selected `prompt` policy adds
+  `ask` for listed or unparseable live-effect commands from `homelab-engineer`, and `deny` when
+  prompts are suppressed. This is a partial command filter, not a sandbox or a grant of task
+  authority. The guard's agent-identity scoping and structural exclusion from unsupported hosts
+  still apply; its own read-only enforcement is unchanged.
 - **Separated layers.** Authored edges, per-host authority projections, and the routing overlay
   stay three layers kept deliberately apart, because co-membership is not behavioral coverage; the
   offline report that once rendered them together, scripts/capability_graph.py, was retired
@@ -93,18 +92,18 @@ in `docs/decisions/2026-09-07-homelab-operating-flow.md`.
 
 ## The reading rule
 
-The reader of fleet prose is the next session, not the operator's memory. A fleet of stateless
-workers re-creates the conditions organizations invented coordination ceremony for — no shared
-memory, artifact-only communication, claims that cannot be trusted unverified — so owner slots,
-status lifecycles, contemporaneous capture, and written justifications here are often mechanisms
-of the strands above wearing organizational vocabulary. Two questions decide any trim: **who is
-the real reader, and what consumes this artifact.** If the honest answers are "only the operator,
-today" and "nothing", trim it. If the reader is a future session, or the consumer is a script, a
-grader, or a guard, the ceremony is a mechanism and the trim is a regression. The dated records
-under `docs/archive/` hold both kinds of verdict with their evidence; re-reading them is cheaper
-than re-litigating them.
+Before trimming fleet prose, identify its reader or consumer and the decision, action, recovery,
+or check that depends on it. A future session needs enough context to act without the operator's
+memory; that need does not make every repeated paragraph or template field necessary.
 
-The counterweight binds with equal force, and the same archive paid for it: coordination is not
-free. Prefer fewer handoffs over richer ones; keep one writer per artifact; add structure only at
-the boundaries that remain after the handoff count is minimized. A mechanism nobody consumes is
-not rigor — it is the next round's finding.
+Preserve decision-changing facts, authority boundaries, unresolved uncertainty, and evidence
+needed to resume. Remove redundant wording or replace it with a reference when the reader can
+resolve the owning source at the point of use. If a script, grader, or guard consumes an exact
+field or shape, preserve that contract or migrate the consumer and its checks in the same change;
+do not delete it as prose cleanup. Check the resulting artifact against its actual consumer or a
+representative task, and state what was not exercised.
+
+Prefer fewer handoffs, one writer per artifact, and one owned record for each fact. Add structure
+only where a remaining handoff, recovery step, or check needs it. The dated records under
+`docs/archive/` retain prior decisions and evidence; consult the relevant record when a proposed
+trim would change that decision.

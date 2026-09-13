@@ -30,10 +30,12 @@ conditional-gates rows your change tripped — that table names the situational 
 owes, and rows you did not trip are deleted rather than left blank. Keep "Deliberately not done"
 honest and the whole template short.
 
-## Review passes — the two are not symmetric
+## Requesting review
 
-Treating the two reviewers alike is the mistake this section exists to prevent. After opening or
-updating a PR, inspect the review summary, requests, and reviewed commit **before** waiting.
+Choose the independent review coverage required by `AGENTS.md`, then inspect actual activity,
+scope, and reviewed commit before requesting or waiting. Codex and Copilot are available request
+paths, not two obligatory passes. The explicitly invoked two-lane deep-review workflow is an
+optional workflow, not the default PR requirement.
 
 **Codex — you may request it.** `@codex review` and the separate `@codex security review` are
 supported triggers, and an enabled Codex review can start automatically on open or ready. Request it
@@ -51,4 +53,5 @@ opposite meanings — which is why the inspection above precedes the wait. Never
 "awaiting review" when nothing was requested.
 
 Historical Copilot API failures do not establish a universal request ban; see
-`docs/decisions/2026-08-16-pr-review-gate.md`, which owns this policy and its reopen triggers.
+`docs/decisions/2026-08-16-pr-review-gate.md`, which records provenance and reopen triggers.
+`AGENTS.md` owns the current policy.

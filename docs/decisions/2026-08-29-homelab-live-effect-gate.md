@@ -1,5 +1,11 @@
 # Homelab live-effect gate: ship the interposition, fold the gate vocabulary
 
+> **2026-09-12 amendment:**
+> [Proportional homelab controls](2026-09-12-proportional-homelab-controls.md) retains this filter
+> as operator-selected `prompt` policy. Default `host` policy adds no decision; the former
+> mandatory-interposition statements below are history. The opt-in filter's scoping and fallback
+> contracts remain in force.
+
 > **Authority update, 2026-09-11:** The accepted
 > [bounded-campaign decision](2026-09-11-bounded-upgrade-campaign.md) supersedes this record's
 > exact-command-only authorization, automatic fresh-Tier-3 decision, and prompt-only transport

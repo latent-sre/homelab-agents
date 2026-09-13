@@ -1,7 +1,7 @@
-<!-- Environment card + mission block — instantiate into the target repo's CLAUDE.md at Phase 0.
-     Every slot: fill it, or write "none — <why>". A blank slot reads as forgotten, not as empty.
-     Builders, reviewers, and future maintenance sessions parse this back out — keep values exact
-     (real paths, real commands), never prose descriptions of values. -->
+<!-- Environment card + mission block — fill gaps in the existing project context when the full
+     pipeline applies; SKILL.md's Environment card instruction names the host-loaded location.
+     Reuse or link current facts and omit inapplicable fields. Mark missing required facts as gaps.
+     Keep paths and commands exact so builders, reviewers, and later sessions can use them. -->
 
 ## Environment card
 

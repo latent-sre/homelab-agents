@@ -209,7 +209,11 @@ For a reusable discovery, update its existing owned artifact only within this ta
 authority; otherwise hand off the evidence, destination, and owner. Routine completion does not
 start a retro.
 
-Label every load-bearing claim, including repeats and conditional claims: **[verified]** (you ran or observed it), **[sourced]** (cited to file:line, URL, or query), or **[unverified]** (assumption or couldn't check). Never let an [unverified] claim read as fact.
+Label load-bearing claims: **[verified]** (you ran or observed it), **[sourced]** (cited to file:line, URL, or query), or **[unverified]** (assumption or couldn't check).
+Use one label and evidence reference for a group sharing the same status and supporting evidence;
+separate claims whose evidence or certainty differs. Within the same report, refer back to that
+group instead of repeating its labels. A standalone handoff must retain the relevant attribution.
+Never let an [unverified] claim read as fact, including assumptions in conditional advice.
 
 ## Boundaries
 

@@ -1,5 +1,11 @@
 # Bounded upgrade campaigns
 
+> **2026-09-12 amendment:**
+> [Proportional homelab controls](2026-09-12-proportional-homelab-controls.md) makes the Claude
+> live-effect interposition optional; `host` policy is now the default. The bounded authorization,
+> recovery, migration and actual host-control rules below remain in force. Recorded prompt-mode
+> results below are historical evidence for the former mandatory filter.
+
 **Status:** Accepted by the operator on 2026-09-11; source implementation, not installed state.
 
 Date: 2026-09-11. Scope: campaign, homelab execution policy, its incident-recovery seam, onboarding authority consumers, and host

@@ -62,11 +62,13 @@ agent making the call and does nothing for anyone else, so your own shell is nev
   of read-only commands (`git diff`, `rg`, `cat`, and their kin) and denies everything else,
   including any interpreter. If the guard cannot run, those agents lose Bash rather than gaining
   it.
-- **The live-effect gate.** For `homelab-engineer`, listed live commands (`docker compose up`,
-  `systemctl restart`, `zfs destroy`, a reboot) prompt and are denied when prompts are suppressed.
-  Unbound wrappers and unparseable commands also ask/deny. When the partial filter returns no
-  decision (including the main loop), the host's own permissions apply. A permitted command needs
-  user task authority, and a denied effect must not be repackaged to evade the gate.
+- **The optional live-effect gate.** Default `host` policy leaves decisions to the host's actual
+  permissions. To retain the extra command-level prompt, the operator sets
+  `SDE_AGENTS_LIVE_EFFECT_POLICY=prompt` in the environment launching Claude before the session.
+  In that policy, listed live commands from `homelab-engineer` and unparseable forms ask, or deny
+  when prompts are suppressed. Unset or `host` adds no decision; invalid values fail closed for
+  that agent. This setting grants no task authority and agents must not change it to authorize
+  their own work. Existing host prompts and denials always apply.
 
 Both hooks run from the installed plugin copy, never from a repository under review. Neither is a
 sandbox: a reviewer that can read files can read secrets, and the load-bearing control remains the

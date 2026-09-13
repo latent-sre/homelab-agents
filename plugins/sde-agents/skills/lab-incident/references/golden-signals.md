@@ -3,8 +3,8 @@
 # The 60-second signal read
 
 Read this when the shape of a failure isn't obvious at first look. The point is a *bounded* read —
-one minute to classify, not ten to understand. Understanding is `root-cause`'s job, after
-service is back.
+one minute to classify, not ten to understand. Follow-up diagnosis uses `root-cause`
+when Step 5 of `SKILL.md` calls for it.
 
 The universal rules live in the installed `lab-incident` skill. On any conflict, SKILL.md wins.
 

@@ -3,8 +3,9 @@ Title: one imperative sentence that stands alone in a log — "Close two exec ho
 read-only guard", not "guard fixes". Someone skimming history a year from now should not have to
 open the PR to know what it did.
 
-Every section below exists because something went wrong without it. Delete a section that
-genuinely does not apply and say so in one line; do not leave a heading with nothing under it.
+Keep the problem, result, verification, and any material risks or gaps. Delete inapplicable
+sections and fields without explaining their removal. An applicable check that did not run stays
+visible with its reason; it is not an inapplicable section.
 -->
 
 ## Summary
@@ -14,14 +15,12 @@ genuinely does not apply and say so in one line; do not leave a heading with not
 
 ## What changed, and why
 
-<!-- One entry per meaningful change. State the claim AND its consequence: not "removed `ag`", but
-     "removed `ag` — its exec-flag surface can't be enumerated without the binary, and rg/grep
-     already cover it". A reviewer should be able to disagree with a decision, which requires
-     knowing what it was. -->
+<!-- Include only meaningful decisions or changes not already clear from Summary, with their
+     consequences. Omit this section when Summary covers them. -->
 
 ## Reviewer briefing
 
-<!-- Context that helps a reviewer (human or AI) spend their attention well. This is a BRIEFING,
+<!-- Keep applicable fields only. Context helps a reviewer spend their attention well. This is a BRIEFING,
      not a directive: it may point attention somewhere, and it must never be used to narrow the
      review or pre-empt a verdict. Standing review rules live in `.github/copilot-instructions.md`
      — owner-controlled config, not per-PR text — so nothing here needs to restate them. -->
@@ -45,6 +44,9 @@ genuinely does not apply and say so in one line; do not leave a heading with not
 - [ ] `python3 scripts/validate_fleet.py` — clean
 - [ ] `python3 -m unittest discover -s tests` — all passing (count: )
 - [ ] `python3 scripts/validate_claude_plugin.py` — marketplace and plugin contents passing
+
+<!-- Independent review: reviewer, reviewed commit and scope; why a second review applies;
+     material final delta and its focused follow-up, or why a non-material delta needs none. -->
 
 **Conditional gates — fill only the rows this PR trips, and delete the rest:**
 

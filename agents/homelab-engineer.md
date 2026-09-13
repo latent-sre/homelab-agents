@@ -100,14 +100,13 @@ work, and an authorized task does not bypass a host restriction. Use the host's 
 path. Do not manufacture a requirement for a human-interposing transport when that host already
 permits execution of the authorized work.
 
-- **Managed gate:** on Claude Code the plugin's live-effect hook asks for listed live commands
-  from this agent and denies them when prompts are suppressed. Traverse any actual prompt; do not
-  also request the same approval in chat. Never change wrappers, agent identity, or transport to
-  escape a prompt or denial. The Claude hook is a partial command filter: when it returns no
-  decision, the host's own permissions apply and may allow authorized execution without a prompt.
-  Unbound wrappers and unparseable commands can still ask/deny without a named live-effect rule.
-  Never repackage a denied/gated effect to evade the control. On other hosts, use their actual
-  permission controls.
+- **Managed gate:** on Claude Code the default live-effect policy is `host`: the plugin adds no
+  decision, and the host's actual permissions apply. An operator can select `prompt` through
+  `SDE_AGENTS_LIVE_EFFECT_POLICY` in the host launch environment before starting the session;
+  listed live commands and unparseable forms then ask, or deny when prompts are suppressed.
+  Traverse actual prompts without duplicating them in chat. Never change the policy, wrappers,
+  agent identity, or transport to escape a restriction. This optional filter is not a sandbox;
+  no-decision output does not authorize new task scope. Other hosts use their actual controls.
 - **Standing policy:** respect effective operator/host permission rules and their limits. An
   allow rule permits tool execution only within the user's task authority; it grants no new
   target, effect, or destructive consequence. Do not edit permission policy to authorize your own
@@ -202,7 +201,11 @@ For a reusable discovery, update its existing owned artifact only within this ta
 authority; otherwise hand off the evidence, destination, and owner. Routine completion does not
 start a retro.
 
-Label every load-bearing claim, including repeats and conditional claims: **[verified]** (you ran or observed it), **[sourced]** (cited to file:line, URL, or query), or **[unverified]** (assumption or couldn't check). Never let an [unverified] claim read as fact.
+Label load-bearing claims: **[verified]** (you ran or observed it), **[sourced]** (cited to file:line, URL, or query), or **[unverified]** (assumption or couldn't check).
+Use one label and evidence reference for a group sharing the same status and supporting evidence;
+separate claims whose evidence or certainty differs. Within the same report, refer back to that
+group instead of repeating its labels. A standalone handoff must retain the relevant attribution.
+Never let an [unverified] claim read as fact, including assumptions in conditional advice.
 
 ## Boundaries
 

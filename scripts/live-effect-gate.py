@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse live-effect gate — the managed gate homelab-engineer's prose promises, shipped.
+"""Optional PreToolUse live-effect interposition for homelab-engineer.
 
 Shipped by the sde-agents PLUGIN and registered through `hooks/hooks.json` as a second
 `PreToolUse`/`Bash` hook, beside `readonly-guard.py`. Like the guard it is SESSION-WIDE and scopes
@@ -7,10 +7,14 @@ ITSELF: it no-ops unless the pending call's `agent_type` names a gated agent, an
 loop — which carries no `agent_type` key — is never inspected. (The reasons a plugin agent cannot
 carry its own `hooks:` are the guard docstring's; they are not restated here.)
 
-WHY THIS EXISTS. `agents/homelab-engineer.md` separates bounded user authorization from actual
-host permissions. This partial filter adds a managed prompt/deny for listed live effects and
-unbound/unparseable commands from that agent. When it returns no decision, the host's own
-permission flow applies; no hook decision grants additional task authority.
+POLICY. SDE_AGENTS_LIVE_EFFECT_POLICY is selected in the operator's host launch environment:
+unset or `host` returns no decision, leaving the host's normal permissions in charge; `prompt`
+opts into the existing partial filter below. An invalid value fails closed for the scoped agent.
+The hook shell also short-circuits `host`, so that policy does not depend on a working Python.
+No policy emits `allow`, grants task authority, or overrides another host control. Agents must
+not change this launch policy to obtain permission for their own work. Repository/tool-input
+claims do not select policy. A same-user process can edit host configuration; this selector is
+operator configuration, not a tamper-proof security boundary.
 
 Before 2026-08-29 the agent was told to prove that a human-interposing control existed by
 "inspecting the effective control for that argv" without invoking it. Claude Code exposes no such
@@ -19,7 +23,7 @@ it can read are ones it can also write), so that earlier rule sent every live ap
 handoff. This hook supplies interposition for the calls it covers, not every live-effect argv.
 The current bounded-authority policy does not waive any prompt/denial the hook actually returns.
 
-THE ROSTER IS DENYLIST-SHAPED, DELIBERATELY — the opposite of the guard, for a different job. The
+IN PROMPT POLICY, THE ROSTER IS DENYLIST-SHAPED — the opposite of the guard, for a different job. The
 guard enforces read-only, where a missed writer is a silent breach, so it enumerates readers. This
 gate adds a fleet-owned prompt where the fleet KNOWS an effect is live; for anything unlisted the
 host's own permission flow remains the floor, exactly as it was before this file existed. An
@@ -27,7 +31,7 @@ allowlist here would prompt on every Tier 1 `git commit` and `sed -i` and teach 
 click through. The roster grows by RECURRENCE: a lab incident or drill that shows an unlisted live
 effect adds one entry with its transcript cited — never by exempting an entry.
 
-PERMISSION MODE IS THE OTHER HALF. The payload carries `permission_mode`
+IN PROMPT POLICY, PERMISSION MODE IS THE OTHER HALF. The payload carries `permission_mode`
 (default|plan|acceptEdits|auto|dontAsk|bypassPermissions — code.claude.com/docs/en/hooks). Under
 `bypassPermissions`, `dontAsk`, and `auto` no human answers a prompt, and a hook `deny` still wins
 there (hooks-guide: deny beats every mode). So a live verb in a suppressed mode is DENIED with an
@@ -38,8 +42,7 @@ a session that suppresses the prompt. Readers never depend on the mode.
 
 WHAT CANNOT BE BOUND, ASKS. A wrapper shell (`sh -c`, `eval`), command substitution, an
 interactive `ssh` with no remote command, `find -exec`, `sudo -i`, or an unparseable quote cannot
-be matched to one approved argv; the agent text forbids those forms for an approved effect, and
-the gate asks rather than guessing.
+be confidently classified; the gate asks rather than guessing.
 
 Decision transport: exit EXIT_ALLOW (42) with empty stdout is "no decision"; EXIT_ASK (45) and
 EXIT_DENY (43) print the permissionDecision JSON; EXIT_INDETERMINATE (44) is the answer for input
@@ -55,6 +58,7 @@ with a flag it did not consider, and it cannot see inside a script the agent wro
 authors). OS-level least privilege stays load-bearing.
 """
 import json
+import os
 import re
 import shlex
 import sys
@@ -650,6 +654,9 @@ def _decision(kind: str, why: str) -> dict:
 
 
 def decide(payload: dict) -> tuple[int, dict | None]:
+    policy = os.environ.get("SDE_AGENTS_LIVE_EFFECT_POLICY", "host")
+    if policy == "host":
+        return EXIT_ALLOW, None
     if payload.get("tool_name") != "Bash" or payload.get("agent_type") not in _GATED:
         # Contract canary, the guard's (readonly-guard.py, `main`) applied to this roster. If
         # `agent_type` is renamed upstream while the payload still names a gated agent under some
@@ -666,6 +673,11 @@ def decide(payload: dict) -> tuple[int, dict | None]:
         ):
             return EXIT_DENY, _decision("deny", DENY_IDENTITY)
         return EXIT_ALLOW, None
+    if policy != "prompt":
+        return EXIT_DENY, _decision(
+            "deny", "Invalid SDE_AGENTS_LIVE_EFFECT_POLICY: operator must select host or prompt "
+            "in the host launch environment; the agent must not change policy to authorize itself.",
+        )
     tool_input = payload.get("tool_input")
     command = tool_input.get("command") if isinstance(tool_input, dict) else None
     if not isinstance(command, str):
