@@ -76,11 +76,12 @@ publication separate from this source-level evidence.
 **Status:** `active` — the decision record was accepted 2026-09-13 after phase 0 merged (PR #187).
 Phase 1 (rules, policy, findings, CLI, rosters as data) merged in PR #188; phase 2 (host
 projections as a counted rewrite table, the verified Codex TOML emitter, `--diff`) is implemented
-on `claude/machinery-rewrite-fresh-ar08n6`, restarted from `main`, and is in review as PR #189
-under an operator ruling closing the broad-review loop after its ninth round; phases 3–5 remain.
+on `claude/machinery-rewrite-fresh-ar08n6` and merged as PR #189. Phase 3 (probes and doctor on
+the kernel, `hypothesis` property tests, PROBE-006 closed) is implemented on the same branch,
+restarted from `main`; phases 4–5 remain.
 
-**Next action:** merge PR #189, then open phase 3 (probes and doctor as verbs over
-`proc`/`stream`/`findings`, `hypothesis` property tests, PROBE-006 closed).
+**Next action:** merge the phase-3 PR, then open phase 4 (routing evals migrated to native cases,
+the runner retired, `evals/README.md` amended).
 
 **Outcome:** Every maintainer instrument under `scripts/` runs on the `fleet/` kernel with one
 implementation per primitive, policy held as data, structured findings, and the routing runner
@@ -292,6 +293,36 @@ a linter or contract check behind it anymore — the decision record gains the a
 **Next action:** Decide (a) or (b); both change what the agent emits. Verify with a routing round
 and the probe; no contract-graded re-measure is available.
 
+#### DIALECT-001 — the frontmatter reader strips quotes instead of parsing the scalar
+
+**Status:** `active` — found by the phase-3 property tests over `fleet/frontmatter.py`; latent
+today, recorded rather than fixed because the repair changes what every rule sees.
+
+**Outcome:** `parse_lines` reads a quoted scalar with `value.strip("'\"")` — a crude strip of
+quote characters from both ends, not a scalar parser. Two consequences share that one cause:
+
+- It never decodes YAML's double-quoted escapes, while the hosts that load the definitions do.
+  `yaml_scalar('say "hi"')` is read back by the fleet as `say \"hi\"` and by a host as
+  `say "hi"`. 25 generated frontmatter values carry such an escape today, all of them descriptions
+  containing a quoted phrase (`.github/agents/code-reviewer.agent.md` is the clearest).
+- It strips ANY quote character repeatedly, so the emitted `"say 'hi'"` reads back as `say 'hi`:
+  a trailing apostrophe in a description is silently lost.
+
+Both are **latent**, and the claim is checkable rather than asserted: nothing in the fleet compares
+a description read back from a generated file against its canonical source, which is the only
+place the two readings would meet. The boundary is pinned by
+`test_a_value_carrying_no_quote_or_escape_round_trips_exactly`, so the day something does compare
+them, that test still says exactly how far the round trip holds.
+
+**Acceptance:** Either a real double-quoted scalar reader (decode the escapes YAML defines, strip
+only the delimiter that actually opened the value), with every rule's verdict re-checked against
+the corpus; or a recorded decision that the dialect's subset excludes quoted scalars, enforced by
+a rule that refuses one in a canonical file. Not both, and not neither.
+
+**Next action:** Decide which of the two the dialect is. The fix is not urgent, but it must not
+stay undecided: the reader and the hosts disagree today, and only the absence of a comparison
+keeps that from mattering.
+
 #### PORT-002 — second mining round from save-toolkit, the sibling's delta since 2026-07-24
 
 **Status:** `decision-needed` — scoping read done and recorded; operator picks the set before
@@ -337,7 +368,11 @@ naming a GitHub issue **is** that issue's roadmap import under `docs/README.md` 
   failures across five runs); not caused by GATE-006. Source:
   [GATE-006 outcome](archive/2026-08/gate-006-outcome-2026-08-30.md);
   [history](archive/2026-09/roadmap-history-2026-09-01.md#probe-002-craft-preload-canaries-missing-in-sde-fullstack-spawn).
-- **PROBE-006** — A probe leg timeout raises `TimeoutExpired` instead of recording INCONCLUSIVE,
+- **PROBE-006** — Settled 2026-09-13 in machinery-rewrite phase 3: a probe leg that gets no
+  answer now records its own INCONCLUSIVE and the run continues, carrying the partial transcript
+  it already paid for. A truncated transcript downgrades later failures to unevaluated, so one
+  unanswered session no longer reads as a cascade of fleet defects. Was: a probe leg timeout
+  raises `TimeoutExpired` instead of recording INCONCLUSIVE,
   discarding every later check. Source:
   [GATE-006 outcome](archive/2026-08/gate-006-outcome-2026-08-30.md);
   [history](archive/2026-09/roadmap-history-2026-09-01.md#probe-006-a-probe-leg-timeout-crashes-instead-of-recording-inconclusive).

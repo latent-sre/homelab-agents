@@ -353,12 +353,12 @@ class FleetDoctorTests(unittest.TestCase):
             calls.append(tuple(argv))
             fleet_doctor._assert_read_only_command(argv)
             if tuple(argv[-2:]) == ("rev-parse", "HEAD"):
-                return fleet_doctor.CommandResult(0, "a" * 40 + "\n", "")
+                return fleet_doctor.CommandResult(tuple(argv), 0, "a" * 40 + "\n", "")
             if tuple(argv[-2:]) == ("status", "--short"):
-                return fleet_doctor.CommandResult(0, "", "")
+                return fleet_doctor.CommandResult(tuple(argv), 0, "", "")
             if tuple(argv[-2:]) == ("plugin", "list"):
-                return fleet_doctor.CommandResult(0, "sde-agents 1.4.0\n", "")
-            return fleet_doctor.CommandResult(0, "test-cli 1.0\n", "")
+                return fleet_doctor.CommandResult(tuple(argv), 0, "sde-agents 1.4.0\n", "")
+            return fleet_doctor.CommandResult(tuple(argv), 0, "test-cli 1.0\n", "")
 
         def which(command: str) -> str:
             return str(Path("C:/tools") / f"{command}.exe")
@@ -407,8 +407,8 @@ class FleetDoctorTests(unittest.TestCase):
     def test_junction_mode_without_plugin_reports_dormant_guard(self) -> None:
         def run(argv: tuple[str, ...]) -> fleet_doctor.CommandResult:
             if tuple(argv[-2:]) == ("plugin", "list"):
-                return fleet_doctor.CommandResult(0, "other-plugin\n", "")
-            return fleet_doctor.CommandResult(0, "test-cli 1.0\n", "")
+                return fleet_doctor.CommandResult(tuple(argv), 0, "other-plugin\n", "")
+            return fleet_doctor.CommandResult(tuple(argv), 0, "test-cli 1.0\n", "")
 
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
@@ -496,6 +496,45 @@ class FleetDoctorTests(unittest.TestCase):
         self.assertEqual(1, self._exit_code_for(fail=1, inconclusive=1, warn=1))
         self.assertEqual(2, self._exit_code_for(inconclusive=1, warn=1))
         self.assertEqual(3, self._exit_code_for(warn=1))
+
+
+class DoctorUsesTheKernelResult(unittest.TestCase):
+    """One result type, and the two failures it must keep apart.
+
+    The doctor used to keep its own three-field `CommandResult` and downgrade the kernel's into
+    it, turning both a timeout and a missing binary into `returncode=127` with the error text in
+    stderr. Those call for different operator actions -- wait or retry versus install the CLI --
+    and the doctor's whole job is telling the operator which thing to go fix.
+    """
+
+    def test_the_doctor_result_is_the_kernel_result(self) -> None:
+        self.assertIs(fleet_doctor._proc.CommandResult, fleet_doctor.CommandResult)
+
+    def test_a_timeout_and_a_missing_binary_stay_distinguishable(self) -> None:
+        timed_out = fleet_doctor.CommandResult(
+            ("claude", "--version"), None, "", "", timed_out=True, error="timed out"
+        )
+        missing = fleet_doctor.CommandResult(
+            ("claude", "--version"), 127, "", "", failed_to_start=True, error="No such file"
+        )
+        self.assertTrue(timed_out.timed_out)
+        self.assertFalse(timed_out.failed_to_start)
+        self.assertTrue(missing.failed_to_start)
+        self.assertFalse(missing.timed_out)
+        # Both are failures; the next test pins why `ok` is the read and returncode is not.
+        for result in (timed_out, missing):
+            with self.subTest(result=result):
+                self.assertFalse(result.ok)
+
+    def test_a_timed_out_command_is_not_read_as_a_passing_check(self) -> None:
+        """The trap the migration had to avoid, pinned as behaviour rather than as a comment."""
+        timed_out = fleet_doctor.CommandResult(
+            ("git",), None, "", "", timed_out=True, error="timed out"
+        )
+        # This is the expression the checks used before the migration.
+        self.assertFalse(bool(timed_out.returncode), "returncode None is falsy")
+        # And this is the one they use now.
+        self.assertFalse(timed_out.ok)
 
 
 if __name__ == "__main__":

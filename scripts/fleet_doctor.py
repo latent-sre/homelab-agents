@@ -50,11 +50,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 STATUSES = ("pass", "warn", "fail", "skip", "inconclusive")
 
 
-@dataclass(frozen=True)
-class CommandResult:
-    returncode: int
-    stdout: str
-    stderr: str
+# The kernel's result, not a second one. This module used to keep its own three-field copy and
+# downgrade into it, which collapsed "the CLI timed out" and "the CLI is not installed" into a
+# single returncode 127 -- two different things for the operator to do, reported identically. One
+# type per fact (AGENTS.md); `ok` is the read every check below wants, because a timed-out result
+# carries returncode None, and `if result.returncode:` would call that a success.
+CommandResult = _proc.CommandResult
 
 
 @dataclass(frozen=True)
@@ -100,15 +101,12 @@ def _assert_read_only_command(argv: Sequence[str]) -> None:
 
 def _run_read_only(argv: Sequence[str]) -> CommandResult:
     _assert_read_only_command(argv)
-    result = _proc.run(argv, timeout=30)
-    if result.timed_out or result.failed_to_start:
-        return CommandResult(127, "", result.error or "")
-    return CommandResult(result.returncode, result.stdout, result.stderr)
+    return _proc.run(argv, timeout=30)
 
 
 def _git_checks(root: Path, run: CommandRunner) -> list[Check]:
     head = run(("git", "--no-optional-locks", "-C", str(root), "rev-parse", "HEAD"))
-    if head.returncode:
+    if not head.ok:
         return [
             Check(
                 "repository.git",
@@ -127,7 +125,7 @@ def _git_checks(root: Path, run: CommandRunner) -> list[Check]:
         )
     ]
     status = run(("git", "--no-optional-locks", "-C", str(root), "status", "--short"))
-    if status.returncode:
+    if not status.ok:
         checks.append(
             Check(
                 "repository.worktree",
@@ -444,7 +442,7 @@ def _cli_checks(which: Which, run: CommandRunner) -> tuple[list[Check], dict[str
             continue
         executables[host] = executable
         version = run((executable, "--version"))
-        if version.returncode:
+        if not version.ok:
             checks.append(
                 Check(
                     f"host.{host}.cli",
@@ -481,7 +479,7 @@ def _plugin_listing_check(
     run: CommandRunner,
 ) -> tuple[Check, bool]:
     listing = run((executable, "plugin", "list"))
-    if listing.returncode:
+    if not listing.ok:
         return (
             Check(
                 f"host.{host}.plugin",
