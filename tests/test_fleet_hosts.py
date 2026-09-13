@@ -11,9 +11,11 @@ that keeps a TOML escaping bug from shipping the same way.
 from __future__ import annotations
 
 import json
+import shutil
 import tomllib
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from fleet.hosts import toml as fleet_toml
 from fleet.hosts.rewrites import (
@@ -220,6 +222,43 @@ class FleetRewriteCountTests(unittest.TestCase):
         self.assertIn("landed 6 time(s)", message)
 
 
+    def test_a_read_only_claim_in_a_bundled_resource_fails_generation(self) -> None:
+        # Applying the projections only to SKILL.md left the same hole one level down: the
+        # claim in a references/ file shipped untranslated while the ledger's count stayed
+        # satisfied by the skill bodies.
+        claim = (
+            "All checks are read-only. `disallowed-tools` removes Write and Edit while this "
+            "skill is active,\nbut Bash can still mutate things.\n"
+        )
+        with repo_copy() as dst:
+            resource = next(iter(sorted((dst / "skills").rglob("references/*.md"))))
+            resource.write_text(
+                resource.read_text(encoding="utf-8") + "\n\n" + claim, encoding="utf-8"
+            )
+            with self.assertRaises(RewriteError) as caught:
+                generator.expected_outputs(dst)
+        self.assertIn("skill.readonly.disallowed-tools-claim", str(caught.exception))
+
+    def test_a_duplicate_rewrite_id_fails_generation(self) -> None:
+        # Colliding ids share one ledger entry, so a rewrite that lost its anchor would be
+        # covered by its twin's count. The table refuses to load that way, and the generator
+        # re-checks at the point of judgement so a table patched at runtime fails too.
+        victim = next(r for r in TEXT_REWRITES if r.id == "text.agent-tool.spawn")
+        twin = Rewrite(
+            id=victim.id,
+            why="a colliding duplicate that matches nothing",
+            find="a sentence that appears nowhere in the fleet",
+            replace="x",
+            expect=victim.expect,
+        )
+        with mock.patch.object(generator, "ALL_REWRITES", (*ALL_REWRITES, twin)):
+            with repo_copy() as dst:
+                with self.assertRaises(RewriteError) as caught:
+                    generator.expected_outputs(dst)
+        self.assertIn("declared twice", str(caught.exception))
+        self.assertIn(victim.id, str(caught.exception))
+
+
 class TomlEmitterTests(unittest.TestCase):
     def test_a_document_reads_back_as_written(self) -> None:
         text = fleet_toml.render_document(
@@ -368,6 +407,22 @@ class GeneratorDiffTests(unittest.TestCase):
             self.assertTrue(retired.exists(), "--diff must not write")
             generator.write_generated_outputs(dst)
             self.assertFalse(retired.exists(), "--write must clear the retired root it promised")
+
+
+    def test_diff_reports_an_active_root_that_is_a_file(self) -> None:
+        # `--write` unlinks such a root before recreating the directory; a preview listing only
+        # the child files it then adds would hide the removal entirely.
+        with repo_copy() as dst:
+            root = dst / ".github" / "agents"
+            shutil.rmtree(root)
+            root.write_text("not a directory", encoding="utf-8")
+            report = generator.diff_generated_outputs(dst)
+            self.assertTrue(root.is_file(), "--diff must not write")
+        self.assertIn(
+            "--- .github/agents: generated root is a file, "
+            "would be removed by --write before the directory is recreated",
+            report,
+        )
 
 
 class GeneratedTreeTests(unittest.TestCase):

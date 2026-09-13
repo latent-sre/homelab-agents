@@ -15,7 +15,7 @@ import re
 from collections.abc import Callable
 from typing import Final
 
-from fleet.hosts.rewrites import AT_LEAST_ONE, Rewrite
+from fleet.hosts.rewrites import AT_LEAST_ONE, Rewrite, check_table
 from fleet.references import namespaced_reference_re
 
 # Where each host installs the fleet's skills, for the one rewrite that must name a real path.
@@ -873,3 +873,8 @@ ALL_REWRITES: Final[tuple[Rewrite, ...]] = (
     *SECURITY_REFERENCE_REWRITES,
     *TOOLS_REFERENCE_REWRITES,
 )
+
+# Two entries sharing an id share one count in the ledger, so one could land the whole total
+# while the other lost its anchor and landed nothing -- the miss masked by its twin. Refuse at
+# import, so a committed table can never load in a state nothing can judge.
+check_table(ALL_REWRITES)

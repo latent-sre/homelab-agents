@@ -330,3 +330,13 @@ is a regular file as a zero-file removal, because `rglob` finds nothing in one, 
 then aborted on that same path with `NotADirectoryError`: the preview promised what the operation
 could not do. The preview now names the obstruction and the write clears a root whatever shape it
 has, since a declared retired root is an obsolete artifact either way.
+
+A fifth round closed the same two classes at their remaining edges, plus one new one. The
+read-only projections judged only `SKILL.md` bodies, so the claim in a bundled `references/` file
+still shipped untranslated with the ledger satisfied by the bodies — they now judge bundled
+resources too. `--diff` disclosed a retired root that is a file but not an *active* generated root
+that is one, which `--write` also unlinks before recreating the directory; both are reported now.
+And nothing called `check_table` outside its unit test, so two rewrites sharing an id would share
+one ledger entry and a lost anchor could hide behind its twin's count: the table refuses to load
+that way at import, and the generator re-checks at the point of judgement so a table patched at
+runtime fails too.

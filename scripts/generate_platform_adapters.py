@@ -46,7 +46,12 @@ if _REPO_ROOT not in sys.path:
 
 from fleet import frontmatter as _frontmatter  # noqa: E402
 from fleet import fs as _fs  # noqa: E402
-from fleet.hosts.rewrites import Ledger, RewriteError, apply_rewrites  # noqa: E402
+from fleet.hosts.rewrites import (  # noqa: E402
+    Ledger,
+    RewriteError,
+    apply_rewrites,
+    check_table,
+)
 from fleet.hosts.table import (  # noqa: E402
     AGENT_REWRITES,
     ALL_REWRITES,
@@ -704,8 +709,15 @@ def expected_outputs(root: Path, *, verify_rewrites: bool = True) -> dict[Path, 
                         render_codex_skill_policy(fields, ledger=ledger)
                     )
             elif source.suffix.lower() == ".md" and relative != CLAUDE_REFERENCE:
+                # A bundled resource is skill prose too: the read-only claims are false
+                # wherever they appear, and applying them only to SKILL.md left the same hole
+                # one level down, with the ledger's count satisfied by the bodies.
                 adapted_resource = adapt_host_resource(
-                    adapt_text(source.read_text(encoding="utf-8"), host, ledger=ledger),
+                    _portable_readonly_body(
+                        adapt_text(source.read_text(encoding="utf-8"), host, ledger=ledger),
+                        host=host,
+                        ledger=ledger,
+                    ),
                     relative=relative,
                     host=host,
                     ledger=ledger,
@@ -725,6 +737,9 @@ def expected_outputs(root: Path, *, verify_rewrites: bool = True) -> dict[Path, 
 def _assert_rewrites_landed(ledger: Ledger) -> None:
     """Refuse to hand back adapters whose rewrites did not land the counts the table declares."""
 
+    # Before judging the totals, check the table can be judged at all: colliding ids share one
+    # ledger entry, so a rewrite that lost its anchor would be covered by its twin's count.
+    check_table(ALL_REWRITES)
     shortfalls = ledger.shortfalls(ALL_REWRITES)
     if shortfalls:
         raise RewriteError(
@@ -826,6 +841,20 @@ def diff_generated_outputs(root: Path) -> list[str]:
             f"--- {name}: same lines, different bytes "
             f"({_line_ending_summary(current)} -> {_line_ending_summary(wanted)})"
         )
+
+    for relative in GENERATED_ROOTS:
+        try:
+            active = _safe_generated_root(root, relative, operation="inspect")
+        except ValueError as exc:
+            report.append(f"--- {relative.as_posix()}: cannot inspect generated root safely: {exc}")
+            continue
+        if active.exists() and not active.is_dir():
+            # `--write` unlinks this before recreating the directory. Listing only the child
+            # files it will then add would hide the removal entirely.
+            report.append(
+                f"--- {relative.as_posix()}: generated root is a file, "
+                f"would be removed by --write before the directory is recreated"
+            )
 
     for relative in RETIRED_GENERATED_ROOTS:
         try:
