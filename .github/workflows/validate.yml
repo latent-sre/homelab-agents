@@ -62,7 +62,7 @@ jobs:
       # verified). PyYAML is here so the frontmatter dialect's differential tripwire never skips
       # in CI; ruff is the lint gate the T0 recipe names.
       - name: Install the pinned maintainer tooling
-        run: ${{ matrix.py }} -m pip install --disable-pip-version-check "ruff==0.16.7" "pyyaml==6.0.3"
+        run: ${{ matrix.py }} -m pip install --disable-pip-version-check "ruff==0.16.7" "pyyaml==6.0.3" "tomli-w==1.2.0"
 
       - name: Lint the maintainer tooling
         run: ${{ matrix.py }} -m ruff check . && ${{ matrix.py }} -m ruff format --check fleet
@@ -86,7 +86,7 @@ jobs:
 
       - name: Install the pinned maintainer tooling on Python 3.11
         if: matrix.os == 'ubuntu-latest'
-        run: python3 -m pip install --disable-pip-version-check "pyyaml==6.0.3"
+        run: python3 -m pip install --disable-pip-version-check "pyyaml==6.0.3" "tomli-w==1.2.0"
 
       - name: Validate the fleet on Python 3.11
         if: matrix.os == 'ubuntu-latest'

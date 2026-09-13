@@ -73,9 +73,10 @@ publication separate from this source-level evidence.
 
 #### MACH-001 — rebuild the fleet machinery on one kernel
 
-**Status:** `active` — the decision record was accepted 2026-09-13 after phase 0 merged (PR #187);
-phase 1 (rules, policy, findings, CLI, rosters as data) is implemented on
-`claude/machinery-rewrite-fresh-ar08n6`, restarted from `main`; phases 2–5 remain.
+**Status:** `active` — the decision record was accepted 2026-09-13 after phase 0 merged (PR #187).
+Phase 1 (rules, policy, findings, CLI, rosters as data) merged in PR #188; phase 2 (host
+projections as a counted rewrite table, the verified Codex TOML emitter, `--diff`) is implemented
+on `claude/machinery-rewrite-fresh-ar08n6`, restarted from `main`; phases 3–5 remain.
 
 **Outcome:** Every maintainer instrument under `scripts/` runs on the `fleet/` kernel with one
 implementation per primitive, policy held as data, structured findings, and the routing runner
@@ -97,8 +98,9 @@ Closes when phase 5 merges and the lint ratchet table in `pyproject.toml` is emp
 runs; the specifier restricts nothing, the validator's rule stands) and the CI pin moved to
 2.1.270 with the probe re-run — [pin refresh evidence](archive/2026-09/pin-refresh-evidence-2026-09-13.md).
 
-**Next action:** Open the phase-2 PR (host projections with a count-checked rewrite table);
-the record is accepted and phase 1 is on its PR. The phase-4 live precondition is met: the
+**Next action:** Open the phase-3 PR (the probes and the doctor as verbs over the kernel's
+subprocess runner, stream decoder, and findings type, closing PROBE-006 with the runner's timeout
+result). The phase-4 live precondition is met: the
 native pilot ran on 2026-09-13 (CLI 2.1.270, sonnet, two runs of three), the `tool_used: Agent`
 grader matched `sde-agents:homelab-engineer` in five of six runs and the observed
 `subagent_type` was the namespaced form every time —

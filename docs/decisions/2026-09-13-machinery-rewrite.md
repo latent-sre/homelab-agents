@@ -245,3 +245,50 @@ ids, the closed group vocabulary, the honoured rosters, the read-only policy vie
 source line on reference findings, the tolerant hook reader, the policy-pointing diagnostics,
 the preload check judged against the captured roster, one snapshot per CLI run, and a load that
 opens no file twice; one finding was declined, with the reason in `fleet/policy.py`'s docstring.
+
+## Amendment, 2026-09-13 — phase 2 landed
+
+Phase 2 is implemented on `claude/machinery-rewrite-fresh-ar08n6`, restarted from `main` after
+phase 1 merged (PR #188). What landed: `fleet/hosts/rewrites.py` (a `Rewrite` with a stable id, a
+`why`, its host and agent scope, and the count it must land; a `Ledger` that tallies a run and
+names every rewrite that missed), `fleet/hosts/table.py` (every projection the generator applies,
+in the order the hand-written chains ran, because each rewrite's output is the next one's input),
+and `fleet/hosts/toml.py` (the Codex emitter). `scripts/generate_platform_adapters.py` lost its
+394-line `if name == …` chain and its 30-replacement text chain; `expected_outputs` now owns one
+ledger for the run and refuses to return bytes whose rewrites did not land their counts. The
+generator left the lint ratchet in the same change, as the phase table requires.
+
+Oracle met: all 181 generated files byte-identical, `--check` clean, and the forbidden-phrase
+assertions unchanged and passing. The count contract was then exercised by mutation — rewording a
+canonical sentence fails generation naming the rewrite, its landed count, and its `why`.
+
+**The phase found the class it was built to close.** Twelve of the sixty-three ported rewrites
+matched nothing anywhere in the fleet: the canonical sentences they anchored on had been reworded
+or deleted (`the preloaded craft skills' rules` is now `the applicable craft skills' rules`;
+`A container, VM, or Claude Code sandbox counts only …` is now `A separate agent counts only …`;
+the three "already in your context" preload claims and the `${CLAUDE_PLUGIN_ROOT}/scripts/` path
+form are gone entirely). None of them was correcting anything, and each was read by every
+maintainer as a live control. They are deleted rather than pinned at zero — a rewrite that
+translates nothing is dead, not cautious, so the table has no zero-expectation form. The
+forbidden-phrase assertions in `tests/test_platform_adapters.py` independently cover the same
+classes, so a canonical sentence that brings one of those forms back fails a test rather than
+shipping.
+
+Two deliberate departures from the plan above:
+
+- **`tomli-w` is a tripwire, not the writer.** The plan added it "when the Codex TOML emitter has
+  a consumer". Making it the emitter would put a dependency in the path that `--check` runs, and
+  the T0 validator must keep working on a bare interpreter (Consequences, above). `fleet/hosts/
+  toml.py` therefore emits and then parses its own document back with the standard library's
+  `tomllib`, comparing it to the mapping it was asked to write — an always-on check that needs no
+  install — and `tomli-w` is the independent opinion in `tests/test_fleet_hosts.py`, exactly as
+  PyYAML is for the frontmatter dialect.
+- **`expected_outputs(root, verify_rewrites=False)` exists for synthetic trees.** The counts
+  describe *this fleet's* canonical corpus, so a two-file fixture would report every rewrite as
+  missing and say nothing true. Every path that generates the real fleet — the CLI's `--write`,
+  `--check`, and `--diff`, and the validator's adapter rule — keeps the default.
+
+The four tests that asserted an anchor miss at the render-call level now assert it over a full
+generation run, because the count a rewrite must land is a statement about the corpus rather than
+about one render. The guarantee is strictly wider than before: it holds for all fifty-one
+rewrites, where four were anchored by hand.
