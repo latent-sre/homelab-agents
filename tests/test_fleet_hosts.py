@@ -239,6 +239,35 @@ class FleetRewriteCountTests(unittest.TestCase):
                 generator.expected_outputs(dst)
         self.assertIn("skill.readonly.disallowed-tools-claim", str(caught.exception))
 
+    def test_a_read_only_claim_in_a_skill_description_fails_generation(self) -> None:
+        # The third surface to be missed the same way. Frontmatter values and the Codex
+        # explicit-only policy were adapted with the shared text rewrites only, so the claim in
+        # a description reached both generated SKILL.md files -- and, when it sat early enough
+        # to survive the 100-character truncation, the generated `agents/openai.yaml` too --
+        # while the ledger's count stayed satisfied by the bodies. Every skill-prose surface now
+        # goes through `adapt_skill_text`, which is the fix for the class rather than the edge.
+        claim = (
+            "All checks are read-only. `disallowed-tools` removes Write and Edit while this "
+            "skill is active, but Bash can still mutate things."
+        )
+        for skill in ("lab-audit", "host-onboard"):
+            with self.subTest(skill=skill), repo_copy() as dst:
+                target = dst / "skills" / skill / "SKILL.md"
+                lines = target.read_text(encoding="utf-8").split("\n")
+                for index, line in enumerate(lines):
+                    if line.startswith("description:"):
+                        # Early in the value, so the Codex policy's truncated short_description
+                        # carries it as well as the frontmatter itself.
+                        rest = line[len("description:") :].strip()
+                        lines[index] = f"description: {claim} {rest}"
+                        break
+                else:  # pragma: no cover - the fixture skills all declare one
+                    self.fail(f"{skill} has no description to mutate")
+                target.write_text("\n".join(lines), encoding="utf-8")
+                with self.assertRaises(RewriteError) as caught:
+                    generator.expected_outputs(dst)
+                self.assertIn("skill.readonly.disallowed-tools-claim", str(caught.exception))
+
     def test_a_duplicate_rewrite_id_fails_generation(self) -> None:
         # Colliding ids share one ledger entry, so a rewrite that lost its anchor would be
         # covered by its twin's count. The table refuses to load that way, and the generator

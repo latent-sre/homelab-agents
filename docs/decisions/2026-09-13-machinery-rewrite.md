@@ -360,3 +360,23 @@ every generated root. Verified end to end rather than by inspection: each of the
 injected into a canonical agent and a canonical skill, regenerated, and confirmed to be rejected —
 which is the instrument that should have produced the original claim instead of a reading of the
 assertion lists.
+
+A seventh round found the read-only projections missing a third surface: skill *descriptions*.
+Frontmatter values and the Codex explicit-only policy were adapted with the shared text rewrites
+only, so the claim in a description reached both generated `SKILL.md` files and — when placed
+early enough to survive the policy's 100-character truncation — the generated
+`agents/openai.yaml` as well, with the ledger's count satisfied by the bodies throughout.
+
+That is the same defect for the third round running (body in round 4, bundled resource in round 5,
+description in round 7), which makes the pattern itself the finding: each fix closed the surface it
+was shown while the next one stayed open, because **a corpus-wide count is a total, not a coverage
+proof**. It cannot distinguish "every surface is projected" from "enough surfaces are projected to
+reach the declared number", and nothing else was asserting the difference. The fix is therefore
+structural rather than another patched call site: `adapt_skill_text` is the single entry point for
+every piece of skill prose — frontmatter values, the body, bundled resources, and the policy
+description — so there is no longer a fourth surface to route separately and forget. Adapters stay
+byte-identical, which is the evidence that consolidating the four paths changed no output.
+
+This is the limit of what the count contract can be asked to do. It is an excellent instrument for
+a *rewrite that stopped matching*, which is the failure it was built for, and a poor one for a
+*surface that was never wired*. The second failure needs one code path, not a better number.

@@ -405,7 +405,7 @@ def _portable_frontmatter(
                 output.append("disable-model-invocation: true")
             continue
 
-        value = adapt_text(fields.get(key, ""), host, ledger=ledger)
+        value = adapt_skill_text(fields.get(key, ""), host, ledger=ledger)
         output.append(f"{key}: {_frontmatter.yaml_scalar(value)}")
     return output, explicit_only, had_tool_deny
 
@@ -416,6 +416,23 @@ def _portable_readonly_body(
     """Remove Claude-only claims from skills whose source has a tool deny."""
 
     return apply_rewrites(body, SKILL_READONLY_REWRITES, host=host, ledger=ledger)
+
+
+def adapt_skill_text(text: str, host: str, *, ledger: Ledger | None = None) -> str:
+    """Project one piece of skill prose: the shared rewrites, then the read-only claims.
+
+    Every surface a skill's words reach goes through here -- frontmatter values, the body,
+    bundled resources, and the Codex policy's description. Routing them separately is what put
+    the same false `disallowed-tools` deny into a body, then a bundled resource, then a
+    description across three review rounds: each fix closed the surface it was shown while the
+    ledger's corpus-wide count stayed satisfied by the surfaces that were already correct, so
+    nothing failed. A count cannot catch that -- it is a total, not a coverage proof -- and only
+    a single entry point removes the next surface to forget.
+    """
+
+    return _portable_readonly_body(
+        adapt_text(text, host, ledger=ledger), host=host, ledger=ledger
+    )
 
 
 def adapt_host_resource(
@@ -439,12 +456,11 @@ def render_portable_skill(
         host=host,
         ledger=ledger,
     )
-    portable_body = adapt_text(body.rstrip(), host, ledger=ledger)
     # Every skill body, not just one whose frontmatter carries the deny: the claim is false
     # wherever it appears, and gating on the field would let a skill that acquired the sentence
     # without it ship the claim while the ledger's count stayed satisfied. `had_tool_deny` keeps
     # its own job below, which is the adapter note about the dropped field.
-    portable_body = _portable_readonly_body(portable_body, host=host, ledger=ledger)
+    portable_body = adapt_skill_text(body.rstrip(), host, ledger=ledger)
 
     notes = [
         f"<!-- {GENERATED_MARKER} -->",
@@ -486,7 +502,7 @@ def render_codex_skill_policy(fields: dict[str, str], *, ledger: Ledger | None =
     """Render the Codex-only policy and required interface metadata for one explicit skill."""
 
     name = fields["name"]
-    description = adapt_text(fields["description"], "codex", ledger=ledger)
+    description = adapt_skill_text(fields["description"], "codex", ledger=ledger)
     short_description = description
     if len(short_description) > 100:
         shortened = short_description[:97].rsplit(" ", 1)[0].rstrip()
@@ -713,10 +729,8 @@ def expected_outputs(root: Path, *, verify_rewrites: bool = True) -> dict[Path, 
                 # wherever they appear, and applying them only to SKILL.md left the same hole
                 # one level down, with the ledger's count satisfied by the bodies.
                 adapted_resource = adapt_host_resource(
-                    _portable_readonly_body(
-                        adapt_text(source.read_text(encoding="utf-8"), host, ledger=ledger),
-                        host=host,
-                        ledger=ledger,
+                    adapt_skill_text(
+                        source.read_text(encoding="utf-8"), host, ledger=ledger
                     ),
                     relative=relative,
                     host=host,
