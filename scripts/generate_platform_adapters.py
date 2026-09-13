@@ -199,12 +199,30 @@ def _required_skills(fields: dict[str, str]) -> list[str]:
 def adapt_agent_contract(
     text: str, *, name: str, host: str, ledger: Ledger | None = None
 ) -> str:
-    """Replace Claude-only authority claims in generated agent bodies.
+    """Replace Claude-only authority claims in generated agent prose.
 
-    Both callers supply `adapt_text` output, so Agent-tool terminology is already translated.
+    Callers supply `adapt_text` output, so Agent-tool terminology is already translated;
+    `adapt_agent_text` is the composition that guarantees it.
     """
 
     return apply_rewrites(text, AGENT_REWRITES, host=host, agent=name, ledger=ledger)
+
+
+def adapt_agent_text(
+    text: str, *, name: str, host: str, ledger: Ledger | None = None
+) -> str:
+    """Project one piece of agent prose: the shared rewrites, then the agent contract.
+
+    The twin of `adapt_skill_text`, and it exists for the same reason. A description and a body
+    are both agent prose making the same authority claims, so routing them through different
+    rewrite sets let an authority sentence in a description reach both host adapters untouched
+    while the ledger's corpus-wide count stayed satisfied by the bodies. One entry point per
+    definition kind is the invariant; a count is a total and cannot assert it.
+    """
+
+    return adapt_agent_contract(
+        adapt_text(text, host, ledger=ledger), name=name, host=host, ledger=ledger
+    )
 
 
 def render_copilot_agent(
@@ -217,12 +235,11 @@ def render_copilot_agent(
     # read-only guard, but this host can scope neither. Its handoff must be a
     # missing capability, not a prose promise beside an execute grant.
     tools = _copilot_tools(fields, guarded=guarded or name == "homelab-engineer")
-    description = adapt_text(fields["description"], "copilot", ledger=ledger)
-    instructions = adapt_agent_contract(
-        adapt_text(body.rstrip(), "copilot", ledger=ledger),
-        name=name,
-        host="copilot",
-        ledger=ledger,
+    description = adapt_agent_text(
+        fields["description"], name=name, host="copilot", ledger=ledger
+    )
+    instructions = adapt_agent_text(
+        body.rstrip(), name=name, host="copilot", ledger=ledger
     )
 
     adapter_lines = [
@@ -297,12 +314,11 @@ def _codex_agent_parts(
     name = fields["name"]
     tools = set(validator.split_tools(fields.get("tools", "")))
     sandbox_mode = "workspace-write" if tools & validator.WRITE_TOOLS else "read-only"
-    description = adapt_text(fields["description"], "codex", ledger=ledger)
-    instructions = adapt_agent_contract(
-        adapt_text(body.rstrip(), "codex", ledger=ledger),
-        name=name,
-        host="codex",
-        ledger=ledger,
+    description = adapt_agent_text(
+        fields["description"], name=name, host="codex", ledger=ledger
+    )
+    instructions = adapt_agent_text(
+        body.rstrip(), name=name, host="codex", ledger=ledger
     )
 
     adapter_lines = [

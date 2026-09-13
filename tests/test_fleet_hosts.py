@@ -10,7 +10,9 @@ that keeps a TOML escaping bug from shipping the same way.
 
 from __future__ import annotations
 
+import ast
 import json
+import pathlib
 import shutil
 import tomllib
 import unittest
@@ -267,6 +269,56 @@ class FleetRewriteCountTests(unittest.TestCase):
                 with self.assertRaises(RewriteError) as caught:
                     generator.expected_outputs(dst)
                 self.assertIn("skill.readonly.disallowed-tools-claim", str(caught.exception))
+
+    def test_an_authority_claim_in_an_agent_description_fails_generation(self) -> None:
+        # The same defect as the skill description, on the agent side: descriptions ran only the
+        # shared text rewrites while AGENT_REWRITES reached the body alone, so an authority
+        # sentence in a description shipped to both hosts with the ledger satisfied by bodies.
+        claim = "You hold Write and Edit **to author tests**"
+        with repo_copy() as dst:
+            target = dst / "agents" / "verification-engineer.md"
+            lines = target.read_text(encoding="utf-8").split("\n")
+            for index, line in enumerate(lines):
+                if line.startswith("description:"):
+                    rest = line[len("description:") :].strip()
+                    lines[index] = f"description: {claim} {rest}"
+                    break
+            else:  # pragma: no cover - the fixture agent declares one
+                self.fail("verification-engineer has no description to mutate")
+            target.write_text("\n".join(lines), encoding="utf-8")
+            with self.assertRaises(RewriteError) as caught:
+                generator.expected_outputs(dst)
+        self.assertIn("agent.write-edit-authority", str(caught.exception))
+
+    def test_every_prose_surface_goes_through_one_entry_point(self) -> None:
+        """`adapt_text` is reachable only through the two per-definition-kind adapters.
+
+        Four review rounds found the same defect at four surfaces -- a skill body, a bundled
+        resource, a skill description, an agent description -- because each was routed to the
+        rewrite tables separately and one of them was forgotten every time. The ledger cannot
+        catch that: a corpus-wide count is a total, so the surfaces that ARE wired keep it
+        satisfied while a new one ships unprojected. This asserts the structural invariant the
+        count cannot -- add a surface and it must go through `adapt_agent_text` or
+        `adapt_skill_text`, or this fails and names the caller that bypassed them.
+        """
+        source = pathlib.Path(generator.__file__).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        callers: dict[str, list[int]] = {}
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef):
+                continue
+            for sub in ast.walk(node):
+                if (
+                    isinstance(sub, ast.Call)
+                    and isinstance(sub.func, ast.Name)
+                    and sub.func.id == "adapt_text"
+                ):
+                    callers.setdefault(node.name, []).append(sub.lineno)
+        self.assertEqual(
+            {"adapt_agent_text", "adapt_skill_text"},
+            set(callers),
+            f"adapt_text must be composed, not called directly; callers: {callers}",
+        )
 
     def test_a_duplicate_rewrite_id_fails_generation(self) -> None:
         # Colliding ids share one ledger entry, so a rewrite that lost its anchor would be

@@ -380,3 +380,20 @@ byte-identical, which is the evidence that consolidating the four paths changed 
 This is the limit of what the count contract can be asked to do. It is an excellent instrument for
 a *rewrite that stopped matching*, which is the failure it was built for, and a poor one for a
 *surface that was never wired*. The second failure needs one code path, not a better number.
+
+An eighth round found the same defect on the agent side: descriptions ran only the shared text
+rewrites while `AGENT_REWRITES` reached the body alone, so an authority sentence in an agent
+description shipped to both host adapters untouched, with the ledger satisfied by the bodies. This
+one is a miss in round 7's own fix rather than a new discovery — `adapt_skill_text` closed the
+class for skill prose while the identical shape sat two functions above it, visible in the same
+survey that produced it. `adapt_agent_text` is its twin, and both renderers now route description
+and body through it.
+
+Four surfaces across five rounds is enough evidence to stop relying on noticing the next one.
+`test_every_prose_surface_goes_through_one_entry_point` parses the generator and asserts that
+`adapt_text` is reachable only through those two composers, so a newly added surface that routes
+itself separately fails a test naming the function that bypassed them. That is the structural
+invariant the count cannot express: a corpus-wide total says how many times a rewrite landed, never
+that every surface was offered to it. The two instruments are now complementary rather than one
+overloaded — the count catches a rewrite whose anchor moved, the retired-form tuple catches a form
+whose rewrite is gone, and this catches a surface the tables never saw.
