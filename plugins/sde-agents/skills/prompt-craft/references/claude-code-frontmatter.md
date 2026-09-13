@@ -58,7 +58,7 @@ Core fields: `name`, `description` (the trigger), `argument-hint`. Behavior swit
   making the skill's own content defer authority rather than treating the flag as an enforced
   boundary. Re-verify after CLI upgrades — `scripts/probe_plugin.py` is the capability test — and
   update this stamp. (Docs also state the flag stops scheduled-task firings that name the skill,
-  as of v2.1.196 — doc-checked 2026-07-24, not probed.)
+  as of v2.1.196 — doc-checked 2026-07-24 and again 2026-09-13, not probed.)
 - `user-invocable: false` — background-knowledge skills, hidden from the `/` menu.
 - `allowed-tools` **grants** (pre-approves, no permission prompt) while the skill is active — it
   does **not** restrict availability. Takes bare tool names or permission-rule specifiers
@@ -76,7 +76,7 @@ cleaned up when it finishes; a subagent's `Stop` converts to `SubagentStop` (doc
 ignore the field outright (see above), so treat this as unenforced in a plugin until
 `scripts/probe_plugin.py` proves otherwise.
 
-## Platform environment facts (doc-checked 2026-07-30, CLI 2.1.220 era)
+## Platform environment facts (doc-checked 2026-07-30, CLI 2.1.220 era; the `${CLAUDE_PLUGIN_DATA}`, `/doctor`, and `/verify` bullets re-checked against the docs 2026-09-13 with CLI 2.1.270 current — unchanged)
 
 - **`${CLAUDE_PLUGIN_DATA}`** — per-plugin persistent directory (`~/.claude/plugins/data/{id}/`),
   created on first reference, survives plugin updates; exported to hook processes. The place for
