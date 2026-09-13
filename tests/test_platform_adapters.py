@@ -11,13 +11,37 @@ from unittest import mock
 
 from scripts import generate_platform_adapters
 from scripts import validate_fleet
-from tests.support import REPO, create_directory_link, git, remove_directory_link
+from tests.support import (
+    REPO,
+    create_directory_link,
+    git,
+    remove_directory_link,
+    repo_copy,
+)
 COPILOT_TOOL_ALIASES = {"agent", "edit", "execute", "read", "search", "web"}
 WRITE_TOOLS = {"Edit", "NotebookEdit", "Write"}
 
 
 _create_directory_link = create_directory_link
 _remove_directory_link = remove_directory_link
+
+
+# Canonical forms that a host rewrite used to translate and no longer does, because the sentence
+# each anchored on left the canonical tree. A deleted rewrite leaves no count behind -- zero is
+# not a declarable expectation (`fleet/hosts/rewrites.py`) -- so these needles are the only thing
+# standing between a reintroduced sentence and an adapter that states Claude-only authority on a
+# host without it. Deleting a rewrite means adding its form here; the two move together.
+RETIRED_CLAUDE_ONLY_FORMS = (
+    "preloaded craft skills",
+    "Claude Code sandbox counts only",
+    "already in your context",
+    "is likewise already in",
+    "is **not** preloaded",
+    "which preloads this skill",
+    "its preloaded skills",
+    "the variable is substituted",
+    "use `CLAUDE.md` when that is the repository's established convention",
+)
 
 
 class PlatformAdapterTests(unittest.TestCase):
@@ -108,7 +132,11 @@ class PlatformAdapterTests(unittest.TestCase):
                 "_guarded_names",
                 return_value=set(),
             ):
-                outputs = generate_platform_adapters.expected_outputs(root)
+                # A synthetic two-file tree is not the fleet, so the rewrite-count
+                # contract (calibrated to the canonical corpus) says nothing here.
+                outputs = generate_platform_adapters.expected_outputs(
+                    root, verify_rewrites=False
+                )
 
             relative = Path("example") / "assets"
             for target_root in (
@@ -141,7 +169,9 @@ class PlatformAdapterTests(unittest.TestCase):
                     ValueError,
                     "declared text resource is not valid UTF-8",
                 ):
-                    generate_platform_adapters.expected_outputs(root)
+                    generate_platform_adapters.expected_outputs(
+                        root, verify_rewrites=False
+                    )
 
     def test_python_bytecode_caches_are_not_distribution_artifacts(self) -> None:
         relative = (
@@ -394,7 +424,9 @@ class PlatformAdapterTests(unittest.TestCase):
                         ValueError,
                         "canonical source.*(?:link|junction|reparse)",
                     ):
-                        generate_platform_adapters.expected_outputs(root)
+                        generate_platform_adapters.expected_outputs(
+                            root, verify_rewrites=False
+                        )
                 self.assertEqual(b"external secret", secret.read_bytes())
             finally:
                 _remove_directory_link(link)
@@ -408,50 +440,75 @@ class PlatformAdapterTests(unittest.TestCase):
                 self.assertTrue(tools)
                 self.assertLessEqual(tools, COPILOT_TOOL_ALIASES)
 
+    def _generation_refuses(self, mutate, *, rewrite_id: str) -> None:
+        """A canonical edit that strands a rewrite must fail generation, naming the rewrite.
+
+        The check lives on the full run because `fleet/hosts/table.py` states the count each
+        rewrite lands across the whole fleet; one render call cannot judge that.
+        """
+
+        with repo_copy() as destination:
+            mutate(destination)
+            with self.assertRaises(ValueError) as caught:
+                generate_platform_adapters.expected_outputs(destination)
+        self.assertIn(rewrite_id, str(caught.exception))
+
+    def _rewrite_canonical(self, destination: Path, name: str, old: str, new: str) -> None:
+        path = destination / "agents" / f"{name}.md"
+        text = path.read_text(encoding="utf-8")
+        self.assertIn(old, text, "the fixture must start from an anchor that exists")
+        path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
     def test_investigator_host_rewrite_fails_loudly_when_its_anchor_is_missing(self) -> None:
         # A zero-match rewrite would regenerate "clean" adapters that keep the Claude-only
         # guard claim on hosts that cannot load the guard, and byte-drift validation cannot
         # see it — the committed adapter carries the same silent miss. So a missed anchor must
         # be a generation error, not a no-op.
-        for host in ("copilot", "codex"):
-            with self.subTest(host=host):
-                with self.assertRaisesRegex(ValueError, "repository-investigator"):
-                    generate_platform_adapters.adapt_agent_contract(
-                        "body text without the boundary paragraph",
-                        name="repository-investigator",
-                        host=host,
-                    )
+        self._generation_refuses(
+            lambda destination: self._rewrite_canonical(
+                destination,
+                "repository-investigator",
+                "Your context is deliberately local-only:",
+                "Your context is local:",
+            ),
+            rewrite_id="agent.repository-investigator.local-only",
+        )
         # A missing method anchor must also fail after the boundary rewrite succeeds;
         # otherwise the no-shell host could retain an instruction to execute Git.
-        _, body, _ = generate_platform_adapters._definition_parts(
-            REPO / "agents/repository-investigator.md"
-        )
-        for anchor in (
-            "Name the repository root and the revision",
-            "For revision-bound claims, read the named revision's bytes",
-            'When the question is "how did it get this way"',
+        for index, anchor in enumerate(
+            (
+                "Name the repository root and the revision",
+                "For revision-bound claims, read the named revision's bytes",
+                'When the question is "how did it get this way"',
+            ),
+            start=1,
         ):
             with self.subTest(anchor=anchor):
-                self.assertIn(anchor, body)
-                with self.assertRaisesRegex(ValueError, "method-step anchor"):
-                    generate_platform_adapters.adapt_agent_contract(
-                        body.replace(anchor, "missing method anchor", 1),
-                        name="repository-investigator",
-                        host="copilot",
-                    )
+                self._generation_refuses(
+                    lambda destination, anchor=anchor: self._rewrite_canonical(
+                        destination,
+                        "repository-investigator",
+                        anchor,
+                        "missing method anchor",
+                    ),
+                    rewrite_id=f"agent.repository-investigator.method-step.{index}",
+                )
 
     def test_homelab_host_rewrite_fails_loudly_when_its_anchor_is_missing(self) -> None:
         # Same rule for the live-effect gate (GATE-006): the canonical transport bullet names a
         # Claude-only hook, and a silent zero-match rewrite would ship that claim to a host that
         # cannot load it. The real canonical body must rewrite cleanly on both hosts.
-        for host in ("copilot", "codex"):
-            with self.subTest(host=host):
-                with self.assertRaisesRegex(ValueError, "homelab-engineer"):
-                    generate_platform_adapters.adapt_agent_contract(
-                        "body text without the transport bullet",
-                        name="homelab-engineer",
-                        host=host,
-                    )
+        for label, rewrite_id in (
+            ("Managed gate", "agent.homelab-engineer.managed-gate"),
+            ("Standing policy", "agent.homelab-engineer.standing-policy"),
+        ):
+            with self.subTest(label=label):
+                self._generation_refuses(
+                    lambda destination, label=label: self._rewrite_canonical(
+                        destination, "homelab-engineer", f"- **{label}:**", f"- **{label} note:**"
+                    ),
+                    rewrite_id=rewrite_id,
+                )
         canonical = (REPO / "agents" / "homelab-engineer.md").read_text(encoding="utf-8")
         for host, marker in (("copilot", "operator handoff"), ("codex", "codex execpolicy check")):
             with self.subTest(host=host):
@@ -495,16 +552,25 @@ class PlatformAdapterTests(unittest.TestCase):
     def test_homelab_duplicate_transport_policy_is_rejected(self) -> None:
         """Two competing transport bullets must not yield a plausible generated control."""
         canonical = (REPO / "agents" / "homelab-engineer.md").read_text(encoding="utf-8")
-        for label in ("Managed gate", "Standing policy"):
+        for label, rewrite_id in (
+            ("Managed gate", "agent.homelab-engineer.managed-gate"),
+            ("Standing policy", "agent.homelab-engineer.standing-policy"),
+        ):
             start = canonical.index(f"- **{label}:**")
             end = canonical.index("\n- **", start + 1)
-            duplicate = canonical + "\n\n" + canonical[start:end] + "\n\n"
-            for host in ("copilot", "codex"):
-                with self.subTest(label=label, host=host):
-                    with self.assertRaisesRegex(ValueError, "expected one.*transport anchor"):
-                        generate_platform_adapters.adapt_agent_contract(
-                            duplicate, name="homelab-engineer", host=host
-                        )
+            extra = canonical[start:end]
+
+            def duplicate(destination: Path, extra: str = extra) -> None:
+                # Insert the copy beside the original, where the following bullet terminates
+                # both: appended after the body instead, the trailing blank line is stripped
+                # before the rewrite runs and the second copy would not be a match at all.
+                path = destination / "agents" / "homelab-engineer.md"
+                text = path.read_text(encoding="utf-8")
+                self.assertEqual(1, text.count(extra))
+                path.write_text(text.replace(extra, extra + "\n\n" + extra, 1), encoding="utf-8")
+
+            with self.subTest(label=label):
+                self._generation_refuses(duplicate, rewrite_id=rewrite_id)
 
     def test_guarded_copilot_agents_have_no_shell_tool(self) -> None:
         guard = validate_fleet.load_guard(REPO)
@@ -578,19 +644,24 @@ class PlatformAdapterTests(unittest.TestCase):
                     self.assertTrue((REPO / path).is_file())
 
     def test_builder_loading_rewrite_rejects_missing_or_duplicate_routes(self) -> None:
-        _, body, _ = generate_platform_adapters._definition_parts(REPO / "agents/sde-fullstack.md")
-        for host in ("codex", "copilot"):
-            adapted = generate_platform_adapters.adapt_text(body, host)
-            for anchor in (
-                "apply. Load other guidance before the work it governs, using the Read tool and these plugin paths:",
-                *(f"| the installed `{name}` skill |" for name in
-                  ("backend-craft", "frontend-craft", "root-cause", "ci-actions")),
-            ):
-                for broken in (adapted.replace(anchor, "missing route"), adapted + "\n" + anchor):
-                    with self.subTest(host=host, anchor=anchor), self.assertRaisesRegex(
-                        ValueError, "expected one.*skill-loading"
-                    ):
-                        generate_platform_adapters.adapt_agent_contract(broken, name="sde-fullstack", host=host)
+        # The builder's conditional routes are the one place an adapter must name a real
+        # on-disk path; a dropped or duplicated route makes the table ambiguous either way.
+        canonical = "apply. Load other guidance before the work it governs, using the Read tool"
+        self._generation_refuses(
+            lambda destination: self._rewrite_canonical(
+                destination, "sde-fullstack", canonical, "apply. Load other guidance"
+            ),
+            rewrite_id="agent.sde-fullstack.conditional-loading",
+        )
+        for name in ("backend-craft", "frontend-craft", "root-cause", "ci-actions"):
+            route = f"| `${{CLAUDE_PLUGIN_ROOT}}/skills/{name}/SKILL.md` |"
+            with self.subTest(route=name):
+                self._generation_refuses(
+                    lambda destination, route=route: self._rewrite_canonical(
+                        destination, "sde-fullstack", route, "| removed route |"
+                    ),
+                    rewrite_id=f"agent.sde-fullstack.route.{name}",
+                )
 
     def test_investigator_provenance_boundary_survives_every_host_rewrite(self) -> None:
         # The canonical untrusted-provenance paragraph is REPLACED wholesale on both non-Claude
@@ -651,6 +722,26 @@ class PlatformAdapterTests(unittest.TestCase):
                     "This role has no `Agent` tool",
                 ):
                     self.assertNotIn(false_control.casefold(), normalized.casefold())
+
+    def test_generated_adapters_carry_no_retired_claude_only_form(self) -> None:
+        """No canonical form a deleted host rewrite used to translate reaches a generated file.
+
+        Each of these was projected by a rewrite that this fleet no longer carries, because the
+        canonical sentence it anchored on is gone. `fleet/hosts/rewrites.py` cannot hold the line
+        for them: a rewrite whose corpus-wide count is zero cannot be declared, precisely so a
+        dead rewrite is deleted rather than kept as a control that controls nothing. That trade
+        is only safe while a *reader* check stands where the rewrite stood -- otherwise a
+        canonical file that reintroduces the sentence ships the Claude-only claim to a host that
+        cannot honour it, and every existing check passes.
+        """
+        for root in generate_platform_adapters.GENERATED_ROOTS:
+            for path in sorted((REPO / root).rglob("*")):
+                if path.suffix not in {".md", ".toml"} or not path.is_file():
+                    continue
+                with self.subTest(path=path.relative_to(REPO)):
+                    text = path.read_text(encoding="utf-8")
+                    for retired in RETIRED_CLAUDE_ONLY_FORMS:
+                        self.assertNotIn(retired.casefold(), text.casefold())
 
     def test_host_agent_adapters_have_no_claude_runtime_references(self) -> None:
         paths = [

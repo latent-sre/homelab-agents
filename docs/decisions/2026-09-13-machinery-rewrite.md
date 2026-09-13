@@ -245,3 +245,163 @@ ids, the closed group vocabulary, the honoured rosters, the read-only policy vie
 source line on reference findings, the tolerant hook reader, the policy-pointing diagnostics,
 the preload check judged against the captured roster, one snapshot per CLI run, and a load that
 opens no file twice; one finding was declined, with the reason in `fleet/policy.py`'s docstring.
+
+## Amendment, 2026-09-13 — phase 2 landed
+
+Phase 2 is implemented on `claude/machinery-rewrite-fresh-ar08n6`, restarted from `main` after
+phase 1 merged (PR #188). What landed: `fleet/hosts/rewrites.py` (a `Rewrite` with a stable id, a
+`why`, its host and agent scope, and the count it must land; a `Ledger` that tallies a run and
+names every rewrite that missed), `fleet/hosts/table.py` (every projection the generator applies,
+in the order the hand-written chains ran, because each rewrite's output is the next one's input),
+and `fleet/hosts/toml.py` (the Codex emitter). `scripts/generate_platform_adapters.py` lost its
+394-line `if name == …` chain and its 30-replacement text chain; `expected_outputs` now owns one
+ledger for the run and refuses to return bytes whose rewrites did not land their counts. The
+generator left the lint ratchet in the same change, as the phase table requires.
+
+Oracle met: all 181 generated files byte-identical, `--check` clean, and the forbidden-phrase
+assertions unchanged and passing. The count contract was then exercised by mutation — rewording a
+canonical sentence fails generation naming the rewrite, its landed count, and its `why`.
+
+**The phase found the class it was built to close.** Twelve of the sixty-three ported rewrites
+matched nothing anywhere in the fleet: the canonical sentences they anchored on had been reworded
+or deleted (`the preloaded craft skills' rules` is now `the applicable craft skills' rules`;
+`A container, VM, or Claude Code sandbox counts only …` is now `A separate agent counts only …`;
+the three "already in your context" preload claims and the `${CLAUDE_PLUGIN_ROOT}/scripts/` path
+form are gone entirely). None of them was correcting anything, and each was read by every
+maintainer as a live control. They are deleted rather than pinned at zero — a rewrite that
+translates nothing is dead, not cautious, so the table has no zero-expectation form. The
+forbidden-phrase assertions in `tests/test_platform_adapters.py` independently cover the same
+classes, so a canonical sentence that brings one of those forms back fails a test rather than
+shipping.
+
+Two deliberate departures from the plan above:
+
+- **`tomli-w` is not adopted at all.** The plan added it "when the Codex TOML emitter has a
+  consumer". Making it the emitter would put a dependency in the path that `--check` runs, and
+  the T0 validator must keep working on a bare interpreter (Consequences, above), so
+  `fleet/hosts/toml.py` emits and then parses its own document back with the standard library's
+  `tomllib`, comparing it to the mapping it was asked to write — an always-on check that needs no
+  install. It was then added as a differential tripwire beside that check, on the PyYAML
+  precedent, and review showed the analogy does not hold: PyYAML is an independent *parser* of a
+  dialect the fleet reads itself, while the fleet has no TOML reader — `tomllib` is the oracle
+  here and in every consumer, so a third-party *writer* compared through that same parser cannot
+  fail for any defect the round-trip already catches. It was removed as a check that re-proves an
+  existing fact, and the dev group and CI install lines go back to what they were.
+- **`expected_outputs(root, verify_rewrites=False)` exists for synthetic trees.** The counts
+  describe *this fleet's* canonical corpus, so a two-file fixture would report every rewrite as
+  missing and say nothing true. Every path that generates the real fleet — the CLI's `--write`,
+  `--check`, and `--diff`, and the validator's adapter rule — keeps the default.
+
+The four tests that asserted an anchor miss at the render-call level now assert it over a full
+generation run, because the count a rewrite must land is a statement about the corpus rather than
+about one render. The guarantee is strictly wider than before: it holds for all fifty-four
+rewrites, where four were anchored by hand.
+
+Review found three gaps in the first push, all fixed on the same branch. The three substitutions
+in `_portable_readonly_body` had stayed outside the table, so the claim that every projection is
+counted was false where it mattered most — a skill body crediting `disallowed-tools` with
+removing Write and Edit names a deny the portable frontmatter drops. They are `skill.readonly.*`
+in the table now. `--diff` also rendered two real changes as nothing: a difference only in line
+endings or the final newline (which `splitlines()` discards, so the preview exited 0 on a tree
+`--write` would still rewrite) and the retired roots `--write` deletes outright, which appear in
+no expected-output map. Both are reported explicitly.
+
+A second review round retired the `tomli-w` tripwire for the reason recorded above, and split the
+count-mismatch diagnostic by direction: too few means an anchor was lost and must be re-anchored;
+too many usually means a legitimate new occurrence to review and count. One message calling both
+"unintended" would have sent half the failures to undo a correction that was working.
+
+A third round caught the two remaining holes. The table had carried its own namespaced-reference
+regexes — a second grammar for a fact `fleet/references.py` already owns, loose enough to rewrite
+the namespace inside a URL and strict enough to skip a malformed reference the validator rejects.
+The projection now compiles the canonical matcher, and the adapters stayed byte-identical, which
+is the evidence the two grammars had not yet diverged in this corpus. And the TOML emitter's
+"parsed does not equal intended" branch had no firing test: the escaping mutation exits through
+the parse error instead, so the equality check was an untested guard reading as enforcement. A
+mutation that emits valid TOML with a changed value now fires it.
+
+A fourth round found the two remaining gaps, both places where a guard held only for the inputs
+it happened to see. The read-only projections were applied only to a skill whose frontmatter
+carried `disallowed-tools`, so a skill that acquired the claim WITHOUT the field skipped the
+table entirely while the ledger's count stayed satisfied by the skills that do carry it — the
+false deny shipped to both hosts. They now judge every skill body, and `had_tool_deny` keeps only
+its own job, the adapter note about the dropped field. And `--diff` reported a retired root that
+is a regular file as a zero-file removal, because `rglob` finds nothing in one, while `--write`
+then aborted on that same path with `NotADirectoryError`: the preview promised what the operation
+could not do. The preview now names the obstruction and the write clears a root whatever shape it
+has, since a declared retired root is an obsolete artifact either way.
+
+A fifth round closed the same two classes at their remaining edges, plus one new one. The
+read-only projections judged only `SKILL.md` bodies, so the claim in a bundled `references/` file
+still shipped untranslated with the ledger satisfied by the bodies — they now judge bundled
+resources too. `--diff` disclosed a retired root that is a file but not an *active* generated root
+that is one, which `--write` also unlinks before recreating the directory; both are reported now.
+And nothing called `check_table` outside its unit test, so two rewrites sharing an id would share
+one ledger entry and a lost anchor could hide behind its twin's count: the table refuses to load
+that way at import, and the generator re-checks at the point of judgement so a table patched at
+runtime fails too.
+
+A sixth round found the one class the count contract structurally cannot hold, and in doing so
+falsified a claim this record and the pull request had both made. Twelve rewrites were deleted
+during the port because their canonical anchors were gone, and the justification offered was that
+the forbidden-phrase assertions independently reject the same forms. Codex demonstrated that false
+for `agent.codex.project-instruction-record`: reintroducing its sentence into a canonical agent
+generated successfully and preserved the `CLAUDE.md` instruction verbatim in the Codex profile.
+Checking the other eleven the same way — rather than accepting the single finding — showed the
+claim failed for **ten of the twelve** on at least one surface, and for six on both; only the two
+`${CLAUDE_PLUGIN_ROOT}` forms were genuinely covered.
+
+The gap is structural, not an oversight in any one deletion. A rewrite's count is a *writer* check:
+it holds prose that exists today to a projection. Deleting a rewrite deletes that check with it,
+and the module deliberately refuses a zero expectation, so nothing can be left behind to watch for
+the sentence's return. `RETIRED_CLAUDE_ONLY_FORMS` in `tests/test_platform_adapters.py` is the
+reader check that now stands where those rewrites stood, asserted over every generated file in
+every generated root. Verified end to end rather than by inspection: each of the twelve anchors was
+injected into a canonical agent and a canonical skill, regenerated, and confirmed to be rejected —
+which is the instrument that should have produced the original claim instead of a reading of the
+assertion lists.
+
+A seventh round found the read-only projections missing a third surface: skill *descriptions*.
+Frontmatter values and the Codex explicit-only policy were adapted with the shared text rewrites
+only, so the claim in a description reached both generated `SKILL.md` files and — when placed
+early enough to survive the policy's 100-character truncation — the generated
+`agents/openai.yaml` as well, with the ledger's count satisfied by the bodies throughout.
+
+That is the same defect for the third round running (body in round 4, bundled resource in round 5,
+description in round 7), which makes the pattern itself the finding: each fix closed the surface it
+was shown while the next one stayed open, because **a corpus-wide count is a total, not a coverage
+proof**. It cannot distinguish "every surface is projected" from "enough surfaces are projected to
+reach the declared number", and nothing else was asserting the difference. The fix is therefore
+structural rather than another patched call site: `adapt_skill_text` is the single entry point for
+every piece of skill prose — frontmatter values, the body, bundled resources, and the policy
+description — so there is no longer a fourth surface to route separately and forget. Adapters stay
+byte-identical, which is the evidence that consolidating the four paths changed no output.
+
+This is the limit of what the count contract can be asked to do. It is an excellent instrument for
+a *rewrite that stopped matching*, which is the failure it was built for, and a poor one for a
+*surface that was never wired*. The second failure needs one code path, not a better number.
+
+An eighth round found the same defect on the agent side: descriptions ran only the shared text
+rewrites while `AGENT_REWRITES` reached the body alone, so an authority sentence in an agent
+description shipped to both host adapters untouched, with the ledger satisfied by the bodies. This
+one is a miss in round 7's own fix rather than a new discovery — `adapt_skill_text` closed the
+class for skill prose while the identical shape sat two functions above it, visible in the same
+survey that produced it. `adapt_agent_text` is its twin, and both renderers now route description
+and body through it.
+
+Four surfaces across five rounds is enough evidence to stop relying on noticing the next one.
+`test_every_prose_surface_goes_through_one_entry_point` parses the generator and asserts that
+`adapt_text` is reachable only through those two composers, so a newly added surface that routes
+itself separately fails a test naming the function that bypassed them. That is the structural
+invariant the count cannot express: a corpus-wide total says how many times a rewrite landed, never
+that every surface was offered to it. The two instruments are now complementary rather than one
+overloaded — the count catches a rewrite whose anchor moved, the retired-form tuple catches a form
+whose rewrite is gone, and this catches a surface the tables never saw.
+
+**Operator ruling, 2026-09-13.** Eight broad review rounds ran against the three-round cap in
+`AGENTS.md` ("Another broad round beyond the cap requires an explicit operator ruling"). The
+operator ruled: address the round in flight, and accept no further broad rounds on this PR.
+Rounds 1–8 are recorded above; the ninth is the last, and this PR merges on its disposition plus
+green CI rather than on a round returning clean. Bounded corrections to demonstrated in-scope
+defects remain permitted after it, as the cap has always allowed — what ends is the broad-review
+loop, not the obligation to fix a defect someone shows us.

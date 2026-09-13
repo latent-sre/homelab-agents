@@ -390,6 +390,23 @@ skills); and a bare backticked skill name in an agent body must be present in th
 fleet file under `~/.claude`: the discovery roots there hold no fleet once it ships as a plugin,
 and the cached copy Claude Code keeps is replaced by the next reinstall.
 
+The generator's host projections are data too: `fleet/hosts/table.py` declares every rewrite that
+turns a Claude-only authority claim into what the target host can enforce, each with its `why` and
+with the number of times it must land across one generation run. `expected_outputs` refuses to
+return bytes whose rewrites missed those counts, which closes the failure this generator carried
+one anchor at a time — a canonical sentence reworded, its correction silently dropped, and the
+byte-drift check blind to it because the committed adapter was produced with the same miss. A
+rewrite that matches nothing anywhere is dead rather than cautious, so the table has no
+zero-expectation form. That has a consequence the table cannot carry: **deleting a rewrite deletes
+its guarantee**, because zero is not declarable, so the form it translated moves to
+`RETIRED_CLAUDE_ONLY_FORMS` in `tests/test_platform_adapters.py` in the same change. The count is a
+writer check on prose that still exists; that tuple is the reader check on prose that came back.
+`--diff` renders what `--write` would change without writing, and the Codex
+profile is emitted by `fleet/hosts/toml.py`, which parses every document it writes back with
+`tomllib` and compares it to the mapping it was asked to write. No third-party writer sits beside
+that check: the fleet has no TOML reader of its own, so `tomllib` is the oracle for both sides and
+a second writer could not fail for anything the round-trip already catches.
+
 The same validator loads the adapter generator as a library. It rejects missing, extra, or
 byte-drifted generated files;
 cross-host version or identity drift; the wrong manifest component paths; a Codex marketplace that
