@@ -76,7 +76,11 @@ publication separate from this source-level evidence.
 **Status:** `active` — the decision record was accepted 2026-09-13 after phase 0 merged (PR #187).
 Phase 1 (rules, policy, findings, CLI, rosters as data) merged in PR #188; phase 2 (host
 projections as a counted rewrite table, the verified Codex TOML emitter, `--diff`) is implemented
-on `claude/machinery-rewrite-fresh-ar08n6`, restarted from `main`; phases 3–5 remain.
+on `claude/machinery-rewrite-fresh-ar08n6`, restarted from `main`, and is in review as PR #189
+under an operator ruling closing the broad-review loop after its ninth round; phases 3–5 remain.
+
+**Next action:** merge PR #189, then open phase 3 (probes and doctor as verbs over
+`proc`/`stream`/`findings`, `hypothesis` property tests, PROBE-006 closed).
 
 **Outcome:** Every maintainer instrument under `scripts/` runs on the `fleet/` kernel with one
 implementation per primitive, policy held as data, structured findings, and the routing runner

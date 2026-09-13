@@ -397,3 +397,11 @@ invariant the count cannot express: a corpus-wide total says how many times a re
 that every surface was offered to it. The two instruments are now complementary rather than one
 overloaded — the count catches a rewrite whose anchor moved, the retired-form tuple catches a form
 whose rewrite is gone, and this catches a surface the tables never saw.
+
+**Operator ruling, 2026-09-13.** Eight broad review rounds ran against the three-round cap in
+`AGENTS.md` ("Another broad round beyond the cap requires an explicit operator ruling"). The
+operator ruled: address the round in flight, and accept no further broad rounds on this PR.
+Rounds 1–8 are recorded above; the ninth is the last, and this PR merges on its disposition plus
+green CI rather than on a round returning clean. Bounded corrections to demonstrated in-scope
+defects remain permitted after it, as the cap has always allowed — what ends is the broad-review
+loop, not the obligation to fix a defect someone shows us.
