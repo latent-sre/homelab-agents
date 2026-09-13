@@ -366,6 +366,119 @@ naming a GitHub issue **is** that issue's roadmap import under `docs/README.md` 
   failures across five runs); not caused by GATE-006. Source:
   [GATE-006 outcome](archive/2026-08/gate-006-outcome-2026-08-30.md);
   [history](archive/2026-09/roadmap-history-2026-09-01.md#probe-002-craft-preload-canaries-missing-in-sde-fullstack-spawn).
+
+## Deferred decisions
+
+#### GRAPH-004 — typed edge-contract pilot
+
+**Status:** `deferred` — trigger-bound, absorbed from the superseded control-plane proposal.
+
+**Outcome:** One real handoff (builder to reviewer) expressed as a host-neutral typed contract,
+with `contract_digest` resolving to it.
+
+**Source:**
+[GRAPH-003 adjudication](archive/2026-08/graph-003-adjudication-2026-08-01.md) ·
+[AI graph engineering decision](decisions/2026-07-31-ai-graph-engineering.md) ·
+[history](archive/2026-09/roadmap-history-2026-09-01.md#graph-004-typed-edge-contract-pilot)
+
+**Prerequisites:** A demonstrated consumer — a second workflow conversion decided.
+
+**Acceptance:** The contract document exists, `contract_digest` resolves to it with a test, the
+workflow (if any) consuming it validates against it, and no judgment text lives outside
+canonical files.
+
+**Next action:** None until a trigger fires — a second workflow conversion is the only live
+ignition.
+
+#### EVAL-003 — capture a comparable full routing anchor
+
+**Status:** `deferred`
+
+**Outcome:** Establish one current, condition-complete routing baseline across all routing
+clusters.
+
+**Source:**
+[history](archive/2026-09/roadmap-history-2026-09-01.md#eval-003-capture-a-comparable-full-routing-anchor)
+
+**Prerequisites:** Run small watched foreground batches; fix case-design defects before treating
+numbers as description evidence.
+
+**Acceptance:** Every artifact records requested/observed model, timeout, CLI version,
+threshold, and per-run evidence; no known-invalid artifact is called an anchor.
+
+**Next action:** Decide agent-member grading (evidence-backed default: negatives-only in
+routing, agent contracts covered by the behavioral suite), then capture the anchor under
+`--clean-room`.
+
+#### RELEASE-001 — add repository release discipline
+
+**Status:** `deferred`
+
+**Outcome:** On the next release-workflow task, add a bounded component for version choice,
+changelog, tag, publication, and rollback, without absorbing merge verdicts, CI authoring, or
+deployment authority.
+
+**Source:**
+[roster expansion design](archive/2026-07/roster-expansion-design.md) ·
+[history](archive/2026-09/roadmap-history-2026-09-01.md#release-001-add-repository-release-discipline)
+
+**Prerequisites:** A real plugin or repository release task demonstrates the consumer.
+
+**Acceptance:** Routing cases distinguish release, CI, deploy, and merge-verdict requests; the
+component states rollback boundaries; its first use performs the repository's actual version,
+inventory, validation, tag, and publication sequence.
+
+**Next action:** Reopen before the next manually orchestrated release; start from `claude plugin
+tag --dry-run` and build around what it does not cover.
+
+#### EVAL-004 — verify the accessibility imports behaviorally
+
+**Status:** `deferred`
+
+**Outcome:** Demonstrate that a real UI task loads and applies form wiring or interaction
+accessibility guidance and supplies keyboard-pass evidence.
+
+**Source:**
+[ECC import review](archive/2026-07/ecc-import-review.md) ·
+[history](archive/2026-09/roadmap-history-2026-09-01.md#eval-004-verify-the-accessibility-imports-behaviorally)
+
+**Prerequisites:** A real task involving a form, modal, drawer, custom widget, toast, or async
+status.
+
+**Constraints:** Do not manufacture a component solely to close this item.
+
+**Acceptance:** Task packet names the applicable reference and provides keyboard/announcement
+evidence; two observed misses trigger a dedicated behavioral contract and definition repair.
+
+**Next action:** Evaluate on the next qualifying UI task.
+
+#### LAB-001 — provide a fallback service compose asset
+
+**Status:** `deferred`
+
+**Outcome:** Supply an annotated service block for a lab with no established compose pattern,
+covering pinned image, restart, health, resource, and storage slots.
+
+**Source:**
+[skills modernization plan](archive/2026-07/skills-modernization-plan.md) ·
+[history](archive/2026-09/roadmap-history-2026-09-01.md#lab-001-provide-a-fallback-service-compose-asset)
+
+**Prerequisites:** An onboarding task demonstrates the target lab lacks a reusable pattern.
+
+**Constraints:** Existing lab conventions always win over this asset.
+
+**Acceptance:** Asset is linked skill-relative from `service-onboard`, contains no
+environment-specific defaults, and the validator's orphan/reference checks pass.
+
+**Next action:** Reopen on the first qualifying service-onboarding task.
+
+## Reconciliation record
+
+Reconciled against commit `ab896b2` on 2026-07-28: every item a historical document still called
+open was checked against current definitions, scripts, eval cases, and inventory. Detail lives in
+each source below, not here; every "Survives" finding is already tracked live above (LAB-001,
+EVAL-003, EVAL-004, LABSEC-002, RELEASE-001) or, for LABSEC-001, recorded landed in LABSEC-002.
+
 - **Quality and deep-review findings** — nearly all landed:
   `archive/2026-07/fleet-quality-review.md` (retired to Git history).
 - **Modernization and adaptation items** — landed except LAB-001, EVAL-003 above:

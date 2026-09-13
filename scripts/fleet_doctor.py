@@ -150,7 +150,7 @@ def _git_checks(root: Path, run: CommandRunner) -> list[Check]:
                 "repository.worktree",
                 "inconclusive",
                 "Git could not inspect worktree state.",
-                {"stderr": status.stderr.strip()},
+                _failure_details(status),
             )
         )
     elif status.stdout.strip():
