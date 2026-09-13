@@ -475,6 +475,107 @@ class BuilderSkillLoadingTests(unittest.TestCase):
         ))
 
 
+class ProbeTimeoutRecoveryTests(unittest.TestCase):
+    """PROBE-006: a leg that never answers must not discard the rest of the run.
+
+    The probe used to spawn through `run_completed`, so a session that hit the 600-second limit
+    raised `TimeoutExpired` out of whatever leg was running. Every later check -- and every
+    result already collected -- went with it, and the operator paid for a full probe to learn
+    nothing. Reproduced at the operator's limit in the 2026-09-07 diagnostic correction.
+    """
+
+    def test_the_runner_returns_a_timeout_instead_of_raising(self) -> None:
+        with mock.patch.object(
+            probe_plugin._proc,
+            "run",
+            return_value=probe_plugin._proc.CommandResult(
+                ("claude",), None, "partial transcript", "", timed_out=True, error="timed out"
+            ),
+        ):
+            result = probe_plugin.run(["claude", "-p", "hello"])
+        self.assertTrue(result.timed_out)
+        # The transcript the run already paid for survives the failure.
+        self.assertEqual("partial transcript", result.stdout)
+
+    def test_an_unanswered_leg_is_inconclusive_with_its_own_cause(self) -> None:
+        timed_out = probe_plugin._proc.CommandResult(
+            ("claude",), None, "", "", timed_out=True, error="timed out"
+        )
+        never_started = probe_plugin._proc.CommandResult(
+            ("claude",), 127, "", "", failed_to_start=True, error="No such file"
+        )
+        answered = probe_plugin._proc.CommandResult(("claude",), 0, "ok", "")
+
+        self.assertIn("did not answer within 600s", probe_plugin.unanswered_cause(timed_out))
+        self.assertIn("could not be started", probe_plugin.unanswered_cause(never_started))
+        self.assertIsNone(probe_plugin.unanswered_cause(answered))
+
+        for result in (timed_out, never_started):
+            with self.subTest(result=result):
+                probe = probe_plugin.Probe()
+                with contextlib.redirect_stdout(io.StringIO()):
+                    proceeded = probe.answered(result, "a leg that got no answer")
+                self.assertFalse(proceeded)
+                self.assertEqual([probe_plugin.SKIP], [s for s, *_ in probe.results])
+                self.assertNotIn(probe_plugin.FAIL, [s for s, *_ in probe.results])
+
+    def test_a_truncated_transcript_makes_later_checks_unevaluated_not_failed(self) -> None:
+        """The PROBE-002 distinction, applied to the whole run.
+
+        A transcript that stops mid-session cannot tell "the canary is absent" from "the oracle
+        saw nothing", so a confident FAIL on that evidence is the cascade that made one
+        environment condition read as a dozen fleet defects.
+        """
+        timed_out = probe_plugin._proc.CommandResult(
+            ("claude",), None, "", "", timed_out=True, error="timed out"
+        )
+        answered = probe_plugin._proc.CommandResult(("claude",), 0, "ok", "")
+        probe = probe_plugin.Probe()
+        with contextlib.redirect_stdout(io.StringIO()):
+            probe.check(probe_plugin.FAIL, "before truncation")
+            probe.reading(timed_out)
+            probe.check(probe_plugin.FAIL, "after truncation")
+            probe.check(probe_plugin.PASS, "a pass is still a pass")
+            # A later leg drives its OWN session; a timeout in the previous one must not
+            # silence its verdicts.
+            probe.reading(answered)
+            probe.check(probe_plugin.FAIL, "the next session answered")
+
+        statuses = {label: status for status, label, _ in probe.results}
+        self.assertEqual(probe_plugin.FAIL, statuses["before truncation"])
+        self.assertEqual(probe_plugin.SKIP, statuses["after truncation"])
+        # A PASS on partial evidence is still real: the canary was observed, not merely absent.
+        self.assertEqual(probe_plugin.PASS, statuses["a pass is still a pass"])
+        self.assertEqual(probe_plugin.FAIL, statuses["the next session answered"])
+        detail = next(d for _, label, d in probe.results if label == "after truncation")
+        self.assertIn("unevaluated", detail)
+
+    def test_a_timed_out_main_session_still_reaches_the_workflow_leg(self) -> None:
+        """The heart of PROBE-006: later legs run their own sessions and must still be reached."""
+        reached: list[str] = []
+        timed_out = probe_plugin._proc.CommandResult(
+            ("claude",), None, "", "", timed_out=True, error="timed out"
+        )
+        with (
+            mock.patch.object(probe_plugin, "run", return_value=timed_out),
+            mock.patch.object(probe_plugin, "CLAUDE", "claude"),
+            mock.patch.object(probe_plugin, "_remove_workspace"),
+            mock.patch.object(
+                probe_plugin,
+                "probe_workflow_contract",
+                side_effect=lambda probe: reached.append("workflow"),
+            ),
+            tempfile.TemporaryDirectory() as tmp,
+            mock.patch.object(probe_plugin, "REPO", Path(tmp)),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = probe_plugin.main([])
+
+        self.assertEqual(["workflow"], reached, "the run stopped at the timed-out session")
+        # INCONCLUSIVE, never a green run and never a fleet defect.
+        self.assertEqual(2, code)
+
+
 class ProbeInconclusiveReportingTests(unittest.TestCase):
     """The epilogue must not assert one cause for every inconclusive check.
 

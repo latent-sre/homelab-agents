@@ -41,7 +41,6 @@ import os
 import re
 import shutil
 import stat
-import subprocess
 import sys
 from pathlib import Path
 
@@ -164,22 +163,76 @@ return { guarded, unguarded }
 GUARD_DENIAL_MARKER = "limited to an ALLOWLIST"
 
 
-def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
-    # The kernel runner owns the decoding decision (explicit UTF-8, never the locale encoding).
-    # A timeout still raises here, as it always has; folding the probe's verdict logic onto
-    # `fleet.proc.run` is roadmap PROBE-006.
-    return _proc.run_completed(cmd, timeout=600, **kwargs)
+def run(cmd: list[str], **kwargs) -> _proc.CommandResult:
+    """Spawn one command; never raise for a timeout or a missing binary (roadmap PROBE-006).
+
+    This used to call `run_completed`, which raises `TimeoutExpired` out of whatever leg was
+    running. One 600-second session that did not answer therefore discarded every later check in
+    the run -- including the ones that had already passed -- and the operator paid for the whole
+    probe to learn nothing. The kernel runner returns the partial transcript instead, and a leg
+    that got no answer reports its own INCONCLUSIVE while the rest of the probe continues.
+    """
+    return _proc.run(cmd, timeout=600, **kwargs)
+
+
+def unanswered_cause(result: _proc.CommandResult) -> str | None:
+    """Why this command produced no verdict, or None if it answered.
+
+    Neither case is a fleet defect, which is why both are INCONCLUSIVE rather than FAIL: a
+    timeout is the 600-second limit reached, and a command that never started is a broken
+    environment. Reporting either as FAIL sends the operator to fix the fleet.
+    """
+    if result.timed_out:
+        return (
+            "the command did not answer within 600s, so this leg proves nothing either way; "
+            "the transcript below is partial. Re-run on a quieter machine, or raise the limit."
+        )
+    if result.failed_to_start:
+        return f"the command could not be started, so this leg never ran: {result.error}"
+    return None
 
 
 class Probe:
     def __init__(self) -> None:
         self.results: list[tuple[str, str, str]] = []
+        # Set once the run's evidence is known to be incomplete; see `evidence_truncated`.
+        self._truncated: str | None = None
+
+    def reading(self, result: _proc.CommandResult) -> None:
+        """Declare which session the checks that follow will read, and how complete it is.
+
+        Two things at once, because they are one fact. `cause` non-None marks the transcript
+        partial, so a later FAIL reads as unevaluated: that is PROBE-002's distinction applied
+        to a whole session, since a transcript cut off mid-run cannot tell "the canary is
+        absent" from "the oracle saw nothing", and a confident FAIL on evidence that simply
+        stops is the cascade that made one environment condition read as a dozen fleet defects.
+
+        And `cause` None CLEARS it, which is the half that is easy to miss: each leg drives its
+        own session, so a timeout in one must not silence the verdicts of the next. State lives
+        on the probe rather than being threaded through every `check` call because more than a
+        dozen call sites read these transcripts and one forgotten argument restores the cascade
+        silently.
+        """
+        self._truncated = unanswered_cause(result)
 
     def check(self, status: str, label: str, detail: str = "") -> None:
+        if status == FAIL and self._truncated is not None:
+            # Not a downgrade of a real defect: the evidence for this verdict is known to be
+            # incomplete, so the honest verdict is "unproven", not "broken".
+            status = SKIP
+            detail = f"{detail} -- unevaluated: {self._truncated}".lstrip(" -")
         self.results.append((status, label, detail))
         print(f"  [{status}] {label}")
         if detail and status != PASS:
             print(f"      {detail}")
+
+    def answered(self, result: _proc.CommandResult, label: str) -> bool:
+        """Record this leg INCONCLUSIVE and return False when the command gave no verdict."""
+        cause = unanswered_cause(result)
+        if cause is None:
+            return True
+        self.check(SKIP, label, cause)
+        return False
 
     def report(self) -> int:
         passed = [r for r in self.results if r[0] == PASS]
@@ -690,7 +743,8 @@ def probe_workflow_contract(probe: "Probe") -> None:
         ],
         cwd=str(target),
     )
-    text = session.stdout or ""
+    probe.reading(session)
+    text = session.stdout
     # "Workflow launched in background" is the Workflow tool's own launch acknowledgment. The
     # obvious oracle -- the workflow's name in the stream -- is vacuous: the invocation prompt
     # echoes it, so a session whose Workflow call errored still matches and the probe reports a
@@ -700,7 +754,7 @@ def probe_workflow_contract(probe: "Probe") -> None:
         "plugin workflow resolved and the session completed",
         "the Workflow tool never acknowledged a launch -- the workflow errored before running, "
         "so the agent_type checks below are meaningless this run: "
-        + (session.stderr or "")[:200],
+        + session.stderr[:200],
     )
     events = (
         list(stream_events.iter_events(hook_log.read_text(encoding="utf-8")))
@@ -786,8 +840,15 @@ def _probe_live_effect_gate(probe, project) -> None:
             cwd=str(project),
             env=dict(os.environ, SDE_AGENTS_LIVE_EFFECT_POLICY="prompt"),
         )
+    for marker, gate_session in gate_sessions.items():
+        # A differential needs both arms: with one missing there is nothing to compare, so the
+        # whole leg is unproven rather than half-answered.
+        if not probe.answered(
+            gate_session, f"the live-effect gate differential ({marker} arm)"
+        ):
+            return
     agent_attempted, agent_res = result_for(
-        "GATEPROBE_AGENT", bash_results(gate_sessions["AGENT"].stdout or ""),
+        "GATEPROBE_AGENT", bash_results(gate_sessions["AGENT"].stdout),
         exact=GATE_CMD.format(marker="AGENT"),
     )
     agent_seen = observed(agent_res)
@@ -819,7 +880,7 @@ def _probe_live_effect_gate(probe, project) -> None:
             f"{agent_seen[0].strip()[:120]!r}",
         )
     main_attempted, main_res = result_for(
-        "GATEPROBE_MAIN", bash_results(gate_sessions["MAIN"].stdout or ""),
+        "GATEPROBE_MAIN", bash_results(gate_sessions["MAIN"].stdout),
         exact=GATE_CMD.format(marker="MAIN"),
     )
     main_seen = observed(main_res)
@@ -859,11 +920,12 @@ def main(argv: list[str] | None = None) -> int:
 
     print("== the platform contract ==")
     validated = run([sys.executable, str(REPO / "scripts/validate_claude_plugin.py")])
-    probe.check(
-        PASS if validated.returncode == 0 else FAIL,
-        "strict marketplace and canonical plugin validation",
-        ((validated.stdout or "") + (validated.stderr or "")).strip()[:400],
-    )
+    if probe.answered(validated, "strict marketplace and canonical plugin validation"):
+        probe.check(
+            PASS if validated.returncode == 0 else FAIL,
+            "strict marketplace and canonical plugin validation",
+            (validated.stdout + validated.stderr).strip()[:400],
+        )
 
     # NOT the OS temp dir: Claude Code refuses to create files there, which would block the probe's
     # own oracle and get misread as the guard doing its job.
@@ -894,11 +956,15 @@ def main(argv: list[str] | None = None) -> int:
         ],
         cwd=str(project),
     )
-    text = session.stdout or ""
+    text = session.stdout
+    # Every check below reads this one transcript, so a session cut short makes them unevaluated
+    # rather than failed -- and the run still continues to the legs that drive their own
+    # sessions, which is what PROBE-006 discarded.
+    probe.reading(session)
     probe.check(
         PASS if session.returncode == 0 else FAIL,
         "headless session exited cleanly",
-        (session.stderr or "")[:300],
+        session.stderr[:300],
     )
 
     print("\n== the plugin loaded, and its components are namespaced ==")
@@ -1031,8 +1097,9 @@ def main(argv: list[str] | None = None) -> int:
         ],
         cwd=str(project),
     )
+    probe.reading(agent_session)
     agent_flag_attempted, agent_flag = result_for(
-        "AGENTFLAG_PROBE", bash_results(agent_session.stdout or "")
+        "AGENTFLAG_PROBE", bash_results(agent_session.stdout)
     )
     agent_flag_seen = observed(agent_flag)
     agent_flag_ran = unguarded_runs(agent_flag_seen)
@@ -1091,7 +1158,8 @@ def main(argv: list[str] | None = None) -> int:
         ],
         cwd=str(project),
     )
-    ref_text = ref_session.stdout or ""
+    probe.reading(ref_session)
+    ref_text = ref_session.stdout
     ref_reads = [
         call.get("input", {}).get("file_path", "")
         for call in tool_calls(ref_text)
