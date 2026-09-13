@@ -46,3 +46,8 @@ evals/baselines/**/failing-run-evidence.json
 .venv/
 .ruff_cache/
 .pytest_cache/
+
+# Native `claude plugin eval` output. Each run writes aggregate-result.json and report.html under
+# <eval dir>/results/<timestamp>/; the distilled verdicts live in the archived pilot note, and the
+# decision record's phase-4 precondition names this ignore explicitly.
+evals/native-pilot/results/

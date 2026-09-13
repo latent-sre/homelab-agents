@@ -96,9 +96,13 @@ Closes when phase 5 merges and the lint ratchet table in `pyproject.toml` is emp
 runs; the specifier restricts nothing, the validator's rule stands) and the CI pin moved to
 2.1.270 with the probe re-run — [pin refresh evidence](archive/2026-09/pin-refresh-evidence-2026-09-13.md).
 
-**Next action:** Operator ruling on the record. First live action after acceptance: run one
-native `claude plugin eval` case with a `tool_used: Agent` grader against a plugin-namespaced
-`subagent_type`.
+**Next action:** Operator ruling on the record. The phase-4 live precondition is met: the
+native pilot ran on 2026-09-13 (CLI 2.1.270, sonnet, two runs of three), the `tool_used: Agent`
+grader matched `sde-agents:homelab-engineer` in five of six runs and the observed
+`subagent_type` was the namespaced form every time —
+[native eval pilot](archive/2026-09/native-eval-pilot-2026-09-13.md). Remaining before phase 4:
+the converter and recorder the record names, and a ruling on how the migrated suite records the
+grader-counts-errored-spawns caveat the pilot surfaced.
 
 #### LABFLOW-001 — simplify the homelab operating path
 
