@@ -17,6 +17,12 @@ try:  # The dev dependency group installs it; a bare interpreter skips the tripw
 except ImportError:  # pragma: no cover - exercised only on hosts without the dev group
     yaml = None
 
+try:  # Same contract as PyYAML above: the dev group installs it, a bare interpreter skips loudly.
+    from hypothesis import given, settings
+    from hypothesis import strategies as st
+except ImportError:  # pragma: no cover - exercised only on hosts without the dev group
+    given = settings = st = None
+
 
 def _parse(text: str) -> dict[str, str] | None:
     return fm.parse_text(text)
@@ -161,6 +167,95 @@ class DialectDifferentialTripwire(unittest.TestCase):
                         f"vs conforming {value!r}"
                     )
         self.assertEqual([], divergences, "\n".join(divergences))
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+@unittest.skipIf(
+    given is None, "hypothesis (dev dependency group) is required for the property tests"
+)
+class DialectPropertyTests(unittest.TestCase):
+    """Properties over arbitrary text, where a hand-picked corpus stops being convincing.
+
+    The dialect is a deliberate subset reader, so its interesting failures are inputs nobody
+    would think to write down: a character Python calls a line break and YAML does not, a value
+    whose rendering the fleet's own validator would then reject. Both of the findings recorded
+    below came from these, not from a defect report.
+    """
+
+    @given(st.text(max_size=200))
+    @settings(max_examples=400, deadline=None)
+    def test_the_reader_never_raises_on_arbitrary_text(self, text: str) -> None:
+        # The reader runs against files a contributor is editing, so a crash is a broken gate
+        # rather than a refusal. Refusing is the dialect's job; raising is not.
+        result = fm.parse_text(text)
+        self.assertTrue(result is None or isinstance(result, dict))
+
+    @given(st.text(max_size=200))
+    @settings(max_examples=400, deadline=None)
+    def test_the_writer_never_emits_a_scalar_its_own_validator_rejects(self, value: str) -> None:
+        # `frontmatter.scalar` fails the build for a scalar a strict host would drop. If the
+        # fleet's own writer could produce one, generation would author a file the validator
+        # then refuses -- a gate that cannot be satisfied by any canonical edit.
+        self.assertIsNone(fm.flow_scalar_defect(fm.yaml_scalar(value)))
+
+    @given(st.text(max_size=200))
+    @settings(max_examples=400, deadline=None)
+    def test_an_emitted_scalar_never_breaks_the_frontmatter_it_is_written_into(
+        self, value: str
+    ) -> None:
+        """No emitted value may end the frontmatter block early.
+
+        This is what found the NEL fix. `str.splitlines()` breaks on \\x85, \\u2028 and \\u2029;
+        `json.dumps(ensure_ascii=False)` emitted all three literally, because they are not JSON
+        control characters. A description carrying one -- pasted from a word processor, say --
+        was written whole and read back torn, with its tail parsed as a frontmatter key.
+        """
+        document = f"---\nname: demo\ndescription: {fm.yaml_scalar(value)}\n---\n\nBody.\n"
+        parsed = fm.parse_text(document)
+        self.assertIsNotNone(parsed, f"{value!r} ended the frontmatter block early")
+        self.assertEqual("demo", parsed["name"])
+        self.assertEqual({"name", "description"}, set(parsed))
+
+    @given(
+        st.text(
+            # Everything that needs no escaping and no stripping: the control and separator
+            # categories are what `json.dumps` escapes, and the three quote characters are what
+            # the reader strips. The excluded set IS the boundary this test exists to pin.
+            alphabet=st.characters(
+                exclude_categories=("Cc", "Cs", "Zl", "Zp"),
+                exclude_characters="\"\\'",
+            ),
+            max_size=200,
+        )
+    )
+    @settings(max_examples=400, deadline=None)
+    def test_a_value_carrying_no_quote_or_escape_round_trips_exactly(self, value: str) -> None:
+        """The round trip holds exactly as far as quoting, and no further.
+
+        The dialect reads a quoted scalar with `value.strip("\'\\"")` -- a crude strip of quote
+        characters from both ends, not a scalar parser. Two consequences, one root cause, both
+        found by this property rather than by a defect report:
+
+        * it does not decode YAML's double-quoted escapes, while the hosts that load the
+          definitions do, so `yaml_scalar('say "hi"')` reads back here as `say \\"hi\\"` and on a
+          host as `say "hi"`;
+        * it strips ANY quote character repeatedly, so the emitted `"say \'hi\'"` reads back as
+          `say \'hi` -- a trailing apostrophe in a description is simply lost.
+
+        Both are latent today: nothing compares a description read back from a generated file
+        against its canonical source. They are recorded together as DIALECT-001 in
+        `docs/fleet-roadmap.md`, not fixed here, because the fix is a real double-quoted scalar
+        reader and that changes what every rule sees for every quoted value. This test pins the
+        boundary so the "latent" claim stays checkable: everything short of a quote or an escape
+        round-trips exactly.
+        """
+        rendered = fm.yaml_scalar(value)
+        parsed = fm.parse_text(f"---\nname: {rendered}\n---\n")
+        self.assertIsNotNone(parsed)
+        self.assertEqual(value, parsed["name"])
 
 
 if __name__ == "__main__":

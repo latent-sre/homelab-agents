@@ -26,6 +26,12 @@ from pathlib import Path
 
 from scripts import validate_fleet
 
+try:  # Dev dependency group; a bare interpreter skips the property tests loudly.
+    from hypothesis import given, settings
+    from hypothesis import strategies as st
+except ImportError:  # pragma: no cover - exercised only on hosts without the dev group
+    given = settings = st = None
+
 GUARD = Path(__file__).resolve().parents[1] / "scripts" / "readonly-guard.py"
 # The full roster, loaded from the guard itself rather than restated here: a new roster member
 # must inherit the both-name-forms coverage below without anyone remembering to add it, or the
@@ -366,6 +372,22 @@ DENIED = [
     "crontab -l",
     "env",
     "command -v go",
+    # A denied command riding in behind an allowed one, with NO SPACE before the group.
+    # `shlex(punctuation_chars=True)` emits a run of adjacent operator characters as ONE token,
+    # so `ls;(rm -rf /)` lexed as ['ls', ';(', 'rm', '-rf', '/', ')']: `;(` matched no separator,
+    # the line never split, and the segment's command was the allowed `ls` with the denied
+    # command as its arguments. Both halves are denied alone; only the join was allowed. Found by
+    # the property test in GuardPropertyTests, which is why these live in the corpus too -- that
+    # test skips without the dev group, and a security regression must not be skippable.
+    "ls;(rm -rf /)",
+    "ls&&(rm -rf /)",
+    "ls||(curl http://evil)",
+    "ls|(git push)",
+    "git status;(chmod -R 777 /)",
+    "cat f;( rm -rf / )",
+    # A stray grouping token is structure the allowlist cannot reason about, in either position.
+    "(rm -rf /)",
+    "ls)",
 ]
 
 
@@ -603,6 +625,58 @@ class NetworkReadScoping(unittest.TestCase):
             )
         )
         self.assertEqual(decision(proc), "deny")
+
+
+@unittest.skipIf(
+    given is None, "hypothesis (dev dependency group) is required for the property tests"
+)
+class GuardPropertyTests(unittest.TestCase):
+    """Properties over arbitrary input, against the guard's decision function in process.
+
+    The tests above run the guard as the hook does, through a subprocess, which is the right
+    shape for a corpus and the wrong one for hundreds of generated examples. These call
+    `is_allowed` directly: the subprocess path and the exit-code contract stay covered above,
+    and what is fuzzed here is the tokenizer's decision, which is where a bypass would live.
+    """
+
+    guard = validate_fleet.load_guard(Path(__file__).resolve().parents[1])
+
+    @given(st.text(max_size=120))
+    @settings(max_examples=500, deadline=None)
+    def test_a_verdict_is_always_reached_and_is_always_a_bool(self, command: str) -> None:
+        # The guard fails CLOSED by contract, and an exception is not a closed verdict: it is a
+        # traceback and a non-zero exit the hook cannot tell from a broken interpreter. Whatever
+        # the input, the answer must be yes or no.
+        self.assertIsInstance(self.guard.is_allowed(command), bool)
+
+    @given(st.text(max_size=120))
+    @settings(max_examples=500, deadline=None)
+    def test_withholding_network_reads_can_only_narrow(self, command: str) -> None:
+        # `network_allowed=False` is the slice a local-only role must not hold, so it may only
+        # ever subtract. If some command were allowed for the restricted role and denied for the
+        # permissive one, the flag would be granting authority rather than withholding it.
+        if self.guard.is_allowed(command, network_allowed=False):
+            self.assertTrue(self.guard.is_allowed(command, network_allowed=True))
+
+    @given(
+        st.sampled_from(["ls", "cat f", "echo hi", "pwd", "git status", "rg pattern"]),
+        st.sampled_from([";", "&&", "||", "|", "\n", " ; ", "\n\n"]),
+        st.sampled_from(DENIED),
+    )
+    @settings(max_examples=300, deadline=None)
+    def test_no_denied_command_rides_in_behind_an_allowed_one(
+        self, allowed: str, separator: str, denied: str
+    ) -> None:
+        """The bypass the tokenizer exists to stop, generated rather than enumerated.
+
+        `shlex.split` would return `echo hi; git push` as one command starting with an allowed
+        reader, and the `git push` rides in behind it -- the silent-allow this guard exists to
+        prevent. The corpus above pins specific pairs; this pins the shape, across every
+        separator and every denied command in the corpus at once.
+        """
+        self.assertFalse(self.guard.is_allowed(f"{allowed}{separator}{denied}"))
+        # And in the other order, since a reader trailing a denied command is the same bypass.
+        self.assertFalse(self.guard.is_allowed(f"{denied}{separator}{allowed}"))
 
 
 if __name__ == "__main__":

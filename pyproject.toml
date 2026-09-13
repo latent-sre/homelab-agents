@@ -24,6 +24,11 @@ dev = [
     # frontmatter dialect (tests/test_fleet_frontmatter.py). It is never the reader: the hosts
     # that load the definitions are the oracle, and they are not conforming parsers either.
     "pyyaml==6.0.3",
+    # Property-based tests over the two places hostile input has the highest value: the guard's
+    # command tokenizer and the frontmatter dialect. Its first run found a guard bypass a
+    # hand-written corpus had missed for the life of the guard (`ls;(rm -rf /)`), which is the
+    # argument for the dependency. Skips loudly where absent, like pyyaml above; CI installs it.
+    "hypothesis==6.168.0",
 ]
 
 [tool.ruff]
