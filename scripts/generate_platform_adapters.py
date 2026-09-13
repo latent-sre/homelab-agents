@@ -51,6 +51,7 @@ from fleet.hosts.table import (  # noqa: E402
     AGENT_REWRITES,
     ALL_REWRITES,
     SECURITY_REFERENCE_REWRITES,
+    SKILL_READONLY_REWRITES,
     TEXT_REWRITES,
     TOOLS_REFERENCE_REWRITES,
 )
@@ -404,36 +405,12 @@ def _portable_frontmatter(
     return output, explicit_only, had_tool_deny
 
 
-def _portable_readonly_body(body: str) -> str:
+def _portable_readonly_body(
+    body: str, *, host: str, ledger: Ledger | None = None
+) -> str:
     """Remove Claude-only claims from skills whose source has a tool deny."""
 
-    body = re.sub(
-        r"All checks are read-only\. `disallowed-tools` removes Write and Edit while this skill "
-        r"is active,\s+but Bash can still mutate",
-        "All checks are read-only. This portable adapter has no cross-host write-tool deny, and "
-        "shell access can still mutate",
-        body,
-    )
-    body = re.sub(
-        r"Whether you were invoked directly from the main session or under `homelab-engineer`, "
-        r"the reviewer's Bash guard does not cover this skill \(that hook keys on guarded "
-        r"\*agent\* identities, and the main loop carries none at all\) — the read-only-ness here "
-        r"is cooperative, not enforced\. `NotebookEdit` is in `disallowed-tools` for the same "
-        r"reason as Write and Edit: it is a write tool, and a denylist that names only the obvious "
-        r"two leaves the third\.",
-        "The parent host's sandbox or permission profile is the only hard boundary here; the "
-        "skill's read-only posture is cooperative, and no write-capable tool is within its "
-        "mandate.",
-        body,
-    )
-    body = re.sub(
-        r"The\s+read-only-ness here is cooperative, not enforced \(the reviewer's Bash guard keys "
-        r"on guarded\s+\*agent\* identities, not skills\)\.",
-        "The parent host's sandbox or permission profile is the only hard boundary here; the "
-        "skill's read-only posture is cooperative.",
-        body,
-    )
-    return body
+    return apply_rewrites(body, SKILL_READONLY_REWRITES, host=host, ledger=ledger)
 
 
 def adapt_host_resource(
@@ -459,7 +436,7 @@ def render_portable_skill(
     )
     portable_body = adapt_text(body.rstrip(), host, ledger=ledger)
     if had_tool_deny:
-        portable_body = _portable_readonly_body(portable_body)
+        portable_body = _portable_readonly_body(portable_body, host=host, ledger=ledger)
 
     notes = [
         f"<!-- {GENERATED_MARKER} -->",
@@ -800,6 +777,10 @@ def diff_generated_outputs(root: Path) -> list[str]:
     A byte-drift failure says only that a file is stale. Reviewing a canonical edit means seeing
     which projected sentence moved, so this renders that directly rather than sending the
     maintainer to regenerate and read `git diff` on a tree they have already overwritten.
+
+    Two kinds of pending change are easy to render as nothing, and both are reported explicitly
+    instead: a difference only in line endings or the final newline, which `splitlines()` drops,
+    and the retired roots `--write` deletes outright, which are in no expected-output map.
     """
 
     expected = expected_outputs(root)
@@ -823,7 +804,7 @@ def diff_generated_outputs(root: Path) -> list[str]:
                 f"{'removed' if wanted is None else f'{len(wanted)} bytes'})"
             )
             continue
-        report.extend(
+        rendered = list(
             difflib.unified_diff(
                 before.splitlines(),
                 after.splitlines(),
@@ -832,7 +813,44 @@ def diff_generated_outputs(root: Path) -> list[str]:
                 lineterm="",
             )
         )
+        if rendered:
+            report.extend(rendered)
+            continue
+        # The bytes differ but every line's content is equal, so the change is in the line
+        # endings or the final newline. Reporting nothing here would let `--diff` exit 0 on a
+        # tree `--write` would still rewrite.
+        report.append(
+            f"--- {name}: same lines, different bytes "
+            f"({_line_ending_summary(current)} -> {_line_ending_summary(wanted)})"
+        )
+
+    for relative in RETIRED_GENERATED_ROOTS:
+        try:
+            retired = _safe_generated_root(root, relative, operation="inspect")
+        except ValueError as exc:
+            report.append(f"--- {relative.as_posix()}: cannot inspect retired root safely: {exc}")
+            continue
+        if not retired.exists():
+            continue
+        # `--write` deletes these outright; a preview that omitted them would hide the only
+        # destructive part of the operation.
+        removed = sorted(p for p in retired.rglob("*") if p.is_file())
+        report.append(
+            f"--- {relative.as_posix()}: retired generated root, {len(removed)} file(s) "
+            f"would be removed by --write"
+        )
+        report.extend(f"-  {p.relative_to(root).as_posix()}" for p in removed)
     return report
+
+
+def _line_ending_summary(data: bytes | None) -> str:
+    """Describe a file's line endings and final newline, for a difference nothing else shows."""
+
+    if data is None:
+        return "absent"
+    endings = "CRLF" if b"\r\n" in data else ("CR" if b"\r" in data else "LF")
+    final = "final newline" if data.endswith(b"\n") else "no final newline"
+    return f"{endings}, {final}"
 
 
 def validate_generated_outputs(root: Path) -> list[str]:

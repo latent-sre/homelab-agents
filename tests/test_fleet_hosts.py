@@ -134,6 +134,30 @@ class FleetRewriteCountTests(unittest.TestCase):
         self.assertIn(anchor.why, message)
 
 
+    def test_a_reworded_read_only_skill_claim_fails_generation(self) -> None:
+        # A skill body that credits `disallowed-tools` with removing Write and Edit names a deny
+        # the portable frontmatter drops, so the projection is as load-bearing as any agent's —
+        # and so is its count.
+        anchor = "All checks are read-only. `disallowed-tools` removes Write and Edit"
+        with repo_copy() as dst:
+            carriers = [
+                path
+                for path in sorted((dst / "skills").rglob("SKILL.md"))
+                if anchor in path.read_text(encoding="utf-8")
+            ]
+            self.assertTrue(carriers, "the anchor must exist somewhere to be worth counting")
+            for path in carriers:
+                path.write_text(
+                    path.read_text(encoding="utf-8").replace(
+                        anchor, "All checks are read-only. The deny list removes Write and Edit"
+                    ),
+                    encoding="utf-8",
+                )
+            with self.assertRaises(RewriteError) as caught:
+                generator.expected_outputs(dst)
+        self.assertIn("skill.readonly.disallowed-tools-claim", str(caught.exception))
+
+
 class TomlEmitterTests(unittest.TestCase):
     def test_a_document_reads_back_as_written(self) -> None:
         text = fleet_toml.render_document(
@@ -238,6 +262,40 @@ class GeneratorDiffTests(unittest.TestCase):
         self.assertIn(".codex/agents/researcher.toml", joined)
         self.assertIn("+description", joined)
         self.assertIn("External-source sleuth", joined)
+
+
+    def test_diff_reports_a_change_that_has_no_visible_lines(self) -> None:
+        # A stripped final newline and a CRLF rewrite both leave every line's content equal, so
+        # a line-based diff renders nothing; reporting nothing would let `--diff` exit 0 on a
+        # tree `--write` would still rewrite.
+        target = Path(".github") / "agents" / "researcher.agent.md"
+        for label, mutate in (
+            ("final newline", lambda data: data.rstrip(b"\n")),
+            ("CRLF", lambda data: data.replace(b"\n", b"\r\n")),
+        ):
+            with self.subTest(change=label), repo_copy() as dst:
+                path = dst / target
+                path.write_bytes(mutate(path.read_bytes()))
+                report = generator.diff_generated_outputs(dst)
+                code, out = run_main(generator.main, "--diff", "--root", str(dst))
+            self.assertEqual(1, code, out)
+            self.assertTrue(report, f"a {label} difference must not render as nothing")
+            self.assertIn("same lines, different bytes", report[0])
+            self.assertIn(target.as_posix(), report[0])
+
+    def test_diff_reports_a_retired_root_that_write_would_delete(self) -> None:
+        # Deleting the retired trees is the only destructive part of `--write`, and they appear
+        # in no expected-output map, so the preview has to name them itself.
+        with repo_copy() as dst:
+            retired = dst / "platforms" / "portable"
+            retired.mkdir(parents=True)
+            (retired / "stale.md").write_text("x", encoding="utf-8")
+            report = generator.diff_generated_outputs(dst)
+            code, _ = run_main(generator.main, "--diff", "--root", str(dst))
+            self.assertTrue((retired / "stale.md").is_file(), "--diff must not write")
+        self.assertEqual(1, code)
+        self.assertIn("retired generated root", "\n".join(report))
+        self.assertIn("platforms/portable/stale.md", "\n".join(report))
 
 
 class GeneratedTreeTests(unittest.TestCase):

@@ -290,5 +290,14 @@ Two deliberate departures from the plan above:
 
 The four tests that asserted an anchor miss at the render-call level now assert it over a full
 generation run, because the count a rewrite must land is a statement about the corpus rather than
-about one render. The guarantee is strictly wider than before: it holds for all fifty-one
+about one render. The guarantee is strictly wider than before: it holds for all fifty-four
 rewrites, where four were anchored by hand.
+
+Review found three gaps in the first push, all fixed on the same branch. The three substitutions
+in `_portable_readonly_body` had stayed outside the table, so the claim that every projection is
+counted was false where it mattered most — a skill body crediting `disallowed-tools` with
+removing Write and Edit names a deny the portable frontmatter drops. They are `skill.readonly.*`
+in the table now. `--diff` also rendered two real changes as nothing: a difference only in line
+endings or the final newline (which `splitlines()` discards, so the preview exited 0 on a tree
+`--write` would still rewrite) and the retired roots `--write` deletes outright, which appear in
+no expected-output map. Both are reported explicitly.

@@ -815,9 +815,58 @@ TOOLS_REFERENCE_REWRITES: Final[tuple[Rewrite, ...]] = (
     ),
 )
 
+# --- read-only skill bodies --------------------------------------------------------------
+# A skill whose canonical frontmatter carries `disallowed-tools` tells the reader that the field
+# removed Write and Edit. The portable frontmatter drops that field, and Claude's reviewer guard
+# keys on guarded AGENT identities so it never covered a skill anyway -- so on any other host the
+# sentence states a control that is not there. These are projections like any other, and they are
+# counted like any other.
+
+SKILL_READONLY_REWRITES: Final[tuple[Rewrite, ...]] = (
+    Rewrite(
+        id="skill.readonly.disallowed-tools-claim",
+        why="`disallowed-tools` is dropped from the portable frontmatter, so a body still "
+        "crediting it with removing Write and Edit names a deny that this copy does not carry.",
+        find=r"All checks are read-only\. `disallowed-tools` removes Write and Edit while this "
+        r"skill is active,\s+but Bash can still mutate",
+        replace="All checks are read-only. This portable adapter has no cross-host write-tool "
+        "deny, and shell access can still mutate",
+        # Two skills carry the sentence, each generated for both hosts.
+        expect=4,
+        regex=True,
+    ),
+    Rewrite(
+        id="skill.readonly.guard-coverage",
+        why="The paragraph explains which Claude hook does and does not cover the skill; off "
+        "Claude there is no such hook at all, so only the parent host's sandbox is a boundary.",
+        find=r"Whether you were invoked directly from the main session or under "
+        r"`homelab-engineer`, the reviewer's Bash guard does not cover this skill \(that hook "
+        r"keys on guarded \*agent\* identities, and the main loop carries none at all\) — the "
+        r"read-only-ness here is cooperative, not enforced\. `NotebookEdit` is in "
+        r"`disallowed-tools` for the same reason as Write and Edit: it is a write tool, and a "
+        r"denylist that names only the obvious two leaves the third\.",
+        replace="The parent host's sandbox or permission profile is the only hard boundary here; "
+        "the skill's read-only posture is cooperative, and no write-capable tool is within its "
+        "mandate.",
+        expect=2,
+        regex=True,
+    ),
+    Rewrite(
+        id="skill.readonly.cooperative-aside",
+        why="The shorter form of the same guard aside.",
+        find=r"The\s+read-only-ness here is cooperative, not enforced \(the reviewer's Bash "
+        r"guard keys on guarded\s+\*agent\* identities, not skills\)\.",
+        replace="The parent host's sandbox or permission profile is the only hard boundary here; "
+        "the skill's read-only posture is cooperative.",
+        expect=2,
+        regex=True,
+    ),
+)
+
 ALL_REWRITES: Final[tuple[Rewrite, ...]] = (
     *TEXT_REWRITES,
     *AGENT_REWRITES,
+    *SKILL_READONLY_REWRITES,
     *SECURITY_REFERENCE_REWRITES,
     *TOOLS_REFERENCE_REWRITES,
 )
