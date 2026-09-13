@@ -235,11 +235,13 @@ found identical message lists, order included, on every tree. Four diagnostics a
 text deltas, mapped explicitly in the harness: the three tool-adoption messages and the guide's
 alias message now name their `fleet/policy.toml` table instead of `FLEET_TOOLS`,
 `FLEET_MCP_TOOLS`, and `ALIAS_MODELS`, which no longer govern anything. The suite grew from 550
-to 593 tests, the new ones pinning rule ids per fixture, the registry's uniqueness, group
+to 596 tests, the new ones pinning rule ids per fixture, the registry's uniqueness, group
 coverage, run order, and scope set, policy loading, snapshot reads (definition bytes and hook
 rosters judged as loaded, never re-read), the roster reader's refusal to execute, the finding
-renderers, and the CLI. Three Codex review rounds (seven, five, and seven findings) drove the
+renderers, and the CLI. Three Codex review rounds (seven, five, and seven findings) and one Copilot review (seven
+findings, four still open on the head it reviewed) drove the
 order, the snapshot-captured rosters, manifest presence, and bundle inventories, the declared
 ids, the closed group vocabulary, the honoured rosters, the read-only policy views, the
-source line on reference findings, the tolerant hook reader, and the policy-pointing
-diagnostics; one finding was declined, with the reason in `fleet/policy.py`'s docstring.
+source line on reference findings, the tolerant hook reader, the policy-pointing diagnostics,
+the preload check judged against the captured roster, one snapshot per CLI run, and a load that
+opens no file twice; one finding was declined, with the reason in `fleet/policy.py`'s docstring.

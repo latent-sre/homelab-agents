@@ -171,9 +171,12 @@ class Fleet:
         hooks_path = root / "hooks" / "hooks.json"
         guard = HookScript.load(root / GUARD_SCRIPT, GUARD_ROSTER)
         gate = HookScript.load(root / GATE_SCRIPT, GATE_ROSTER)
-        markdown_texts = {path: fs.try_read_text(path) for path in _definition_markdown_files(root)}
-        for definition in (*agents, *skills):
-            markdown_texts[definition.path] = definition.text
+        # The definitions' bytes seed the map, so a core file is read exactly once; only the
+        # bundled markdown (a skill's references/ and assets/) is read here.
+        markdown_texts = {definition.path: definition.text for definition in (*agents, *skills)}
+        for path in _definition_markdown_files(root):
+            if path not in markdown_texts:
+                markdown_texts[path] = fs.try_read_text(path)
         return cls(
             root=root,
             agents_dir_exists=agents_dir.is_dir(),

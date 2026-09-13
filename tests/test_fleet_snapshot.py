@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import unittest
+from collections import Counter
+from pathlib import Path
+from unittest import mock
 
 from fleet import snapshot
 from tests.support import REPO, TempDirTestCase
@@ -28,6 +31,25 @@ class SnapshotTests(TempDirTestCase):
         self.assertFalse(fleet.agents[1].readable)
         self.assertEqual([], fleet.agent_names)
         self.assertFalse(fleet.ships_as_plugin)
+
+
+class ReadOnceTests(unittest.TestCase):
+    def test_load_reads_every_markdown_file_at_most_once(self) -> None:
+        # The read-once contract, measured: no path is opened twice during one load, so the
+        # definition rules and the reference rules cannot see two versions of one file.
+        reads: list[Path] = []
+        original = snapshot.fs.try_read_text
+
+        def counting(path: Path) -> str | None:
+            reads.append(Path(path))
+            return original(path)
+
+        with mock.patch.object(snapshot.fs, "try_read_text", counting):
+            fleet = snapshot.Fleet.load(REPO)
+        counts = Counter(reads)
+        twice = sorted(str(p) for p, n in counts.items() if n > 1)
+        self.assertEqual([], twice)
+        self.assertEqual(set(reads), set(fleet.markdown_texts))
 
 
 class HookScriptTests(TempDirTestCase):

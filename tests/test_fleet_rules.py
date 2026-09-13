@@ -224,9 +224,9 @@ class PluginRuleIdTests(unittest.TestCase):
                 encoding="utf-8",
             )
             report = validate(dst, skip=("adapters.generated",))
-        ids = {f.rule for f in report.findings}
-        self.assertIn("plugin.guard.roster", ids)
-        self.assertIn("plugin.hooks.guard", ids - {"plugin.guard.roster"} | {"plugin.hooks.guard"})
+        # The guard's roster losing an agent is exactly one finding: the hook file still names
+        # the agent, and that side is judged by the guard.roster cross-check, not hooks.guard.
+        self.assertEqual({"plugin.guard.roster"}, {f.rule for f in report.findings})
 
     def test_validate_plugin_honors_a_caller_supplied_roster(self) -> None:
         # The legacy signature validated against the supplied names; a roster that omits a
@@ -343,6 +343,19 @@ class PluginRuleIdTests(unittest.TestCase):
             self.assertEqual(10, len(names))
             self.assertEqual((), Fleet.load(dst).hook_commands)
             self.assertIn("plugin.hooks.guard", {f.rule for f in rules.run(Fleet.load(dst))})
+
+    def test_preload_check_judges_the_snapshot_skill_roster_not_the_disk(self) -> None:
+        # A preloaded skill's SKILL.md removed after the load is a different tree; the loaded
+        # snapshot keeps resolving the preload, and a fresh load reports it.
+        with repo_copy() as dst:
+            fleet = Fleet.load(dst)
+            agent = next(a for a in fleet.agents if a.name == "sde-fullstack")
+            preloaded = agent.preloaded_skills()
+            self.assertTrue(preloaded, "the test needs an agent that preloads a skill")
+            (dst / "skills" / preloaded[0] / "SKILL.md").unlink()
+            self.assertEqual([], rules.run(fleet, groups=("agents",)))
+            fresh = [f for f in rules.run(Fleet.load(dst), groups=("agents",))]
+            self.assertIn("agent.skills", {f.rule for f in fresh}, [f.text for f in fresh])
 
     def test_reference_rules_judge_the_snapshot_bytes_not_the_disk(self) -> None:
         # The definitions are read once; a file rewritten after the snapshot must not make the

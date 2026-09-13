@@ -50,6 +50,18 @@ class CliTests(unittest.TestCase):
             )
             self.assertEqual(0, run_main(cli.main, "validate", "--root", str(dst))[0])
 
+    def test_validate_loads_the_tree_once(self) -> None:
+        # The rules, the inventory check, and the success counts all read one snapshot; a second
+        # load would let a definition changed between reads be counted without being validated.
+        from unittest import mock
+
+        from fleet.snapshot import Fleet
+
+        with mock.patch.object(Fleet, "load", wraps=Fleet.load) as load:
+            code, out = run_main(cli.main, "validate", "--root", str(FIXTURES / "valid"))
+        self.assertEqual(0, code, out)
+        self.assertEqual(1, load.call_count)
+
     def test_rules_verb_lists_every_registered_rule(self) -> None:
         from fleet import rules
 

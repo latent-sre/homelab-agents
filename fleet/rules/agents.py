@@ -338,7 +338,10 @@ def agent_skills(fleet: Fleet) -> list[Finding]:
         path = agent.path
         for skill_name in agent.preloaded_skills():
             skill_file = fleet.root / "skills" / skill_name / "SKILL.md"
-            if not skill_file.is_file():
+            # The snapshot lists exactly the skills whose SKILL.md existed at load time, so the
+            # roster is the existence check; the disk is not consulted again.
+            skill = fleet.skill(skill_name)
+            if skill is None:
                 findings.append(
                     Finding(
                         rid,
@@ -348,8 +351,7 @@ def agent_skills(fleet: Fleet) -> list[Finding]:
                     )
                 )
                 continue
-            skill = fleet.skill(skill_name)
-            skill_fields = (skill.fields if skill else None) or {}
+            skill_fields = skill.fields or {}
             if skill_fields.get("disable-model-invocation", "").strip().lower() == "true":
                 findings.append(
                     Finding(

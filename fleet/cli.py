@@ -25,9 +25,11 @@ def validate(
     *,
     groups: tuple[str, ...] | None = None,
     skip: tuple[str, ...] = (),
+    fleet: Fleet | None = None,
 ) -> Report:
-    """Run the rule groups in the legacy `validate_repo` order and return a `Report`."""
-    fleet = Fleet.load(root)
+    """Run the rule groups in the legacy `validate_repo` order and return a `Report`. A caller
+    that already holds the snapshot passes it, so one run never reads the tree twice."""
+    fleet = Fleet.load(root) if fleet is None else fleet
     selected = rules.REPO_GROUP_ORDER if groups is None else groups
     return Report(root, rules.run(fleet, groups=selected, skip=skip))
 
@@ -35,15 +37,20 @@ def validate(
 def _validate_command(args: argparse.Namespace) -> int:
     root = args.root.resolve()
     skip = ("adapters.generated",) if args.no_adapters else ()
+    # One snapshot feeds the rules, the inventory repair, and the success line: a definition
+    # changed between two reads would otherwise be counted without having been validated.
+    fleet = Fleet.load(root)
     # Inventory is checked last and only on an otherwise clean tree, and `--write-inventory`
     # repairs it first: a drifted inventory on a broken tree would be regenerated from broken
     # names, so the order is load-bearing (the legacy validator's contract).
     report = validate(
-        root, groups=tuple(g for g in rules.REPO_GROUP_ORDER if g != "inventory"), skip=skip
+        root,
+        groups=tuple(g for g in rules.REPO_GROUP_ORDER if g != "inventory"),
+        skip=skip,
+        fleet=fleet,
     )
     findings = list(report.findings)
     if not findings:
-        fleet = Fleet.load(root)
         expected = render_inventory(fleet.agent_names, fleet.skill_names)
         if args.write_inventory:
             try:
@@ -64,7 +71,6 @@ def _validate_command(args: argparse.Namespace) -> int:
         if report.findings:
             print(report.render_human(), file=sys.stderr)
         else:
-            fleet = Fleet.load(root)
             print(
                 f"Validated {len(fleet.agent_names)} agents and {len(fleet.skill_names)} skills; "
                 f"inventory is current."
