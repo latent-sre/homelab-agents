@@ -340,3 +340,23 @@ And nothing called `check_table` outside its unit test, so two rewrites sharing 
 one ledger entry and a lost anchor could hide behind its twin's count: the table refuses to load
 that way at import, and the generator re-checks at the point of judgement so a table patched at
 runtime fails too.
+
+A sixth round found the one class the count contract structurally cannot hold, and in doing so
+falsified a claim this record and the pull request had both made. Twelve rewrites were deleted
+during the port because their canonical anchors were gone, and the justification offered was that
+the forbidden-phrase assertions independently reject the same forms. Codex demonstrated that false
+for `agent.codex.project-instruction-record`: reintroducing its sentence into a canonical agent
+generated successfully and preserved the `CLAUDE.md` instruction verbatim in the Codex profile.
+Checking the other eleven the same way — rather than accepting the single finding — showed the
+claim failed for **ten of the twelve** on at least one surface, and for six on both; only the two
+`${CLAUDE_PLUGIN_ROOT}` forms were genuinely covered.
+
+The gap is structural, not an oversight in any one deletion. A rewrite's count is a *writer* check:
+it holds prose that exists today to a projection. Deleting a rewrite deletes that check with it,
+and the module deliberately refuses a zero expectation, so nothing can be left behind to watch for
+the sentence's return. `RETIRED_CLAUDE_ONLY_FORMS` in `tests/test_platform_adapters.py` is the
+reader check that now stands where those rewrites stood, asserted over every generated file in
+every generated root. Verified end to end rather than by inspection: each of the twelve anchors was
+injected into a canonical agent and a canonical skill, regenerated, and confirmed to be rejected —
+which is the instrument that should have produced the original claim instead of a reading of the
+assertion lists.

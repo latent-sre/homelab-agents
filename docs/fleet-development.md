@@ -397,7 +397,11 @@ return bytes whose rewrites missed those counts, which closes the failure this g
 one anchor at a time — a canonical sentence reworded, its correction silently dropped, and the
 byte-drift check blind to it because the committed adapter was produced with the same miss. A
 rewrite that matches nothing anywhere is dead rather than cautious, so the table has no
-zero-expectation form. `--diff` renders what `--write` would change without writing, and the Codex
+zero-expectation form. That has a consequence the table cannot carry: **deleting a rewrite deletes
+its guarantee**, because zero is not declarable, so the form it translated moves to
+`RETIRED_CLAUDE_ONLY_FORMS` in `tests/test_platform_adapters.py` in the same change. The count is a
+writer check on prose that still exists; that tuple is the reader check on prose that came back.
+`--diff` renders what `--write` would change without writing, and the Codex
 profile is emitted by `fleet/hosts/toml.py`, which parses every document it writes back with
 `tomllib` and compares it to the mapping it was asked to write. No third-party writer sits beside
 that check: the fleet has no TOML reader of its own, so `tomllib` is the oracle for both sides and

@@ -26,6 +26,24 @@ _create_directory_link = create_directory_link
 _remove_directory_link = remove_directory_link
 
 
+# Canonical forms that a host rewrite used to translate and no longer does, because the sentence
+# each anchored on left the canonical tree. A deleted rewrite leaves no count behind -- zero is
+# not a declarable expectation (`fleet/hosts/rewrites.py`) -- so these needles are the only thing
+# standing between a reintroduced sentence and an adapter that states Claude-only authority on a
+# host without it. Deleting a rewrite means adding its form here; the two move together.
+RETIRED_CLAUDE_ONLY_FORMS = (
+    "preloaded craft skills",
+    "Claude Code sandbox counts only",
+    "already in your context",
+    "is likewise already in",
+    "is **not** preloaded",
+    "which preloads this skill",
+    "its preloaded skills",
+    "the variable is substituted",
+    "use `CLAUDE.md` when that is the repository's established convention",
+)
+
+
 class PlatformAdapterTests(unittest.TestCase):
     def test_vscode_skill_relocation_reports_and_removes_the_retired_root(self) -> None:
         # VS Code discovers `.github/skills` without repository-specific settings. The former
@@ -704,6 +722,26 @@ class PlatformAdapterTests(unittest.TestCase):
                     "This role has no `Agent` tool",
                 ):
                     self.assertNotIn(false_control.casefold(), normalized.casefold())
+
+    def test_generated_adapters_carry_no_retired_claude_only_form(self) -> None:
+        """No canonical form a deleted host rewrite used to translate reaches a generated file.
+
+        Each of these was projected by a rewrite that this fleet no longer carries, because the
+        canonical sentence it anchored on is gone. `fleet/hosts/rewrites.py` cannot hold the line
+        for them: a rewrite whose corpus-wide count is zero cannot be declared, precisely so a
+        dead rewrite is deleted rather than kept as a control that controls nothing. That trade
+        is only safe while a *reader* check stands where the rewrite stood -- otherwise a
+        canonical file that reintroduces the sentence ships the Claude-only claim to a host that
+        cannot honour it, and every existing check passes.
+        """
+        for root in generate_platform_adapters.GENERATED_ROOTS:
+            for path in sorted((REPO / root).rglob("*")):
+                if path.suffix not in {".md", ".toml"} or not path.is_file():
+                    continue
+                with self.subTest(path=path.relative_to(REPO)):
+                    text = path.read_text(encoding="utf-8")
+                    for retired in RETIRED_CLAUDE_ONLY_FORMS:
+                        self.assertNotIn(retired.casefold(), text.casefold())
 
     def test_host_agent_adapters_have_no_claude_runtime_references(self) -> None:
         paths = [
