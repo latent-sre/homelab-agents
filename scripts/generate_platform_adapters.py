@@ -204,18 +204,6 @@ def adapt_text(text: str, host: str) -> str:
         "`@AGENTS.md`)",
         "(`AGENTS.md`, `CLAUDE.md`, or the current host's project-instruction equivalent)",
     )
-    text = re.sub(
-        r"Record it in `CLAUDE\.md` \(what Claude Code loads and passes to builders\) — or, "
-        r"if the repo keeps a portable `AGENTS\.md`, in a root `CLAUDE\.md` that "
-        r"`@AGENTS\.md`-imports it;",
-        "Record it in the repository's existing project-instruction file; prefer a portable "
-        "`AGENTS.md`, and use `CLAUDE.md` when that is the repository's established convention;",
-        text,
-    )
-    text = text.replace(
-        "the target repo's CLAUDE.md at Phase 0",
-        "the target repo's active project-instruction file at Phase 0",
-    )
     text = text.replace(
         "path (usually the repo's CLAUDE.md)",
         "path to the repo's active project-instruction file",

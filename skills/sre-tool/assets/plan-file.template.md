@@ -1,13 +1,17 @@
 <!-- Plan file — reuse an existing orchestrator plan; instantiate this only when the full pipeline
      needs one and none exists (default .agents/plan.md), before Phase 1. Omit inapplicable sections;
      preserve applicable authorization, gates, counters, and the safe resume point.
-     ORCHESTRATOR-OWNED, single writer: builders never write this file — their status flows through
-     their own progress shards (see the environment card), which the orchestrator reads. This is the
-     pipeline's durable coordination record: conversation memory does not survive compaction, so
-     anything the pipeline must not forget lives HERE, not in the conversation. Update slots as
-     state changes; never delete history — strike through and append. -->
+     ORCHESTRATOR-OWNED: builders write only their own progress shards. Keep current state clear;
+     compact superseded narration into outcomes and accessible evidence references. Retain material
+     decisions and reasons, authorization, failed attempts/results, unresolved risks, counters,
+     and the next safe action. Compaction must not reset limits or erase a live decision. -->
 
 # Plan — <tool name>
+
+## Safe resume point
+
+<!-- Keep current: next safe action, work in flight, possibly half-written files, and what to
+     verify before continuing. A successor should not have to reconstruct the event log. -->
 
 ## Mission transaction
 
@@ -37,10 +41,5 @@
 
 ## Batch & checkpoint log
 
-<!-- one line per spawn/return: builder, boundary given, returned at, packet verdict -->
-
-## Safe resume point
-
-<!-- required, kept current: the next safe action if this session dies right now — which batch is
-     mid-flight, which files are possibly half-written, what to verify before continuing.
-     A successor starts here, never by reconstructing the conversation. -->
+<!-- Retain consequential checkpoints: builder, assigned/completed boundary, evidence and gaps.
+     Summarize superseded status updates; keep failed attempts/results needed to avoid repetition. -->

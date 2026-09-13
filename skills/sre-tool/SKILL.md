@@ -82,7 +82,12 @@ Agents do not inherit this conversation. Pass each one full context: the Phase 0
 ## Phase 2 — Build
 
 1. **Spawn** `sde-agents:sde-fullstack` with the requirements, the design, exact repo paths and conventions, and the success criterion. The builder preloads code craft and loads layer guidance when the work requires it; supply task scope and constraints instead of copying skill bodies. For trivial scope, implement directly while holding to the same SRE-lens standards (observability, timeouts, idempotency, dry-run for destructive actions).
-2. **State a checkpoint contract in every spawn prompt**, shaped by [`assets/spawn-prompt.template.md`](assets/spawn-prompt.template.md) — every slot filled or an explicit "n/a — why": the boundary to run to, the acceptance criteria the builder self-verifies against, scope in *and out*, and the leash — reversible decisions are the builder's to make and log; it returns only at the boundary or on a material fork. What the handoff omits, the agent will improvise.
+2. **State the checkpoint contract**, using [`assets/spawn-prompt.template.md`](assets/spawn-prompt.template.md)
+   as a guide. Supply the objective, owned scope, acceptance criteria, return boundary, and any
+   material exclusions or authority limits, directly or through accessible current references.
+   Include only applicable fields; no placeholder or explanation of an unused slot is needed.
+   Missing information that would change the work stays an explicit gap. Reversible decisions
+   within scope belong to the builder; it returns at the boundary or a material fork.
 3. **Accept a builder's review packet on its evidence** (fresh command, own exit status, and
    observed output): re-run declared safety proofs and one spot-check per batch, never the whole
    verification. Apply any caller-supplied machine-record contract identified in Phase 0; otherwise
