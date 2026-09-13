@@ -30,6 +30,23 @@ class SnapshotTests(TempDirTestCase):
         self.assertFalse(fleet.ships_as_plugin)
 
 
+class HookScriptTests(TempDirTestCase):
+    def test_an_absent_or_unreadable_hook_is_recorded_with_its_reason(self) -> None:
+        absent = snapshot.HookScript.load(self.base / "missing.py", "ROSTER")
+        self.assertFalse(absent.exists)
+        self.assertIsNone(absent.rosters)
+        self.assertIn("cannot read hook rosters", absent.error or "")
+        hook = self.base / "hook.py"
+        hook.write_text('PLUGIN_NAME = "p"\n', encoding="utf-8")
+        unreadable = snapshot.HookScript.load(hook, "ROSTER")
+        self.assertTrue(unreadable.exists)
+        self.assertIsNone(unreadable.rosters)
+        self.assertIn("missing module constant(s) ['ROSTER']", unreadable.error or "")
+        fleet = snapshot.Fleet.load(self.base)
+        self.assertFalse(fleet.guard.exists)
+        self.assertFalse(fleet.gate.exists)
+
+
 class RosterTests(TempDirTestCase):
     def test_real_hook_rosters_read_without_execution(self) -> None:
         guard = snapshot.read_rosters(REPO / "scripts" / "readonly-guard.py", "GUARDED_AGENT_NAMES")

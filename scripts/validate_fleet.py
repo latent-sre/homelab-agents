@@ -147,7 +147,7 @@ def validate_host_conformance_manifest(root: Path) -> list[str]:
 
 
 def validate_bare_skill_references(root: Path, skill_names: list[str]) -> list[str]:
-    return texts(_references.bare_skill_references(Fleet.load(root)))
+    return texts(_references.bare_skill_references(Fleet.load(root), skill_names))
 
 
 def validate_perishable_tokens(root: Path) -> list[str]:

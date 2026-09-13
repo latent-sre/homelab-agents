@@ -4,8 +4,9 @@ Every rule here is a tripwire for a failure that is SILENT at runtime. A plugin-
 cannot carry its own `hooks:`, so the read-only guard has exactly one place to live and exactly
 one way to find its subject; get any link in that chain wrong and nothing errors, nothing logs,
 and `code-reviewer` simply runs Bash unguarded against the repository it is reviewing. The
-rosters are read from the hook scripts as DATA (`fleet.snapshot.read_rosters`), never by running
-them. All rules return [] when there is no manifest, so a synthetic fixture stays valid.
+rosters are read from the hook scripts as DATA (`fleet.snapshot.HookScript`, captured once in
+`Fleet.load`), never by running them. All rules return [] when there is no manifest, so a
+synthetic fixture stays valid.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from fleet.findings import Finding
 from fleet.policy import POLICY
 from fleet.rules import rule
 from fleet.rules.references import plugin_reference_findings
-from fleet.snapshot import Fleet, RosterError, read_rosters
+from fleet.snapshot import GATE_ROSTER, GUARD_ROSTER, Fleet
 
 # The hook reads its fast-path from "$IN" and its identity fallback from "$SQ", a
 # whitespace-stripped copy, so JSON spacing cannot decide whether the fallback fires. Either
@@ -98,20 +99,20 @@ def plugin_findings(
             )
         )
 
-    root = fleet.root
     hooks_path = fleet.hooks_path
-    guard_path = root / "scripts" / "readonly-guard.py"
-    if not guard_path.is_file():
+    guard_path = fleet.guard.path
+    if not fleet.guard.exists:
         return findings + [
             Finding("plugin.guard", f"{guard_path}: missing the read-only guard", guard_path)
         ]
-    try:
-        guard = read_rosters(guard_path, "GUARDED_AGENT_NAMES")
-    except RosterError as exc:  # a guard whose rosters cannot even be read guards nothing
+    guard = fleet.guard.rosters
+    if guard is None:  # a guard whose rosters cannot even be read guards nothing
         return findings + [
-            Finding("plugin.guard", f"{guard_path}: cannot load guard: {exc}", guard_path)
+            Finding(
+                "plugin.guard", f"{guard_path}: cannot load guard: {fleet.guard.error}", guard_path
+            )
         ]
-    guarded = guard["GUARDED_AGENT_NAMES"]
+    guarded = guard[GUARD_ROSTER]
 
     if plugin_name and guard.plugin_name != plugin_name:
         findings.append(
@@ -128,16 +129,18 @@ def plugin_findings(
     # The live-effect gate is the guard's mirror image for a Bash-and-Write agent; it has the
     # same single place to live and the same silent failure modes, so the same links are held.
     agent_names = set(supplied_agent_names)
-    gate_path = root / "scripts" / "live-effect-gate.py"
-    try:
-        gate = read_rosters(gate_path, "GATED_AGENT_NAMES")
-    except RosterError as exc:  # a gate that cannot be read gates nothing
+    gate_path = fleet.gate.path
+    gate = fleet.gate.rosters
+    if gate is None:  # a gate that cannot be read (or is absent) gates nothing
         findings.append(
-            Finding("plugin.gate", f"{gate_path}: cannot load live-effect gate: {exc}", gate_path)
+            Finding(
+                "plugin.gate",
+                f"{gate_path}: cannot load live-effect gate: {fleet.gate.error}",
+                gate_path,
+            )
         )
-        gate = None
     if gate is not None:
-        gated = gate["GATED_AGENT_NAMES"]
+        gated = gate[GATE_ROSTER]
         if plugin_name and gate.plugin_name != plugin_name:
             findings.append(
                 Finding(

@@ -97,6 +97,11 @@ class Fleet:
     plugin_manifest_error: str | None
     hooks_path: Path
     hook_commands: tuple[str, ...] = field(default=())
+    # The two hook scripts and their rosters, read as data at load time. The plugin rules judge
+    # these against the same agents and hook file the rest of the report describes; a script
+    # rewritten after the snapshot changes nothing in this report.
+    guard: HookScript = field(default_factory=lambda: HookScript(Path(GUARD_SCRIPT)))
+    gate: HookScript = field(default_factory=lambda: HookScript(Path(GATE_SCRIPT)))
     # Every markdown file the fleet ships as behaviour (agent bodies, SKILL.md files, and each
     # skill's references/ and assets/), read once: the cross-reference and perishable-token rules
     # judge these bytes, the same bytes the agent and skill rules judged, so one report can never
@@ -132,6 +137,8 @@ class Fleet:
             except (json.JSONDecodeError, OSError) as exc:
                 manifest_error = str(exc)
         hooks_path = root / "hooks" / "hooks.json"
+        guard = HookScript.load(root / GUARD_SCRIPT, GUARD_ROSTER)
+        gate = HookScript.load(root / GATE_SCRIPT, GATE_ROSTER)
         markdown_texts = {path: fs.try_read_text(path) for path in _definition_markdown_files(root)}
         for definition in (*agents, *skills):
             markdown_texts[definition.path] = definition.text
@@ -147,6 +154,8 @@ class Fleet:
             plugin_manifest_error=manifest_error,
             hooks_path=hooks_path,
             hook_commands=tuple(_hook_commands(hooks_path)),
+            guard=guard,
+            gate=gate,
             markdown_texts=markdown_texts,
         )
 
@@ -223,9 +232,39 @@ def _hook_commands(path: Path) -> list[str]:
 
 # --- hook rosters as data ----------------------------------------------------------------
 
+# Where each Claude hook script lives and the roster constant naming the agents it scopes to.
+# `hooks/hooks.json` resolves the scripts through ${CLAUDE_PLUGIN_ROOT}, so these are the only
+# locations a plugin-shipped fleet can put them (`scripts/readonly-guard.py` docstring).
+GUARD_SCRIPT = "scripts/readonly-guard.py"
+GUARD_ROSTER = "GUARDED_AGENT_NAMES"
+GATE_SCRIPT = "scripts/live-effect-gate.py"
+GATE_ROSTER = "GATED_AGENT_NAMES"
+
 
 class RosterError(ValueError):
     """A hook script's roster constants could not be read as data."""
+
+
+@dataclass(frozen=True)
+class HookScript:
+    """One hook script as the snapshot saw it: present or not, and its rosters or the reason
+    they could not be read. A script the plugin rules cannot read guards nothing, and the rule
+    says so from this record rather than re-reading the disk."""
+
+    path: Path
+    exists: bool = False
+    rosters: Rosters | None = None
+    error: str | None = None
+
+    @classmethod
+    def load(cls, path: Path, *constants: str) -> HookScript:
+        # An absent script is read anyway so its error carries the reader's own wording: the
+        # gate rule reports an absent gate exactly as it reports an unreadable one.
+        exists = path.is_file()
+        try:
+            return cls(path, exists, read_rosters(path, *constants))
+        except RosterError as exc:
+            return cls(path, exists, None, str(exc))
 
 
 @dataclass(frozen=True)

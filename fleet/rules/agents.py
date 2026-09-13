@@ -57,6 +57,7 @@ def agents_directory(fleet: Fleet) -> list[Finding]:
 @rule(
     "agent.frontmatter",
     group=GROUP,
+    scope="definition",
     why="A refused frontmatter block would otherwise read as an agent with no configuration.",
 )
 def agent_frontmatter(fleet: Fleet) -> list[Finding]:
@@ -72,6 +73,7 @@ def agent_frontmatter(fleet: Fleet) -> list[Finding]:
 @rule(
     "agent.frontmatter.keys",
     group=GROUP,
+    scope="definition",
     why="An unknown key does not fail loudly at load time, so a typo silently drops what it "
     "configured; a plugin-inert key reads as armor and is none.",
 )
@@ -112,6 +114,7 @@ def agent_frontmatter_keys(fleet: Fleet) -> list[Finding]:
 @rule(
     "agent.identity",
     group=GROUP,
+    scope="definition",
     why="The name is the routing and namespacing key; it must be valid and match the file.",
 )
 def agent_identity(fleet: Fleet) -> list[Finding]:
@@ -134,6 +137,7 @@ def agent_identity(fleet: Fleet) -> list[Finding]:
 @rule(
     "agent.tools",
     group=GROUP,
+    scope="definition",
     why="An absent tools: INHERITS EVERY TOOL; an unknown, unadopted, unavailable, or scoped "
     "entry reads as authority or as a limit while being neither.",
 )
@@ -165,9 +169,8 @@ def agent_tools(fleet: Fleet) -> list[Finding]:
                             Finding(
                                 rid,
                                 f"{path}: MCP tool {tool!r} is structurally valid but is not "
-                                f"adopted "
-                                f"by this fleet; add it to FLEET_MCP_TOOLS deliberately if the "
-                                f"agent "
+                                f"adopted by this fleet; add it to an MCP group under "
+                                f"[tools.groups] in fleet/policy.toml deliberately if the agent "
                                 f"needs it",
                                 path,
                             )
@@ -179,7 +182,8 @@ def agent_tools(fleet: Fleet) -> list[Finding]:
                             f"{path}: server-wide MCP grant {tool!r} is real Claude Code syntax "
                             f"but "
                             f"is not adopted by this fleet. It silently acquires future tools from "
-                            f"that server, so list each required exact tool in FLEET_MCP_TOOLS",
+                            f"that server, so list each required exact tool in an MCP group under "
+                            f"[tools.groups] in fleet/policy.toml",
                             path,
                         )
                     )
@@ -229,8 +233,8 @@ def agent_tools(fleet: Fleet) -> list[Finding]:
                     Finding(
                         rid,
                         f"{path}: tool {base!r} is a real Claude Code tool but is not adopted by "
-                        f"this "
-                        f"fleet; add it to FLEET_TOOLS deliberately if the agent needs it",
+                        f"this fleet; add it to [tools] fleet in fleet/policy.toml deliberately "
+                        f"if the agent needs it",
                         path,
                     )
                 )
@@ -276,6 +280,7 @@ def agent_tools(fleet: Fleet) -> list[Finding]:
 @rule(
     "agent.tools.trust-boundary",
     group=GROUP,
+    scope="definition",
     why="Investigation roles are split at the tool layer; a one-line frontmatter edit must not "
     "silently collapse the local-versus-external trust boundary.",
 )
@@ -322,6 +327,7 @@ def agent_trust_boundary(fleet: Fleet) -> list[Finding]:
 @rule(
     "agent.skills",
     group=GROUP,
+    scope="definition",
     why="A skills: entry that does not resolve, or names an explicit-only skill, configures "
     "nothing while reading like a guarantee.",
 )
@@ -362,6 +368,7 @@ def agent_skills(fleet: Fleet) -> list[Finding]:
 @rule(
     "agent.model",
     group=GROUP,
+    scope="definition",
     why="A pinned model ID goes stale silently while an alias follows the model upgrade.",
 )
 def agent_model(fleet: Fleet) -> list[Finding]:
@@ -398,6 +405,7 @@ def agent_model(fleet: Fleet) -> list[Finding]:
 @rule(
     "agent.packet",
     group=GROUP,
+    scope="definition",
     why="Evidence labels and the end-of-task packet are the handoff contract; drift is silent.",
 )
 def agent_packet(fleet: Fleet) -> list[Finding]:

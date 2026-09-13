@@ -8,6 +8,7 @@ registry to one id per rule, makes those failures loud.
 
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
@@ -70,16 +71,93 @@ class RegistryTests(unittest.TestCase):
             (dst / "skills" / "runbook" / "references" / "orphan.md").write_text(
                 "x", encoding="utf-8"
             )
+            # The guide rule trips three ids at once: a stale path, a dropped alias, and (with
+            # the bridge line gone) a lost import.
+            guide_doc = dst / "AGENTS.md"
+            guide_doc.write_text(
+                guide_doc.read_text(encoding="utf-8")
+                .replace("scripts/validate_fleet.py", "scripts/validate_fleets.py", 1)
+                .replace("`fable`", "`fable-classic`"),
+                encoding="utf-8",
+            )
+            (dst / "CLAUDE.md").write_text("no bridge\n", encoding="utf-8")
             fleet = Fleet.load(dst)
+            seen: set[str] = set()
             for entry in rules.rules():
                 if entry.id == "adapters.generated":
                     continue
                 for finding in entry.run(fleet):
+                    seen.add(finding.rule)
                     self.assertIn(
                         finding.rule, entry.emitted_ids, f"{entry.id} emitted {finding.rule}"
                     )
         self.assertIn("plugin.guard.roster", rules.emitted_ids())
         self.assertIn("skill.bundle.orphans", rules.emitted_ids())
+        self.assertLessEqual(
+            {"guide.stale-path", "guide.model-aliases", "guide.bridge"}, seen, sorted(seen)
+        )
+
+    def test_definition_scoped_rules_are_the_per_definition_checks(self) -> None:
+        # The scope decides the run's sequencing, so it is pinned: every per-agent and per-skill
+        # check is definition-scoped, and the directory and roster verdicts are not.
+        scoped = {entry.id for entry in rules.rules() if entry.scope == "definition"}
+        self.assertEqual(
+            {
+                "agent.frontmatter",
+                "agent.frontmatter.keys",
+                "agent.identity",
+                "agent.tools",
+                "agent.tools.trust-boundary",
+                "agent.skills",
+                "agent.model",
+                "agent.packet",
+                "skill.frontmatter",
+                "skill.frontmatter.keys",
+                "skill.identity",
+                "skill.bundle",
+            },
+            scoped,
+        )
+        with self.assertRaises(ValueError):
+            rules.rule("scope.bogus", group="agents", why="w", scope="file")(lambda fleet: [])
+
+    def test_run_sequences_definition_findings_definition_major(self) -> None:
+        # The legacy loops emitted every finding about one definition before the next; a run
+        # that went rule by rule would report agent b's malformed frontmatter before agent a's
+        # missing name, and a consumer diffing two reports would see a reorder, not a change.
+        with repo_copy() as dst:
+            first, second, third = sorted((dst / "agents").glob("*.md"))[:3]
+            first.write_text(
+                first.read_text(encoding="utf-8").replace("name: ", "nam: ", 1),
+                encoding="utf-8",
+            )
+            second.write_text(
+                "not frontmatter\n" + second.read_text(encoding="utf-8"), encoding="utf-8"
+            )
+            third.write_text(
+                re.sub(
+                    r"^model: .*$",
+                    "model: claude-opus-5",
+                    third.read_text(encoding="utf-8"),
+                    count=1,
+                    flags=re.MULTILINE,
+                ),
+                encoding="utf-8",
+            )
+            skill_dirs = sorted(p for p in (dst / "skills").iterdir() if p.is_dir())
+            (skill_dirs[0] / "SKILL.md").unlink()
+            (skill_dirs[1] / "references").mkdir(exist_ok=True)
+            (skill_dirs[1] / "references" / "orphan.md").write_text("x", encoding="utf-8")
+            fleet = Fleet.load(dst)
+            findings = rules.run(fleet, groups=("agents", "skills"))
+        orphan = skill_dirs[1] / "references" / "orphan.md"
+        self.assertEqual(
+            [first, first, second, third, skill_dirs[0], orphan], [f.path for f in findings]
+        )
+        self.assertEqual(
+            ["agent.frontmatter.keys", "agent.identity", "agent.frontmatter", "agent.model"],
+            [f.rule for f in findings[:4]],
+        )
 
     def test_run_follows_the_requested_group_sequence_not_import_order(self) -> None:
         # The plugin module imports the references module, so registration order interleaves
@@ -154,6 +232,40 @@ class PluginRuleIdTests(unittest.TestCase):
                 validate_fleet.validate_skills(REPO)[1],
             ),
         )
+
+    def test_validate_bare_skill_references_honors_a_caller_supplied_roster(self) -> None:
+        # The legacy signature judged bare backticks against the caller's skill names; a roster
+        # that omits `runbook` must not report a reference to it, whatever the tree holds.
+        from scripts import validate_fleet
+
+        with repo_copy() as dst:
+            agent = dst / "agents" / "sde-fullstack.md"
+            agent.write_text(
+                agent.read_text(encoding="utf-8") + "\nSee `runbook`.\n", encoding="utf-8"
+            )
+            reported = validate_fleet.validate_bare_skill_references(dst, ["runbook"])
+            not_reported = validate_fleet.validate_bare_skill_references(dst, ["other-skill"])
+        self.assertTrue(any("`runbook`" in text for text in reported), reported)
+        self.assertEqual([], not_reported)
+
+    def test_plugin_rules_judge_the_snapshot_rosters_not_the_disk(self) -> None:
+        # The guard's roster is captured in Fleet.load; a guard rewritten afterwards is a
+        # different tree, and this report must keep describing the one it loaded.
+        with repo_copy() as dst:
+            fleet = Fleet.load(dst)
+            self.assertTrue(fleet.guard.exists)
+            self.assertIn("code-reviewer", fleet.guard.rosters["GUARDED_AGENT_NAMES"])
+            self.assertEqual({"homelab-engineer"}, set(fleet.gate.rosters["GATED_AGENT_NAMES"]))
+            guard = dst / "scripts" / "readonly-guard.py"
+            guard.write_text(
+                guard.read_text(encoding="utf-8").replace('"code-reviewer", ', "", 1),
+                encoding="utf-8",
+            )
+            self.assertEqual([], rules.run(fleet, groups=("plugin",)))
+            self.assertIn(
+                "plugin.guard.roster",
+                {f.rule for f in rules.run(Fleet.load(dst), groups=("plugin",))},
+            )
 
     def test_reference_rules_judge_the_snapshot_bytes_not_the_disk(self) -> None:
         # The definitions are read once; a file rewritten after the snapshot must not make the

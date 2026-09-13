@@ -53,9 +53,10 @@ needs one. `AGENTS.md` names each trigger and points here. The rules are unchang
 - An explicit `tools:` list. Omitting it is not a harmless default — the agent **inherits every
   tool**. No parenthesized specifiers: `Bash(git diff:*)` and `Agent(worker)` are silently ignored
   by the runtime while reading as limits, so the validator rejects them. New built-in tools outside
-  the fleet's adopted set must be added to `FLEET_TOOLS`; exact MCP tools go in
-  `FLEET_MCP_TOOLS`. Add either deliberately — every entry is authority, and server-wide MCP
-  grants are rejected because they silently acquire future tools.
+  the fleet's adopted set must be added to the `[tools] fleet` list in `fleet/policy.toml`;
+  exact MCP tools go in an MCP group under `[tools.groups]` there. Add either deliberately —
+  every entry is authority, and server-wide MCP grants are rejected because they silently
+  acquire future tools.
 - `model:` must be an alias (`inherit`, `haiku`, `sonnet`, `opus`, `fable`). A full model ID is a
   valid runtime value but banned: it goes stale silently while an alias follows the model upgrade.
 - An end-of-task packet section (`## Output format` or a `## … packet` heading). If the body uses

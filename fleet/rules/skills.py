@@ -42,11 +42,14 @@ def skills_directory(fleet: Fleet) -> list[Finding]:
 @rule(
     "skill.frontmatter",
     group=GROUP,
+    scope="definition",
     why="A skill directory without a readable SKILL.md is a component that looks shipped.",
 )
 def skill_frontmatter(fleet: Fleet) -> list[Finding]:
     if not fleet.skills_dir_exists:
         return []
+    # The runner sequences these definition-major, so a missing SKILL.md sorts with its
+    # siblings; this rule only reports.
     findings = [
         Finding("skill.frontmatter", f"{d}: missing SKILL.md", d)
         for d in fleet.skill_dirs_without_skill_md
@@ -56,13 +59,13 @@ def skill_frontmatter(fleet: Fleet) -> list[Finding]:
         for s in fleet.skills
         if s.fields is None
     ]
-    # Legacy order: per directory, so a missing SKILL.md sorts with its siblings.
-    return sorted(findings, key=lambda f: str(f.path))
+    return findings
 
 
 @rule(
     "skill.frontmatter.keys",
     group=GROUP,
+    scope="definition",
     why="A misspelled key silently drops what it configured, e.g. a side-effect skill left "
     "model-invocable.",
 )
@@ -90,6 +93,7 @@ def skill_frontmatter_keys(fleet: Fleet) -> list[Finding]:
 @rule(
     "skill.identity",
     group=GROUP,
+    scope="definition",
     why="The name is the invocation key; it must match its directory.",
 )
 def skill_identity(fleet: Fleet) -> list[Finding]:
@@ -157,6 +161,7 @@ def _orphan_findings(skill: Definition) -> list[Finding]:
 @rule(
     "skill.bundle",
     group=GROUP,
+    scope="definition",
     why="A link to a missing bundle file ships silently; an unlinked references/ file is "
     "unreachable knowledge that looks shipped.",
     emits=("skill.bundle", "skill.bundle.links", "skill.bundle.orphans"),

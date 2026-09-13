@@ -22,9 +22,11 @@ INLINE_CODE_RE = re.compile(r"`([^`\n]+)`")
     why="A bare backticked skill name asserts 'already in context'; without a preload the "
     "instruction cannot execute and nothing errors (observed: sde-fullstack and `code-craft`).",
 )
-def bare_skill_references(fleet: Fleet) -> list[Finding]:
+def bare_skill_references(fleet: Fleet, skill_names: list[str] | None = None) -> list[Finding]:
+    """`skill_names` is the roster a legacy caller may supply; the snapshot's own is the default.
+    A test grades a synthetic body against names the tree under validation does not carry."""
     findings: list[Finding] = []
-    known = set(fleet.skill_names)
+    known = set(fleet.skill_names if skill_names is None else skill_names)
     for agent in fleet.agents:
         preloaded = set(agent.preloaded_skills())
         for span in sorted(set(INLINE_CODE_RE.findall(agent.text or ""))):
