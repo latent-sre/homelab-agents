@@ -319,3 +319,14 @@ is the evidence the two grammars had not yet diverged in this corpus. And the TO
 "parsed does not equal intended" branch had no firing test: the escaping mutation exits through
 the parse error instead, so the equality check was an untested guard reading as enforcement. A
 mutation that emits valid TOML with a changed value now fires it.
+
+A fourth round found the two remaining gaps, both places where a guard held only for the inputs
+it happened to see. The read-only projections were applied only to a skill whose frontmatter
+carried `disallowed-tools`, so a skill that acquired the claim WITHOUT the field skipped the
+table entirely while the ledger's count stayed satisfied by the skills that do carry it — the
+false deny shipped to both hosts. They now judge every skill body, and `had_tool_deny` keeps only
+its own job, the adapter note about the dropped field. And `--diff` reported a retired root that
+is a regular file as a zero-file removal, because `rglob` finds nothing in one, while `--write`
+then aborted on that same path with `NotADirectoryError`: the preview promised what the operation
+could not do. The preview now names the obstruction and the write clears a root whatever shape it
+has, since a declared retired root is an obsolete artifact either way.

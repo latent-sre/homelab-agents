@@ -196,6 +196,30 @@ class FleetRewriteCountTests(unittest.TestCase):
         self.assertIn("skill.readonly.disallowed-tools-claim", str(caught.exception))
 
 
+    def test_a_read_only_claim_outside_the_deny_frontmatter_still_fails_generation(self) -> None:
+        # Gating the projection on `disallowed-tools` let a skill that acquired the claim
+        # without the field skip the table entirely: the ledger's count stayed satisfied by the
+        # skills that do carry it, and both adapters shipped the false deny unchanged.
+        claim = (
+            "All checks are read-only. `disallowed-tools` removes Write and Edit while this "
+            "skill is active,\nbut Bash can still mutate things.\n"
+        )
+        with repo_copy() as dst:
+            target = dst / "skills" / "backend-craft" / "SKILL.md"
+            self.assertNotIn(
+                "disallowed-tools", target.read_text(encoding="utf-8"),
+                "the fixture skill must not carry the frontmatter field",
+            )
+            target.write_text(
+                target.read_text(encoding="utf-8") + "\n\n" + claim, encoding="utf-8"
+            )
+            with self.assertRaises(RewriteError) as caught:
+                generator.expected_outputs(dst)
+        message = str(caught.exception)
+        self.assertIn("skill.readonly.disallowed-tools-claim", message)
+        self.assertIn("landed 6 time(s)", message)
+
+
 class TomlEmitterTests(unittest.TestCase):
     def test_a_document_reads_back_as_written(self) -> None:
         text = fleet_toml.render_document(
@@ -326,6 +350,24 @@ class GeneratorDiffTests(unittest.TestCase):
         self.assertEqual(1, code)
         self.assertIn("retired generated root", "\n".join(report))
         self.assertIn("platforms/portable/stale.md", "\n".join(report))
+
+
+    def test_a_retired_root_that_is_a_file_previews_and_removes_cleanly(self) -> None:
+        # `rglob` finds nothing in a regular file, so the preview promised a zero-file removal
+        # while `--write` aborted on the same path with NotADirectoryError.
+        with repo_copy() as dst:
+            retired = dst / "platforms" / "portable"
+            retired.parent.mkdir(parents=True, exist_ok=True)
+            retired.write_text("not a directory", encoding="utf-8")
+            report = generator.diff_generated_outputs(dst)
+            self.assertIn(
+                "--- platforms/portable: retired generated root is a file, "
+                "would be removed by --write",
+                report,
+            )
+            self.assertTrue(retired.exists(), "--diff must not write")
+            generator.write_generated_outputs(dst)
+            self.assertFalse(retired.exists(), "--write must clear the retired root it promised")
 
 
 class GeneratedTreeTests(unittest.TestCase):

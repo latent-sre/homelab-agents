@@ -435,8 +435,11 @@ def render_portable_skill(
         ledger=ledger,
     )
     portable_body = adapt_text(body.rstrip(), host, ledger=ledger)
-    if had_tool_deny:
-        portable_body = _portable_readonly_body(portable_body, host=host, ledger=ledger)
+    # Every skill body, not just one whose frontmatter carries the deny: the claim is false
+    # wherever it appears, and gating on the field would let a skill that acquired the sentence
+    # without it ship the claim while the ledger's count stayed satisfied. `had_tool_deny` keeps
+    # its own job below, which is the adapter note about the dropped field.
+    portable_body = _portable_readonly_body(portable_body, host=host, ledger=ledger)
 
     notes = [
         f"<!-- {GENERATED_MARKER} -->",
@@ -834,6 +837,14 @@ def diff_generated_outputs(root: Path) -> list[str]:
             continue
         # `--write` deletes these outright; a preview that omitted them would hide the only
         # destructive part of the operation.
+        if not retired.is_dir():
+            # Not a tree to walk: `rglob` would find nothing and the preview would promise a
+            # zero-file removal, which is how it came to disagree with the write.
+            report.append(
+                f"--- {relative.as_posix()}: retired generated root is a file, "
+                f"would be removed by --write"
+            )
+            continue
         removed = sorted(p for p in retired.rglob("*") if p.is_file())
         report.append(
             f"--- {relative.as_posix()}: retired generated root, {len(removed)} file(s) "
@@ -1092,18 +1103,31 @@ def _safe_generated_root(root: Path, relative: Path, *, operation: str) -> Path:
     return target
 
 
+def _remove_generated_root(target: Path) -> None:
+    """Clear a generated or retired root, whatever shape it is on disk.
+
+    A declared root that is a regular file is still an obsolete artifact and still has to go;
+    `shutil.rmtree` refuses one, which aborted the whole write on a path the preview had already
+    promised to remove. The link guard runs before this, so nothing here follows a link.
+    """
+
+    if not target.exists():
+        return
+    if target.is_dir():
+        shutil.rmtree(target)
+    else:
+        target.unlink()
+
+
 def write_generated_outputs(root: Path) -> int:
     for relative_root in (*RETIRED_GENERATED_ROOTS, *GENERATED_ROOTS):
         _safe_generated_root(root, relative_root, operation="replace")
     expected = expected_outputs(root)
     for relative_root in RETIRED_GENERATED_ROOTS:
-        target = _safe_generated_root(root, relative_root, operation="replace")
-        if target.exists():
-            shutil.rmtree(target)
+        _remove_generated_root(_safe_generated_root(root, relative_root, operation="replace"))
     for relative_root in GENERATED_ROOTS:
         target = _safe_generated_root(root, relative_root, operation="replace")
-        if target.exists():
-            shutil.rmtree(target)
+        _remove_generated_root(target)
         target.mkdir(parents=True)
     for relative, content in expected.items():
         path = root / relative
