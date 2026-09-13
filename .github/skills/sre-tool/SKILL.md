@@ -60,9 +60,8 @@ Establish before designing. Infer from context and the codebase where possible; 
   when none exists (default `.agents/plan.md`). Keep authorization, applicable gates and counters,
   and the safe resume point there; builders do not write it. A waiting gate blocks only its own
   scope; independent non-gated work continues.
-  If the build may be safety-critical, settle the Phase-4 target here too: the user grants a
-  source commit at a named green boundary, or the safety-critical verdict will be inconclusive —
-  say which was chosen.
+  If the build may be safety-critical, identify the Phase-4 target here too: an authorized source
+  commit or a frozen snapshot with its capture scope and content identity.
 - **Verification environment**: before scheduling executable verification, record the supplied
   execution boundary and its owner in the environment card: credential/network/filesystem
   controls, runtime and image digest when container-based, permitted effects, scratch/evidence
@@ -144,13 +143,13 @@ Building a **command-line** tool — the streams-and-exit-codes contract, `--jso
   target repository before handing it to the verifier.
 - If the cadence contract grants a source commit, commit at the named green boundary and pass that
   SHA.
-- Without source-commit authority there is no immutable target, and a verdict bound to moving
-  bytes attests nothing. Ask for the commit grant — a branch commit is cheap and revertable — and
-  if the user declines, report the safety-critical verdict as **inconclusive** and say exactly
-  why. Do not reconstruct a synthetic snapshot of uncommitted state to have it both ways: commit,
-  or inconclusive.
+- Without source-commit authority, use a frozen snapshot under the verifier's capture and
+  identity rules. Preserve its original, execute from a separate copy, and keep product changes,
+  test additions, and build output distinguishable. If a complete target cannot be captured and
+  independently identified, the affected verdict is inconclusive. Snapshot evidence attests those
+  bytes; it does not grant formal commit approval, publication, or live activation.
 
-Spawn the verifier with that exact revision, the mission transaction, the acceptance criteria, and
+Spawn the verifier with that exact commit or snapshot, the mission transaction, acceptance criteria, and
 the environment card's available execution boundary and evidence destination. Cite its
 pass/fail/inconclusive verdict in the final report rather than your
 own run: the orchestrator that drove the build wants a green result, which is exactly the interest

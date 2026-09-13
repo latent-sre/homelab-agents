@@ -22,11 +22,16 @@ Two rules with no exceptions:
 - **A finding carries an attack path or gets downgraded.** A pattern match with no reachable
   route from an attacker position is a P2/P3 note, not a P0 — say what position the attacker
   needs, what they cross, and what they reach, or lower the severity and say why.
-- **Active compromise stops the sweep.** Evidence the lab is already breached — an unknown
-  authorized key, a process or container you can't account for, exfil artifacts, tampered logs —
-  ends the audit immediately: preserve the evidence untouched, never clean up, restart, or
-  rebuild, and hand to the operator with what you saw and where. Recovery is an incident
-  (`sde-agents:lab-incident` under `sde-agents:homelab-engineer`), not an audit step.
+- **Triage suspicion; escalate corroborated compromise.** An unfamiliar key, process, or container
+  is a lead. Make a bounded, nonmutating provenance check against deployment records, key
+  fingerprints and ownership, package/image identity, and relevant access logs. Select only
+  needed fields and keep credentials out of output. An explained, authorized artifact lets the
+  sweep continue. An unresolved lead retains its evidence and missing provenance in the report;
+  uncertainty is not proof of a breach. Corroborated unauthorized access, execution, exfiltration,
+  or tampering ends the ordinary sweep: preserve available evidence and hand the incident to the
+  operator. Do not clean up, restart, rebuild, rotate credentials, or isolate hosts as an audit
+  step. Containment and recovery use `sde-agents:lab-incident` under
+  `sde-agents:homelab-engineer`'s authority and actual host controls.
 
 ## Checks (run what applies; name what you skipped in the denominator)
 

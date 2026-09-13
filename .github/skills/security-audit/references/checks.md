@@ -66,9 +66,12 @@ inventory.
   record; SSH `authorized_keys` per host and per user.
 - Ask: which services still hold their shipped default, which share one password across services,
   which admin accounts predate the current operator's practice, and which SSH keys are
-  unaccounted for. An unknown authorized key is a compromise signal — see the stop rule.
+  unaccounted for. Compare an unfamiliar key's fingerprint and ownership with authorized records;
+  do not emit key material. Follow `SKILL.md`'s provenance-triage rule before treating the lead as
+  evidence of compromise.
 - Finding: `[P0]` default or shared credential on anything reachable from a lower-trust zone;
-  `[P1]` shared credential internally; `[P1]` stale admin account or unaccounted key.
+  `[P1]` shared credential internally; `[P1]` stale admin account or key whose authorization
+  remains unverified after provenance checks.
 - Attack path: which position can present the credential, and what it unlocks.
 - Fix class: rotate and record in the vault; delete stale accounts and keys.
 

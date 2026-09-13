@@ -81,14 +81,24 @@ retains its recorded coverage gaps. Publication is authorized; host installation
 **Outcome:** Routine work keeps useful evidence and ownership without mandatory Learning forms,
 digest receipts, repeated approval proposals, or unrelated builder preloads.
 
-**Source:** [Operating-flow decision](decisions/2026-09-07-homelab-operating-flow.md).
+**Source:** [Operating-flow decision](decisions/2026-09-07-homelab-operating-flow.md) and
+[2026-09-12 proportional controls](decisions/2026-09-12-proportional-homelab-controls.md).
+
+**2026-09-12 follow-up:** Items 1–8 are implemented on `fix/proportional-homelab-controls` after
+base `10b6131d2605`: proportional verification/snapshots, optional live-effect interposition,
+operating triage, and review-policy corrections. Offline and scenario checks passed; independent
+review has no remaining material findings. The three native hook checks could not execute because
+Claude OAuth expired. [Evidence](archive/2026-09/proportional-controls-evidence-2026-09-12.md)
+retains exact coverage and source identities; no installed-state claim is made.
 
 **Prerequisites:** Main-based implementation; existing host permission controls and roster retained.
 
 **Acceptance:** Canonical/adapter parity, focused and full offline checks, reviewed final diff,
 paired source-following outcome probes, and a revised runtime probe with its observed limits.
 
-**Next action:** Review the publication PR and disposition current-head review findings before merge.
+**Next action:** Refresh Claude authentication and rerun the affected native hook checks on the
+identified source. Reconcile publication state before any subsequent PR work; this local follow-up
+did not inspect or change hosted PRs or installations.
 
 #### CTX-001 — modernize fleet definitions for Claude 5-generation context rules
 

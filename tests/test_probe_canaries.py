@@ -920,6 +920,19 @@ class GateProbeTargetInertness(unittest.TestCase):
                 self.assertIn(target, probe_plugin.GATE_CMD.format(marker=marker))
                 self.assertIn(marker, target)
 
+    def test_live_gate_probe_explicitly_selects_prompt_policy(self) -> None:
+        # A probe of interposition must not inherit the host-default no-decision policy.
+        with (
+            mock.patch.object(probe_plugin, "existing_path", return_value=None),
+            mock.patch.object(probe_plugin, "run") as run,
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            run.return_value.stdout = ""
+            probe_plugin._probe_live_effect_gate(probe_plugin.Probe(), Path("probe-target"))
+        self.assertEqual(2, run.call_count)
+        for call in run.call_args_list:
+            self.assertEqual("prompt", call.kwargs["env"]["SDE_AGENTS_LIVE_EFFECT_POLICY"])
+
 
 if __name__ == "__main__":
     unittest.main()

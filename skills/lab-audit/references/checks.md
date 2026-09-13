@@ -2,8 +2,9 @@
 
 Read from `SKILL.md`. Every command here is read-only; anything that would fix what it finds
 routes to `sde-agents:homelab-engineer`. Substitute the lab's real hosts, paths, and domains, and
-read the lab repo's own config first — every drift-style check is a comparison against intended
-state, and the repo is where intended state lives.
+read the lab repo's own config first. Drift checks compare declared and running state; confirm
+intended state against operator decisions and deployment history before choosing which side to
+reconcile.
 
 Per check: what to read, what a finding looks like, and the fix class (one line — the audit never
 applies it).
@@ -66,7 +67,8 @@ row 1; a finding here that needs an attack path belongs there.
 - Read: scrape/probe target lists and alert rules from the monitoring config in the repo; the
   receiver/route config those alerts point at. Live API queries land in the denominator when the
   session can't make them; config-vs-config answers most of this check.
-- Finding: no useful health signal for an operated service; a household-critical service has no
+- Finding: no useful health signal for an operated service; a service classified household-critical
+  under [`service-onboard`'s predicates](../../service-onboard/SKILL.md) has no
   actionable alert; an alert routes to a receiver that no longer exists; a rule targets a service
   that's gone. Missing per-service metrics or a dashboard is not itself a finding without a named
   question they were supposed to answer.
@@ -83,7 +85,10 @@ row 1; a finding here that needs an attack path belongs there.
   plus recent log for the config dirs.
 - Finding: a running container that differs from the repo's rendering; console changes never
   reconciled back to code.
-- Fix class: reconcile the repo (Tier 1), then re-apply from code (Tier 2).
+- Fix class: establish intended state, then reconcile the incorrect side. If runtime is correct,
+  update the repo (Tier 1); apply through `sde-agents:homelab-engineer` only when runtime must
+  change, with the applicable tier precautions. Verify agreement afterward. Unresolved intended
+  state is a decision gap, not permission to re-apply.
 
 ## 7. Capacity
 

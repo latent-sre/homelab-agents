@@ -12,6 +12,7 @@ gated agent by default, or the whole roster below would pass while testing the s
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import unittest
@@ -27,11 +28,16 @@ guard = validate_fleet.load_guard(REPO)
 HOMELAB = "sde-agents:homelab-engineer"
 
 
-def run_gate(stdin_text: str) -> subprocess.CompletedProcess:
+def run_gate(stdin_text: str, policy: str | None = "prompt") -> subprocess.CompletedProcess:
+    env = dict(os.environ)
+    env.pop("SDE_AGENTS_LIVE_EFFECT_POLICY", None)
+    if policy is not None:
+        env["SDE_AGENTS_LIVE_EFFECT_POLICY"] = policy
     return subprocess.run(
         [sys.executable, "-I", "-S", str(GATE)],
         input=stdin_text.encode("utf-8"),
         capture_output=True,
+        env=env,
         timeout=30,
     )
 
@@ -72,6 +78,31 @@ def decision(proc: subprocess.CompletedProcess) -> str:
 
 def reason(proc: subprocess.CompletedProcess) -> str:
     return json.loads(proc.stdout.decode("utf-8"))["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+class OperatorPolicyTests(unittest.TestCase):
+    def test_default_and_host_policy_leave_actual_host_permissions_in_charge(self) -> None:
+        for policy in (None, "host"):
+            for mode in ("default", "dontAsk", "bypassPermissions", None):
+                with self.subTest(policy=policy, mode=mode):
+                    result = run_gate(bash_call("systemctl restart example", mode=mode), policy)
+                    self.assertEqual("none", decision(result))
+
+    def test_prompt_policy_preserves_interposition(self) -> None:
+        self.assertEqual("ask", decision(run_gate(bash_call("systemctl restart example"))))
+        self.assertEqual("deny", decision(run_gate(bash_call("systemctl restart example", mode="dontAsk"))))
+
+    def test_invalid_policy_cannot_silently_disable_requested_control(self) -> None:
+        for policy in ("", "promtp", "HOST"):
+            with self.subTest(policy=policy):
+                result = run_gate(bash_call("systemctl restart example"), policy)
+                self.assertEqual("deny", decision(result))
+                self.assertIn("SDE_AGENTS_LIVE_EFFECT_POLICY", reason(result))
+
+    def test_policy_selection_is_not_accepted_from_tool_payload(self) -> None:
+        payload = json.loads(bash_call("systemctl restart example"))
+        payload["SDE_AGENTS_LIVE_EFFECT_POLICY"] = "host"
+        self.assertEqual("ask", decision(run_gate(json.dumps(payload), "prompt")))
 
 
 class ConstantsPinnedToTheGuard(unittest.TestCase):

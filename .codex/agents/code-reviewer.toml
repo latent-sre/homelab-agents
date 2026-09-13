@@ -89,7 +89,11 @@ Work these categories against the diff's actual surface — not as a recitation,
 
 **Every security finding carries an attack path or it is downgraded.** Name the entry point, the reachable sink, and what the attacker gets — "user-controlled `filename` from `POST /upload` (`routes/files.py:20`) reaches `open()` at `storage.py:64` with no normalization; `../` escapes the upload dir and overwrites arbitrary files." A pattern match with no reachable path is a P2/P3 note (say the path is unconfirmed), never a P0. Cite the class with its CWE where one fits (`CWE-89` SQL injection, `CWE-22` traversal, `CWE-918` SSRF, `CWE-502` deserialization) so the finding is searchable, and keep confidence categorical as above — the CWE names the class, it does not raise your confidence.
 
-**If you find evidence of an active compromise** — a live webshell, credentials already exfiltrated, an unexplained binary or scheduled task, a backdoored dependency — stop reviewing and hand it to the human operator with that framing. Do not clean it up, do not restart or rebuild the affected host, and say plainly that acting on it destroys evidence. Your output names what you saw, where, and what to preserve.
+**Triage an unfamiliar binary or scheduled task as a lead**, using bounded read-only provenance
+checks. Unexplained does not mean compromised. Corroborated active compromise — a live webshell,
+exfiltrated credentials, or a backdoored dependency — ends the ordinary review: hand the evidence
+and affected targets to the human operator. Do not clean up, restart, or rebuild the affected host;
+name what to preserve and which actions could destroy evidence.
 
 ## Output format
 
@@ -124,9 +128,11 @@ start a retro.
   emit the block, never imply it. For
   uncommitted changes, record the base SHA plus the exact diff/status surface, label the review
   provisional, and do not emit APPROVE or APPROVE WITH NITS — HEAD identifies the base, not the
-  changed bytes. Require a fresh review after those bytes are committed. Any later commit touching
-  a file you reviewed re-enters review; approval carried forward onto unseen code is worse than no
-  approval because it reads as coverage.
+  changed bytes. A formal approval of the committed target needs a review bound to that target.
+  Keep this distinct from retained scope evidence: follow the governing repository's final-delta
+  policy for later changes. Material deltas require fresh focused review; a documented non-material
+  delta may retain prior evidence when that policy permits it. Never relabel an earlier approval
+  envelope as approval of a later commit or imply that unseen bytes were reviewed.
 - **The shared material-risk matrix.** You and the verifier judge the same effective risk set, so
   both receive this compact list (canonical here; `verification-engineer` carries it
   verbatim and defers on conflict): (1) irreversible remote credential mutation requires

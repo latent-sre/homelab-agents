@@ -315,6 +315,10 @@ class LiveEffectGateWiringTests(unittest.TestCase):
 
     def _run(self, pl: str, **kwargs) -> str:
         env = dict(os.environ, CLAUDE_PLUGIN_ROOT=kwargs.pop("plugin_root", str(REPO)))
+        policy = kwargs.pop("policy", "prompt")
+        env.pop("SDE_AGENTS_LIVE_EFFECT_POLICY", None)
+        if policy is not None:
+            env["SDE_AGENTS_LIVE_EFFECT_POLICY"] = policy
         env.update(kwargs.pop("extra_env", {}) or {})
         return subprocess.run(
             [str(SH), "-c", gate_hook_command()], input=pl, capture_output=True, text=True,
@@ -328,6 +332,27 @@ class LiveEffectGateWiringTests(unittest.TestCase):
 
     def test_asks_for_a_live_verb_from_the_gated_agent(self) -> None:
         self.assertEqual("ask", decision(self._run(gate_payload(GATE_LIVE))))
+
+    def test_host_policy_needs_no_gate_interpreter_or_prompt(self) -> None:
+        with tempfile.TemporaryDirectory() as empty:
+            for policy in (None, "host"):
+                for mode in ("default", "dontAsk"):
+                    with self.subTest(policy=policy, mode=mode):
+                        self.assertEqual("", self._run(
+                            gate_payload(GATE_LIVE, mode=mode), plugin_root=empty, policy=policy,
+                        ))
+
+    def test_invalid_policy_does_not_silently_allow_a_live_effect(self) -> None:
+        self.assertEqual("deny", decision(self._run(gate_payload(GATE_LIVE), policy="promtp")))
+
+    def test_invalid_policy_with_missing_gate_preserves_the_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as empty:
+            for policy in ("promtp", ""):
+                for mode, expected in (("default", "ask"), ("dontAsk", "deny")):
+                    with self.subTest(policy=policy, mode=mode):
+                        self.assertEqual(expected, decision(self._run(
+                            gate_payload(GATE_LIVE, mode=mode), policy=policy, plugin_root=empty,
+                        )))
 
     def test_no_decision_for_a_reader_from_the_gated_agent(self) -> None:
         self.assertIsNone(decision(self._run(gate_payload(GATE_READ))))

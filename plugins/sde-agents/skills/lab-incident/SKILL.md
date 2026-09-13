@@ -15,7 +15,8 @@ argument-hint: "[what is down]"
 **Restoring service outranks understanding it.** This is the one place the fleet's
 diagnose-before-you-touch rule is deliberately inverted: `root-cause` is right for a bug
 and wrong mid-outage, because every minute spent on a clean diagnosis is a minute the service is
-still down. Mitigate, confirm recovery, *then* run the loop on the cause with the pressure off.
+still down. Mitigate, confirm recovery, then choose follow-up using Step 5's impact and recurrence
+predicates.
 
 Announce at start: "Using lab-incident: mitigate → confirm → diagnose after."
 
@@ -90,9 +91,9 @@ effects are known safe and authorized; missing evidence stops those mutations.
 | Data loss or corruption suspected | Establish safe containment and recovery per the runbook; for an unknown/in-flight migration, observe and prove safe interruption before stopping writers or snapshotting | Treating a cold stop/copy as read-only or restoring without a verified recovery path |
 | Cause unknown and impact is spreading | Deliberately reduce scope: stop the noisy component, serve a maintenance page, degrade the feature | Broad speculative restarts |
 
-**Restart is a stopgap, never a fix.** A service that came back after a restart with no explanation
-is still broken — it will be back, usually at a worse hour. Note it as an unresolved cause; the
-postmortem's preventative action is what closes it.
+**Recovery does not establish the cause.** A restart followed by sustained end-to-end recovery
+proves service was restored, not why it failed or whether it will recur. Record an unknown cause
+honestly; use Step 5's impact and recurrence predicates to decide the follow-up.
 
 ## Step 3 — one change, then observe
 
@@ -123,23 +124,31 @@ returns the lab to diagnose-before-you-touch.
 
 An outage is over when service is restored *and* the work it created has an owner:
 
-- Cause still unknown → `root-cause` now, with the outage evidence and your notes. This
-  is the moment the diagnose-first loop becomes correct again.
+- Cause still unknown → run `root-cause` promptly for recurrence, material impact,
+  ongoing symptoms, or an operator-requested investigation. Otherwise leave a short note in the
+  existing operating record: service restored, cause unknown, recovery evidence, and a concrete
+  reopen trigger such as the same symptom recurring. Report the note when writing that record
+  is outside the current authority.
 - Recovery wasn't obvious, the incident recurred, or it exposed a gap worth fixing →
   `postmortem` for the write-up, which turns your timestamped notes into actions. A
   wedged container restarted once, with an obvious cause, owes the runbook a line — not a document.
 - A mitigation you had to invent because the runbook lacked it → that's a `runbook`
   edit, and it's part of finishing, not optional cleanup.
 
-## Security carve-out — the one case where you do not mitigate
+## Security carve-out — triage before evidence-destroying recovery
 
-If the failure looks like a compromise — an unexplained process or container, a modified binary,
-credentials in an unexpected place, outbound traffic to somewhere unaccounted for — **stop and hand
-it to the operator.** Do not restart, rebuild, or clean the box: restarting destroys the volatile
-evidence (running processes, open sockets, memory) that identifies what happened, and re-imaging
-before you know the entry point re-creates the vulnerability. Isolate rather than repair if
-containment can't wait — pull it off the network, keep it powered — and preserve what you have.
-Uptime is not worth reinfection.
+An unfamiliar process, container, key, binary change, or outbound destination is a lead. Before
+changing the affected system, make a bounded, nonmutating provenance check against deployment
+records, package/image identity, ownership, and relevant access logs. Select only needed fields
+and keep credentials out of output. An explained authorized change permits ordinary recovery.
+
+If suspicion remains unresolved, preserve observations, report what is known and unknown, and
+pause recovery steps that would destroy relevant evidence. Corroborated unauthorized access,
+execution, exfiltration, or tampering requires a security incident handoff naming affected targets
+and evidence locations. Suspicion and urgency grant no new authority: containment and recovery
+use the engineer's existing bounded authority, recovery prerequisites, and actual host controls.
+Prepare any unauthorized effect for the operator's decision; do not sever the last management or
+recovery path to contain an unverified lead.
 
 Label load-bearing claims `[verified]`, `[sourced]`, or `[unverified]` per the fleet evidence
 convention — mid-outage especially, where "the disk was full" is often inference rather than a

@@ -859,6 +859,7 @@ def _probe_live_effect_gate(probe, project) -> None:
                 "--verbose",
             ],
             cwd=str(project),
+            env=dict(os.environ, SDE_AGENTS_LIVE_EFFECT_POLICY="prompt"),
         )
     agent_attempted, agent_res = result_for(
         "GATEPROBE_AGENT", bash_results(gate_sessions["AGENT"].stdout or ""),

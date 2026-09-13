@@ -273,16 +273,15 @@ Two properties fall out of that, both load-bearing and both tested:
   leaving every other caller untouched. A broken install degrades the reviewer; it cannot brick your
   session.
 
-The same file registers a second hook with the opposite job. `homelab-engineer` holds `Bash` and
-`Write` and applies live changes, so its control is not "deny writers" but "make a human decide":
-`scripts/live-effect-gate.py` answers `ask` for listed live-effect commands that agent runs —
-`docker compose up`, `systemctl restart`, `zfs destroy`, a `reboot` — and `deny` when the session's
-permission mode suppresses prompts, because a hook `deny` wins even under bypass and a bypassed
-prompt is not a decision. It no-ops for every other caller, resolves through
-`${CLAUDE_PLUGIN_ROOT}`, and when its interpreter is missing it asks for everything from that agent
-rather than allowing anything. Its roster is deliberately denylist-shaped and grows by recurrence, one entry per incident that
-shows an unlisted live effect. Unbound wrappers and unparseable forms ask/deny even without a
-named roster rule; only a no-decision result leaves the call to the host's own permission flow.
+The same file registers the optional `scripts/live-effect-gate.py` hook for `homelab-engineer`.
+Its default `host` policy adds no decision and does not need an interpreter; the host's actual
+permissions remain controlling. The operator may select `SDE_AGENTS_LIVE_EFFECT_POLICY=prompt`
+in the host launch environment before starting Claude. That policy keeps the existing partial
+filter: listed live commands and unparseable forms ask, or deny when prompts are suppressed.
+Missing/broken interpreters still fall back to ask/deny in that policy. Invalid policy values
+fail closed for the scoped agent. No policy emits an allow decision or grants task authority;
+agents must not change the setting to obtain permission. The selector is same-user operator
+configuration, not a tamper-proof boundary. The script docstring owns its detailed contract.
 
 The current [bounded-campaign authority](decisions/2026-09-11-bounded-upgrade-campaign.md)
 separates user authorization from host permission. A bounded live request covers in-scope
@@ -291,15 +290,17 @@ native execution without another human-interposing gate or a root-owned rule. Th
 Copilot engineer omits `execute`, so its live work requires operator handoff.
 
 The Claude hook is a partial command filter, not a sandbox. It can return no decision for a
-parsed unlisted command or a direct main-loop call. Unbound wrappers and unparseable forms still
+parsed unlisted command or a direct main-loop call. In `prompt` policy, unbound forms still
 ask/deny. When it returns no decision, the host's effective permissions may allow execution
 without a prompt; that result does not authorize new task scope. Repackaging a gated/denied effect to escape the control remains prohibited. Direct campaign
 and incident skills cooperatively route Claude live work to the gated engineer and Copilot live
 work to operator handoff. Skills do not inherit an agent profile's tool restrictions; their routing
 prose cannot enforce those restrictions in main chat.
 
-An unavailable verification boundary makes the affected criterion inconclusive rather than
-authorizing target-controlled code on the host.
+The verifier distinguishes authorized checks of the user's established workspace from unfamiliar
+executable input and effects outside scope. Its provenance/effect assessment determines required
+isolation; an unavailable necessary boundary leaves affected checks inconclusive. It records
+ordinary host execution honestly rather than claiming that a worktree is a sandbox.
 
 `agent_type` and its plugin-namespaced values are documented in the upstream hooks reference; the
 scoping contract's owner is the `scripts/readonly-guard.py` docstring, and this section follows

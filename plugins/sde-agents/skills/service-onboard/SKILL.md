@@ -45,9 +45,10 @@ removes its dependent work rather than demanding an exception packet.
 - **Trust-boundary exposure** — users or callers cross from a less-trusted network or identity
   boundary. Requires authentication, encryption, and network restrictions appropriate to the
   protocol and consumers, plus a probe through that real boundary.
-- **Household-critical** — someone would notice the service being down or recovery cannot wait for
-  the next maintenance window. Requires actionable alerting, recovery documentation, and restart
-  recovery evidence.
+- **Household-critical** — the operator identifies material household impact from an outage or a
+  downtime tolerance requiring recovery before the next maintenance window. Record that impact
+  and tolerance; merely noticing downtime is insufficient. Requires actionable alerting,
+  recovery documentation, and restart recovery evidence.
 - **Privilege or resource contention** — the service needs elevated/device access or shares scarce
   CPU, memory, disk, or I/O. Requires least-privilege isolation, limits where the platform supports
   them, and capacity visibility.
@@ -79,7 +80,7 @@ useful health signal, rollback, and an end-to-end check.
    household-critical, recovery is non-obvious, or an operation will recur. Otherwise an inventory
    entry with health, rollback, and owner is enough. Persist all four predicate outcomes in either
    record, with the supporting operator facts: state class and loss tolerance, trust boundary and
-   exposure, household criticality and recovery expectation, and privilege or resource contention.
+   exposure, household impact and downtime tolerance, and privilege or resource contention.
    Record a false predicate as `not applicable` with its supporting fact; do not leave it implicit.
    If a required runbook cannot yet be created, state the missing document decision or authority.
    An unknown procedure leaves that section visibly incomplete while supported sections proceed.

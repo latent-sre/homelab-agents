@@ -1,5 +1,14 @@
 # PR review gate: request explicitly, wait on the head, bound the disposition loop
 
+> **Operator amendment, 2026-09-12:** The request to fix review items 1–8 replaces the universal
+> two-pass gate and edit-count cap with proportional review. `AGENTS.md` governs: one independent
+> review by default; a second for authority/security boundaries, broad refactors, or unresolved
+> material disagreement. Fresh focused review covers material final deltas; unchanged scope
+> retains earlier evidence. Broad-review caps do not prohibit bounded evidence-backed fixes.
+> Oscillation or repeated failure without new evidence stops correction; an unresolved material
+> defect never becomes merge-safe through budget exhaustion. Earlier cap and two-pass statements
+> below are historical provenance, superseded by this amendment.
+
 **Status:** Accepted — consolidates rules already operative in `AGENTS.md` ("Opening a pull
 request") together with the incident evidence that minted them; it proposes nothing new. The
 escape semantics were unified to one-further-round-per-ruling across both convergence bounds on
@@ -16,10 +25,11 @@ review-latency and operator-step findings contemporaneously with PROP-001).
 The governing text is `AGENTS.md`; this record is its provenance, kept out of the per-session
 context on purpose. Inspect actual review activity and its commit before waiting or requesting.
 Use the configured reviewer's supported trigger within operator authorization; an operator UI
-step is a fallback for a request the host cannot make. Both passes are waited for on the current
-head, and a review-driven edit owes another wait; every comment is dispositioned as applied or
-declined with the reason. At most three review-driven edit rounds land per PR, with an explicit
-operator ruling buying one further round.
+step is a fallback for a request the host cannot make. Required reviews carry their actual commit
+and scope, and material later changes owe focused review. Every comment receives an applied or
+declined disposition with its reason. New broad PR reviews cap at three; focused corrections of
+demonstrated in-scope defects and their checks do not consume another broad round. Another broad
+round or a material scope expansion needs an operator ruling.
 
 ## Historical evidence (2026-08-16)
 

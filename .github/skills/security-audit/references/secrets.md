@@ -3,7 +3,7 @@
 # Secrets posture — the audit row's depth
 
 Read when check 5 trips. `SKILL.md` owns the sweep's rules (read-only, attack path or downgrade,
-active-compromise stop); this file owns what to look at and what a real finding looks like. On
+provenance triage and compromise escalation); this file owns what to look at and what a real finding looks like. On
 conflict, SKILL.md wins; the lab's own conventions outrank both.
 
 The question is not "are secrets stored badly" in the abstract. It is: **what does an attacker who
