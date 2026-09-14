@@ -34,6 +34,7 @@ exists at all rather than the field being omitted.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterable, Mapping
 
 from fleet.frontmatter import yaml_flow_list, yaml_scalar, yaml_single_quoted
@@ -49,6 +50,13 @@ DEFAULT_ALLOWED_TOOLS = ("Read", "Glob", "Grep", "Skill", "Agent")
 # without being measured. The retiring runner bounded runs by wall clock only and graded whatever
 # partial transcript it had; a turn cap is the native harness's equivalent lever.
 DEFAULT_MAX_TURNS = 6
+
+# The namespace the generated TRIPWIRE graders match. A default only; `case_files` takes the
+# evaluated plugin's own, because a grader hardcoding this one stayed green on an
+# `other-plugin:root-cause` dispatch -- reporting a clean native run on an over-trigger it
+# simply could not see, while the fleet-side verdict (which does read the dynamic namespace)
+# correctly failed the case.
+DEFAULT_NAMESPACE = "sde-agents"
 
 _VACUOUS_GRADER = """---
 type: tool_used
@@ -78,7 +86,7 @@ def tool_for(component: str, agents: Iterable[str]) -> str:
     return "Agent" if component in set(agents) else "Skill"
 
 
-def forbidden_pattern(component: str, tool: str) -> str:
+def forbidden_pattern(component: str, tool: str, namespace: str = DEFAULT_NAMESPACE) -> str:
     """The `input_match` regex for "this component was dispatched through this tool".
 
     Both spellings are live: a plugin component is usually reached as `sde-agents:<name>`, but a
@@ -86,13 +94,14 @@ def forbidden_pattern(component: str, tool: str) -> str:
     clean run on an over-trigger it simply failed to see. The closing quote is part of the
     pattern, so `homelab-engineer` cannot match a longer name that merely starts with it.
     """
+    prefix = re.escape(namespace)
     if tool == "Agent":
-        return rf'"subagent_type"\s*:\s*"(?:sde-agents:)?{component}"'
-    return rf'"(?:command|skill|name)"\s*:\s*"(?:sde-agents:)?{component}"'
+        return rf'"subagent_type"\s*:\s*"(?:{prefix}:)?{component}"'
+    return rf'"(?:command|skill|name)"\s*:\s*"(?:{prefix}:)?{component}"'
 
 
-def _forbidden_grader(component: str, tool: str) -> str:
-    pattern = forbidden_pattern(component, tool)
+def _forbidden_grader(component: str, tool: str, namespace: str) -> str:
+    pattern = forbidden_pattern(component, tool, namespace)
     return f"""---
 type: tool_used
 tool: {tool}
@@ -103,7 +112,7 @@ input_match: {yaml_single_quoted(pattern)}
 ---
 
 The {tool} tool was never called for `{component}`, in either the plugin-namespaced spelling
-(`sde-agents:{component}`) or the bare one.
+(`{namespace}:{component}`) or the bare one.
 
 A tripwire, not the verdict: `tool_used` counts a call whose input matches whether or not the
 spawn succeeded, so on a negative this is faithful or stricter -- it can raise a false alarm on a
@@ -117,6 +126,7 @@ def case_files(
     case: Mapping[str, object],
     *,
     agents: Iterable[str],
+    namespace: str = DEFAULT_NAMESPACE,
     max_turns: int = DEFAULT_MAX_TURNS,
     timeout_seconds: int = 180,
     allowed_tools: Iterable[str] = DEFAULT_ALLOWED_TOOLS,
@@ -142,7 +152,7 @@ def case_files(
             # downstream still passed because the result stays inside the tree.
             name = safe_path_segment(str(target), what="cluster member")
             graders[f"{case_id}/graders/no-{name}.md"] = _forbidden_grader(
-                name, tool_for(name, agent_set)
+                name, tool_for(name, agent_set), namespace
             )
     else:
         graders = {f"{case_id}/graders/verdict-is-fleet-side.md": _VACUOUS_GRADER}
@@ -155,7 +165,18 @@ def case_files(
         f"Generated from evals/routing/{cluster}.json case {case_id} by fleet/nativecases.py. "
         "Do not edit: the cluster JSON is the source, and this directory is rewritten every run."
     )
-    tags = [str(t) for t in (case.get("tags") or [])]
+    # Validated before iteration: `"tags": 1` is syntactically valid JSON, and iterating the
+    # scalar raised TypeError out of `cluster_files` -- past the ValueError handler in the runner,
+    # so the CLI ended in a traceback instead of the documented configuration exit before launch.
+    raw_tags = case.get("tags")
+    if raw_tags is None:
+        raw_tags = []
+    scalar = (str, int, float)
+    if not isinstance(raw_tags, list) or any(not isinstance(t, scalar) for t in raw_tags):
+        raise ValueError(
+            f"case {case.get('id')!r} 'tags' must be a list of scalars (got {raw_tags!r})"
+        )
+    tags = [str(t) for t in raw_tags]
     frontmatter = "\n".join(
         [
             "---",

@@ -2172,3 +2172,143 @@ class CodexEleventhRoundTest(MainIntegrationTest):
         stale = "can no longer observe a failed registration"
         self.assertIn(f'said the fleet "{stale}", which is wrong', section)
         self.assertEqual(1, section.count(stale), "it must not also be asserted as fact")
+
+
+class CodexTwelfthRoundTest(MainIntegrationTest):
+    """The six findings from the Codex review of `96da1fc`. All six real.
+
+    Two again come from this PR's own edits: a clause left stranded when a caveat was inserted in
+    front of it, and a uniformity field that round 11 turned into a reuse condition while it could
+    still be vacuously true.
+    """
+
+    def test_a_batch_that_observed_no_surface_is_not_uniform(self) -> None:
+        """P2: with every run excluded the surface set is empty, so `len <= 1` and an `all()` over
+        no entries both held and an INCONCLUSIVE benchmark claimed `components_uniform: true`.
+        Round 11 made that field a reuse condition, so the vacuous true became load-bearing."""
+        nothing = {"components_observed": {"agents": [], "skills": []},
+                   "components_uniform": True, "inconclusive": True, "runs_observed": 0}
+        self.assertFalse(eval_routing._batch_components_uniform([nothing]))
+        self.assertFalse(eval_routing._batch_components_uniform([]))
+        seen = {"components_observed": {"agents": [], "skills": ["a"]},
+                "components_uniform": True, "inconclusive": False, "runs_observed": 2}
+        self.assertTrue(eval_routing._batch_components_uniform([seen, nothing]))
+
+    def test_an_inconclusive_benchmark_does_not_claim_a_uniform_surface(self) -> None:
+        """The wiring: the artifact itself must carry `false`, since that is what a later T3
+        check reads."""
+        self.trace.write_text("", encoding="utf-8")  # unreadable transcript: every run excluded
+        code, _stderr = self._main()
+        self.assertEqual(3, code)
+        benchmark = json.loads((self.out / "benchmark.json").read_text(encoding="utf-8"))
+        self.assertTrue(benchmark["cases"][0]["inconclusive"])
+        self.assertFalse(benchmark["conditions"]["components_uniform"])
+
+    def test_a_missing_case_without_a_partial_batch_is_a_malformed_result(self) -> None:
+        """P2: the generated tree holds exactly the selected cases and an intentional early stop
+        is signalled by `partial`, so an unexplained omission is a schema regression or a name
+        mismatch — not a cost-ceiling shortfall to synthesize unlaunched runs for."""
+        real_run = subprocess.run
+
+        def run(argv, **kwargs):
+            if "--json" not in argv:
+                return real_run(argv, **kwargs)
+            Path(argv[argv.index("--json") + 1]).write_text(json.dumps({
+                "claudeVersion": "2.1.270", "costUsd": 0.5, "partial": False,
+                "cases": [{"name": "some-other-case", "arms": {"with": []}}],
+            }), encoding="utf-8")
+            return subprocess.CompletedProcess(argv, 0)
+
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            mock.patch.object(eval_routing.subprocess, "run", side_effect=run),
+            mock.patch.object(eval_routing, "cli_version", return_value="2.1.270 (Claude Code)"),
+            contextlib.redirect_stderr(stderr),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = eval_routing.main(
+                [str(self.cluster), "--runs", "1", "--output-dir", str(self.out)]
+            )
+        self.assertEqual(3, code)
+        self.assertIn("did not report a partial batch", stderr.getvalue())
+        self.assertFalse((self.out / "benchmark.json").exists())
+
+    def test_a_partial_batch_still_explains_a_missing_case(self) -> None:
+        """The other half: `partial` is exactly the signal that makes an omission legitimate."""
+        real_run = subprocess.run
+
+        def run(argv, **kwargs):
+            if "--json" not in argv:
+                return real_run(argv, **kwargs)
+            Path(argv[argv.index("--json") + 1]).write_text(json.dumps({
+                "claudeVersion": "2.1.270", "costUsd": 0.5, "partial": True, "cases": [],
+            }), encoding="utf-8")
+            return subprocess.CompletedProcess(argv, 0)
+
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            mock.patch.object(eval_routing.subprocess, "run", side_effect=run),
+            mock.patch.object(eval_routing, "cli_version", return_value="2.1.270 (Claude Code)"),
+            contextlib.redirect_stderr(io.StringIO()),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = eval_routing.main(
+                [str(self.cluster), "--runs", "1", "--output-dir", str(self.out)]
+            )
+        self.assertEqual(3, code, "INCONCLUSIVE, not a malformed result")
+        self.assertTrue((self.out / "benchmark.json").exists())
+
+    def test_the_native_report_survives_the_frozen_plugin(self) -> None:
+        """P2: the harness writes its result and report beneath the eval directory, which lives
+        inside the frozen snapshot — a TemporaryDirectory removed on the way out. Every run
+        produced the report `evals/README.md` describes and then destroyed it."""
+        real_run = subprocess.run
+
+        def run(argv, **kwargs):
+            if "--json" not in argv:
+                return real_run(argv, **kwargs)
+            result_path = Path(argv[argv.index("--json") + 1])
+            # `--eval-dir` is relative to the plugin directory the harness is pointed at, which
+            # is the frozen snapshot root -- exactly why the report does not survive.
+            eval_dir = Path(argv[3]) / argv[argv.index("--eval-dir") + 1]
+            eval_dir.mkdir(parents=True, exist_ok=True)
+            (eval_dir / "report.html").write_text("<html>native</html>", encoding="utf-8")
+            (eval_dir / "aggregate-result.json").write_text('{"native": true}', encoding="utf-8")
+            result_path.write_text(json.dumps({
+                "claudeVersion": "2.1.270", "costUsd": 0.5, "partial": False,
+                "cases": [{"name": "pos-demo", "arms": {"with": [
+                    {"error": None, "tracePath": str(self.trace)},
+                ]}}],
+            }), encoding="utf-8")
+            return subprocess.CompletedProcess(argv, 0)
+
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            mock.patch.object(eval_routing.subprocess, "run", side_effect=run),
+            mock.patch.object(eval_routing, "cli_version", return_value="2.1.270 (Claude Code)"),
+            contextlib.redirect_stderr(io.StringIO()),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = eval_routing.main(
+                [str(self.cluster), "--runs", "1", "--output-dir", str(self.out)]
+            )
+        self.assertEqual(0, code)
+        self.assertEqual(
+            "<html>native</html>", (self.out / "report.html").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            '{"native": true}', (self.out / "aggregate-result.json").read_text(encoding="utf-8")
+        )
+
+    def test_the_roadmap_no_longer_calls_the_historical_capture_a_single_anchor(self) -> None:
+        """P2: a clause survived in front of which the non-reusable caveat was inserted, so the
+        paragraph ended by asserting the opposite of its own status."""
+        text = " ".join((REPO / "docs" / "fleet-roadmap.md").read_text(encoding="utf-8").split())
+        entry = text[text.index("#### EVAL-003"):text.index("#### ROUTE-001")]
+        self.assertIn("not** a condition-complete anchor", entry)
+        self.assertIn('a clause left stranded when the caveat was inserted', entry)
+        self.assertEqual(
+            1, entry.count("makes them a single anchor"),
+            "the old claim survives only as a quoted correction",
+        )

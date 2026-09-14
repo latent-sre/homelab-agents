@@ -256,3 +256,62 @@ class CaseInsensitiveIdTest(unittest.TestCase):
         )
         self.assertTrue(any(p.startswith("case/") for p in files))
         self.assertTrue(any(p.startswith("case-two/") for p in files))
+
+
+class GeneratedTripwireTest(unittest.TestCase):
+    """Round 12: the generated negative graders hardcoded this repository's namespace.
+
+    Fleet-side grading reads the evaluated plugin's namespace, but the native tripwire did not —
+    so an `other-plugin:root-cause` dispatch left the harness's own report green on an
+    over-trigger it simply could not see.
+    """
+
+    SPEC = {"cluster": "demo", "members": ["root-cause"]}
+    CASE = {"id": "neg", "polarity": "negative", "prompt": "p", "expect_not_fires": ["root-cause"]}
+
+    def test_the_pattern_uses_the_namespace_it_is_given(self) -> None:
+        agent = nativecases.forbidden_pattern("root-cause", "Agent", "other-plugin")
+        self.assertIn("other\\-plugin:", agent)
+        self.assertNotIn("sde-agents", agent)
+        skill = nativecases.forbidden_pattern("lab-audit", "Skill", "other-plugin")
+        self.assertIn("other\\-plugin:", skill)
+
+    def test_the_generated_grader_carries_the_evaluated_namespace(self) -> None:
+        files = nativecases.case_files(
+            self.SPEC, self.CASE, agents=frozenset({"root-cause"}), namespace="other-plugin"
+        )
+        grader = files["neg/graders/no-root-cause.md"]
+        self.assertIn("other", grader)
+        self.assertNotIn("sde-agents:", grader.split("input_match")[1])
+
+    def test_this_repository_still_generates_its_own_namespace(self) -> None:
+        files = nativecases.case_files(self.SPEC, self.CASE, agents=frozenset({"root-cause"}))
+        self.assertIn("sde\\-agents:", files["neg/graders/no-root-cause.md"])
+
+
+class MalformedTagsTest(unittest.TestCase):
+    """Round 12: `"tags": 1` is valid JSON, and iterating the scalar raised TypeError out of
+    `cluster_files` — past the runner's ValueError handler, so the CLI ended in a traceback
+    instead of the documented configuration exit before any session launched."""
+
+    SPEC = {"cluster": "demo", "members": ["root-cause"]}
+
+    def _case(self, tags: object) -> dict:
+        return {"id": "neg", "polarity": "negative", "prompt": "p",
+                "expect_not_fires": ["root-cause"], "tags": tags}
+
+    def test_a_scalar_tags_value_is_a_configuration_error(self) -> None:
+        for tags in (1, True, "lab", {"a": 1}):
+            with self.subTest(tags=tags):
+                with self.assertRaisesRegex(ValueError, "must be a list of scalars"):
+                    nativecases.case_files(
+                        self.SPEC, self._case(tags), agents=frozenset({"root-cause"})
+                    )
+
+    def test_a_well_formed_or_absent_tags_list_still_works(self) -> None:
+        for tags in (None, [], ["lab", "root-cause"], [1, 2.5]):
+            with self.subTest(tags=tags):
+                files = nativecases.case_files(
+                    self.SPEC, self._case(tags), agents=frozenset({"root-cause"})
+                )
+                self.assertIn("neg/prompt.md", files)

@@ -472,7 +472,13 @@ def _batch_components_uniform(scored: list[dict]) -> bool:
         # field, and dropping every entry reports a uniform batch over no surfaces at all.
         if e["runs_observed"] > 0
     }
-    return len(surfaces) <= 1 and all(e["components_uniform"] for e in scored)
+    # An EMPTY set is not uniform, it is unmeasured. With every run excluded both `len <= 1` and
+    # the `all()` over no entries are true, so an INCONCLUSIVE benchmark claimed
+    # `components_uniform: true` having observed no competition at all -- and round 11 made that
+    # field a reuse condition, so the vacuous true became load-bearing.
+    if not surfaces:
+        return False
+    return len(surfaces) == 1 and all(e["components_uniform"] for e in scored)
 
 
 def _recovered_trace_records(document: object) -> dict[str, list[dict]]:
@@ -495,6 +501,29 @@ def _recovered_trace_records(document: object) -> dict[str, list[dict]]:
         elif isinstance(node, list):
             pending.extend(node)
     return {"<unreadable result>": found}
+
+
+def _preserve_native_outputs(eval_dir: Path, output_dir: Path) -> list[str]:
+    """Copy the harness's own result and report out of the frozen plugin before it is deleted.
+
+    They are written beneath the eval directory, which lives inside the private snapshot, so
+    every run produced the report `evals/README.md` describes and then destroyed it on the way
+    out. Returns the names copied, for the caller to print.
+    """
+    copied: list[str] = []
+    for name in ("aggregate-result.json", "report.html"):
+        source = eval_dir / name
+        try:
+            if not source.is_file():
+                continue
+            output_dir.mkdir(parents=True, exist_ok=True)
+            fs.atomic_write_bytes(output_dir / name, source.read_bytes())
+            copied.append(name)
+        except OSError as exc:
+            # Never fails a measurement that already happened -- the fleet benchmark is the
+            # artifact that matters, and this is the harness's convenience output.
+            print(f"! could not preserve the native {name}: {exc}", file=sys.stderr)
+    return copied
 
 
 def _remove_kept_temp_dirs(runs_by_case: dict[str, list[dict]]) -> None:
@@ -779,7 +808,7 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
         # `cluster_files` refuses duplicate ids, and that refusal was outside every handler: the
         # CLI ended in a traceback instead of the documented configuration-error exit 2.
         files = nativecases.cluster_files(
-            spec, cases, agents=fleet_agents,
+            spec, cases, agents=fleet_agents, namespace=namespace,
             max_turns=args.max_turns, timeout_seconds=args.timeout,
         )
     except ValueError as exc:
@@ -835,6 +864,13 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
             print(f"\nnative harness produced no readable result ({exc}); exit "
                   f"{completed.returncode}. benchmark.json was not written", file=sys.stderr)
             return 3
+        # The harness writes its own aggregate result and HTML report beneath the eval directory
+        # -- which lives inside the frozen plugin, a TemporaryDirectory removed when this context
+        # exits. `evals/README.md` tells maintainers those exist, so they are copied out here
+        # rather than promised and deleted. Best effort: a measurement that happened is not
+        # discarded because its report could not be copied.
+        if args.output_dir:
+            _preserve_native_outputs(frozen / eval_dir_name, args.output_dir)
         try:
             runs_by_case = _run_records(result)
         except MalformedNativeResult as exc:
@@ -869,7 +905,18 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
     scored = []
     try:
         for case in cases:
-            records = list(runs_by_case.get(str(case["id"]), []))
+            case_id = str(case["id"])
+            if case_id not in runs_by_case and not result.get("partial"):
+                # The generated tree contains exactly the selected cases, and an intentional early
+                # stop is signalled by `partial`. Without it, an absent case is a schema
+                # regression or a name mismatch -- and defaulting to "the harness stopped early"
+                # synthesized unlaunched runs and could write an INCONCLUSIVE benchmark from a
+                # result nothing had validated.
+                _remove_kept_temp_dirs(runs_by_case)
+                print(f"\nnative harness returned no runs for case {case_id!r} and did not "
+                      "report a partial batch; benchmark.json was not written", file=sys.stderr)
+                return 3
+            records = list(runs_by_case.get(case_id, []))
             if len(records) > args.runs:
                 # Only a shortfall was handled. An early-access schema returning EXTRA records
                 # graded all of them while the artifact still said `runs_per_case: args.runs`.

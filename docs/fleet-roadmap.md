@@ -491,8 +491,10 @@ off each session's own `init` event — because the flag that was supposed to co
 are uniform across all ten clusters on the two conditions the artifacts can establish (one
 observed model, one CLI version); the component surface is recorded only as an equal UNION per
 cluster, and per-run uniformity is unknown for this batch because the field that records it was
-added after it ran,
-which is what makes them a single anchor rather than ten co-located measurements. Zero
+added after it ran. That unknown is one of the reasons this capture is **not** a
+condition-complete anchor: an earlier draft ended this sentence with "which is what makes them a
+single anchor rather than ten co-located measurements", a clause left stranded when the caveat was
+inserted in front of it, so the paragraph asserted the opposite of the status above. Zero
 INCONCLUSIVE; 6 of 303 runs excluded.
 
 **Next action:** Two, and the first gates the second's reuse rather than its evidence.
