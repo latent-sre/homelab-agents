@@ -132,11 +132,17 @@ Every `benchmark.json` therefore records a `conditions` block — `cli_version`,
 `models_observed` (read off the transcripts, i.e. what actually ran), `timeout_s`, `threshold`,
 concurrency, Python runtime, and non-secret authentication/provider mode. Its provenance separately
 hashes the exact eval definitions, selected cases, plugin under test, and executing evaluator and
-grader files. Both runners self-bootstrap from one checked source buffer and compile imported
-graders from likewise registered buffers, so those hashes name what executed rather than a later
-read of the same paths. Provenance schema v4 executes a private copy of the identified plugin bytes,
-so an A -> B -> A edit to the source checkout cannot make concurrent sessions load mixed content
-while leaving equal endpoint hashes. Persistent mutation of the private snapshot aborts the artifact. A
+grader files. The evaluator hash names the files on disk at the time of the read, which is a NARROWER claim
+than the retired runner's: that runner re-executed itself from one checked buffer, so its hash
+named the bytes that actually computed the verdict. Phase 4 split running from grading across
+imported kernel modules, and binding only the entry script would have covered a shrinking
+fraction of that code while still reading like the old guarantee — so the claim was reduced
+deliberately rather than kept nominally. The window it leaves open is an evaluator source edited
+between import and the provenance read, by the operator running the measurement; it is narrower
+than the one `frozen_plugin` still closes for the plugin under test, whose bytes are a different
+party's. Provenance schema v5 executes a private copy of the identified plugin bytes — content
+and executable bit — so an A -> B -> A edit to the source checkout cannot make concurrent
+sessions load mixed content while leaving equal endpoint hashes. Persistent mutation of the private snapshot aborts the artifact. A
 same-user session can transiently mutate and restore that snapshot unless the host sandbox denies
 writes; endpoint hashing does not claim to detect that, so host write isolation remains part of the
 trust boundary. The conditions block records `.` for the current plugin and

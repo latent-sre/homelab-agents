@@ -38,6 +38,7 @@ import argparse
 import contextlib
 import fnmatch
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -208,6 +209,16 @@ class MalformedNativeResult(Exception):
     """The harness wrote valid JSON in a shape this cannot read."""
 
 
+class RegistrationIncomplete(RuntimeError):
+    """A session did not register a component the selected cluster is graded against.
+
+    Aborts the batch rather than excluding the run, which is the contract `evals/README.md`
+    records as retained from the retired runner: a partially or intermittently loaded plugin
+    means the whole measurement ran against an incomplete competition, and excluding only the
+    affected runs lets the remaining ones pass every case and write a benchmark that reads clean.
+    """
+
+
 def _run_records(result: object) -> dict[str, list[dict]]:
     """Per-case run records from the native result document, keyed by case name.
 
@@ -353,10 +364,13 @@ def _scored(
             name for name in required if f"{namespace}:{name}" not in registered
         }
         if missing:
-            fired[index] = None
-            notes.append(
-                f"run {index + 1}: graded component(s) {sorted(missing)} were not registered in "
-                "this session, so it cannot evidence whether they fired"
+            # Abort, do not exclude. Excluding left the batch able to write a passing benchmark
+            # from the runs that happened to load the whole fleet, and -- when every run was
+            # excluded -- an INCONCLUSIVE artifact at exit 3 rather than no artifact at all.
+            raise RegistrationIncomplete(
+                f"case {case['id']!r} run {index + 1}: graded component(s) {sorted(missing)} "
+                "were not registered in this session, so the batch ran against an incomplete "
+                "routing competition"
             )
     verdict = routing.grade_case(case, members, fired)
     member_set = set(members)
@@ -401,6 +415,12 @@ def _scored(
         "fired_per_run": [sorted(f) if f is not None else None for f in fired],
         "notes": notes,
         "models_observed": sorted(set(models)),
+        # How many runs produced a usable transcript. Recorded because `main` later OVERRIDES
+        # `inconclusive` for a case the harness stopped short of, and the uniformity filter must
+        # not read a flag that has been repurposed: such a case really did observe a surface, and
+        # dropping it from the uniformity check while the batch union still counted it let a
+        # batch whose competitions differed report `components_uniform: true`.
+        "runs_observed": sum(1 for f in fired if f is not None),
         # Both this union and `components_uniform` below read the SAME valid runs. Including an
         # excluded run here let a case report union X u Y while flagging itself uniform, and the
         # batch check then accepted a second case whose valid runs really saw X u Y.
@@ -428,18 +448,19 @@ def _batch_components_uniform(scored: list[dict]) -> bool:
     A per-case flag is true when every run of case A saw surface X and every run of case B saw a
     different surface Y, which is precisely the changing competition this is stored to rule out.
     """
-    # `inconclusive` IS "no valid run" (`CaseVerdict.inconclusive` is `valid_runs == 0`), and
-    # `components_observed` is built from exactly the same runs -- so this admits every case with
-    # an observed surface and excludes only cases that have none. Review read it as a case-level
-    # flag that could disagree with the surfaces; it cannot, and `EquivalentFilterTest` pins that
-    # so a later change to either side cannot quietly make it a uniformity claim over surfaces
-    # nothing observed. Excluding them is also the correct direction: a case with no valid run has
-    # an empty surface, and admitting that empty tuple would break uniformity against every case
-    # that saw a real competition.
+    # `runs_observed`, NOT `inconclusive`. I declined this finding once on the grounds that
+    # `CaseVerdict.inconclusive` is `valid_runs == 0` and therefore agreed with the surfaces --
+    # true of the verdict, and false of the artifact, because `main` later sets `inconclusive` on
+    # a case the harness stopped short of even though its launched runs observed a real surface.
+    # That case then vanished from this check while the batch-level union still counted it, so a
+    # batch measured against two different competitions could report `components_uniform: true`.
+    # `runs_observed` is written by `_scored` and never repurposed, which is the whole point.
     surfaces = {
         (tuple(e["components_observed"]["agents"]), tuple(e["components_observed"]["skills"]))
         for e in scored
-        if not e["inconclusive"]
+        # Subscript, not `.get(..., 0)`: a default would silently drop an entry that lacks the
+        # field, and dropping every entry reports a uniform batch over no surfaces at all.
+        if e["runs_observed"] > 0
     }
     return len(surfaces) <= 1 and all(e["components_uniform"] for e in scored)
 
@@ -486,7 +507,20 @@ def _remove_kept_temp_dirs(runs_by_case: dict[str, list[dict]]) -> None:
         # whichever root the loop happened to end on.
         return lambda *_args: failures.append(str(directory))
 
-    temp_root = fs.absolute_without_resolving(Path(tempfile.gettempdir()))
+    # Every spelling of the trusted temp root, not just this process's canonical one. On macOS
+    # `fleet.provenance` canonicalizes Python's cached root to `/private/var/...` while the
+    # spawned harness inherits the ordinary `TMPDIR=/var/folders/...`, so its `tracePath` keeps
+    # the un-canonical spelling and a single-root comparison matched nothing -- skipping every
+    # cleanup and leaving the plugin copies and transcripts behind after each eval. Recognising
+    # both spellings only decides WHICH root is trusted; the strict link walk below still runs
+    # from whichever one matched, so an arbitrary intermediate symlink is refused either way.
+    candidate_roots = {tempfile.gettempdir(), os.environ.get("TMPDIR") or ""}
+    temp_roots = {
+        fs.absolute_without_resolving(Path(spelling))
+        for raw in list(candidate_roots)
+        if raw
+        for spelling in (raw, os.path.realpath(raw))
+    }
     for root in roots:
         # The NAME is not ownership. A `tracePath` is harness output, and on the malformed-result
         # path it is recovered from a document nothing validated -- so a path like
@@ -494,7 +528,8 @@ def _remove_kept_temp_dirs(runs_by_case: dict[str, list[dict]]) -> None:
         # recursively deleted. Containment under the process temp root is what actually says the
         # harness made it; the name check stays as the second half of the pair.
         absolute = fs.absolute_without_resolving(root)
-        if temp_root not in absolute.parents:
+        temp_root = next((t for t in temp_roots if t in absolute.parents), None)
+        if temp_root is None:
             continue
         if not root.name.startswith("claude-eval-"):
             continue
@@ -857,6 +892,12 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
                     "were launched (harness stopped early)"
                 )
             scored.append(entry)
+    except RegistrationIncomplete as exc:
+        # Exit 2, not 3: this is a misconfigured plugin under test, not a transient measurement
+        # failure to re-run. `evals/README.md` records the contract.
+        _remove_kept_temp_dirs(runs_by_case)
+        print(f"\neval aborted: {exc}; benchmark.json was not written", file=sys.stderr)
+        return 2
     except eval_clean_room.AuthUnavailable as exc:
         # Aborting the batch, not excluding the affected runs: an authentication outage part-way
         # through invalidates the measurement, and excluding its runs would let the earlier valid

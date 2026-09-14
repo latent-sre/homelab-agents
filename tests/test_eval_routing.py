@@ -775,13 +775,14 @@ class CodexReviewFindingsTest(unittest.TestCase):
         ))
         handle.close()
         self.addCleanup(Path(handle.name).unlink, missing_ok=True)
-        entry = eval_routing._scored(
-            case, ["root-cause"], [{"tracePath": handle.name, "error": None}],
-            frozenset({"root-cause", "runbook"}), 0.5,
-        )
-        self.assertTrue(entry["inconclusive"], "an unloaded component cannot be measured")
-        self.assertFalse(entry["passed"])
-        self.assertIn("not registered", entry["notes"][0])
+        # Round 10 made this ABORT rather than exclude, restoring the contract
+        # `evals/README.md` records: excluding only the affected runs let the rest write a
+        # benchmark that reads clean against a partially loaded plugin.
+        with self.assertRaisesRegex(eval_routing.RegistrationIncomplete, "not registered"):
+            eval_routing._scored(
+                case, ["root-cause"], [{"tracePath": handle.name, "error": None}],
+                frozenset({"root-cause", "runbook"}), 0.5,
+            )
 
     def test_a_case_the_harness_stopped_short_of_is_not_scored_at_full_confidence(self) -> None:
         """P1: `--max-cost-usd` returns fewer records than requested; grading them as-is computed
@@ -994,21 +995,21 @@ class CodexSecondRoundTest(MainIntegrationTest):
         self.addCleanup(Path(handle.name).unlink, missing_ok=True)
         # `prompt-engineer` is a real fleet AGENT and a cluster member here, but unregistered.
         agents, skills, namespace = eval_routing.plugin_roster(REPO)
-        entry = eval_routing._scored(
-            {"id": "n", "polarity": "negative", "expect_not_fires": ["prompt-craft"]},
-            ["prompt-craft", "prompt-engineer"],
-            [{"tracePath": handle.name, "error": None}],
-            agents | skills, 0.5, agents=agents, namespace=namespace,
-        )
-        self.assertTrue(entry["inconclusive"])
-        self.assertIn("prompt-engineer", entry["notes"][0])
+        with self.assertRaisesRegex(eval_routing.RegistrationIncomplete, "prompt-engineer"):
+            eval_routing._scored(
+                {"id": "n", "polarity": "negative", "expect_not_fires": ["prompt-craft"]},
+                ["prompt-craft", "prompt-engineer"],
+                [{"tracePath": handle.name, "error": None}],
+                agents | skills, 0.5, agents=agents, namespace=namespace,
+            )
 
     def test_uniformity_is_judged_across_the_batch_not_within_each_case(self) -> None:
         """P2: every run of case A seeing X and every run of case B seeing Y left each case-level
         flag true, which is exactly the changing competition the field rules out."""
-        def entry(skills: list[str]) -> dict:
+        def entry(skills: list[str], runs_observed: int = 1) -> dict:
             return {"components_observed": {"agents": [], "skills": skills},
-                    "components_uniform": True, "inconclusive": False}
+                    "components_uniform": True, "inconclusive": False,
+                    "runs_observed": runs_observed}
         same = [entry(["a"]), entry(["a"])]
         differing = [entry(["a"]), entry(["a", "b"])]
         self.assertTrue(eval_routing._batch_components_uniform(same))
@@ -1195,8 +1196,8 @@ class CodexFourthRoundTest(MainIntegrationTest):
                 frozenset({"root-cause"}), 0.5,
             )
 
-        foreign = entry_for(["other-plugin:root-cause"])
-        self.assertTrue(foreign["inconclusive"], "a different plugin's component is not this one")
+        with self.assertRaisesRegex(eval_routing.RegistrationIncomplete, "root-cause"):
+            entry_for(["other-plugin:root-cause"])
         ours = entry_for([f"{eval_routing.plugin_roster(REPO)[2]}:root-cause"])
         self.assertFalse(ours["inconclusive"])
         self.assertTrue(ours["passed"])
@@ -1641,16 +1642,17 @@ class CodexEighthRoundTest(MainIntegrationTest):
         run = self._run_record(
             ["sde-agents:prompt-engineer"], ["sde-agents:prompt-craft"], "narrowed"
         )
-        scored = eval_routing._scored(
-            {"id": "neg-narrow", "polarity": "negative", "expect_not_fires": ["prompt-craft"]},
-            ["prompt-craft", "prompt-engineer", "absent-member"],
-            [run], frozenset({"prompt-craft", "prompt-engineer"}), 0.5,
-            # The stale plugin's roster: `absent-member` was deleted, so intersecting with it is
-            # what used to drop the requirement. Substituting that intersection back fails here.
-            agents=frozenset({"prompt-engineer"}),
-        )
-        self.assertTrue(scored["inconclusive"], "an incomplete competition is not a measurement")
-        self.assertIn("absent-member", " ".join(scored["notes"]))
+        with self.assertRaisesRegex(eval_routing.RegistrationIncomplete, "absent-member"):
+            eval_routing._scored(
+                {"id": "neg-narrow", "polarity": "negative",
+                 "expect_not_fires": ["prompt-craft"]},
+                ["prompt-craft", "prompt-engineer", "absent-member"],
+                [run], frozenset({"prompt-craft", "prompt-engineer"}), 0.5,
+                # The stale plugin's roster: `absent-member` was deleted, so intersecting with it
+                # is what used to drop the requirement. Substituting that intersection back makes
+                # this call succeed, and the test fails.
+                agents=frozenset({"prompt-engineer"}),
+            )
 
     def test_the_uniformity_filter_and_the_observed_surfaces_cannot_disagree(self) -> None:
         """DECLINED as a defect, pinned as an invariant. Review read the `inconclusive` filter in
@@ -1895,3 +1897,188 @@ class CodexNinthRoundTest(MainIntegrationTest):
                     eval_routing.checked_cluster_shape(bad)
         good = {"cluster": "c", "cases": [{"id": "x"}]}
         self.assertIs(good, eval_routing.checked_cluster_shape(good))
+
+
+class CodexTenthRoundTest(MainIntegrationTest):
+    """The six findings from the Codex review of `d6bfc9c`. All six real — including one I had
+    DECLINED in round 8, wrongly.
+
+    Two more are consequences of the previous round's own fixes: carrying the executable bit made
+    a mode behaviourally significant while identity ignored it, and canonicalizing this process's
+    temp root left the spawned harness's own spelling unrecognised.
+    """
+
+    def _partial_batch(self, on_run=None) -> dict:
+        """A batch whose harness launches fewer runs than requested for the only case."""
+        real_run = subprocess.run
+
+        def run(argv, **kwargs):
+            if "--json" not in argv:
+                return real_run(argv, **kwargs)
+            Path(argv[argv.index("--json") + 1]).write_text(json.dumps({
+                "claudeVersion": "2.1.270", "costUsd": 0.5, "partial": True,
+                "cases": [{"name": "pos-demo", "arms": {"with": [
+                    {"error": None, "tracePath": str(self.trace)},
+                ]}}],
+            }), encoding="utf-8")
+            return subprocess.CompletedProcess(argv, 0)
+
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            mock.patch.object(eval_routing.subprocess, "run", side_effect=run),
+            mock.patch.object(eval_routing, "cli_version", return_value="2.1.270 (Claude Code)"),
+            contextlib.redirect_stderr(io.StringIO()),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = eval_routing.main(
+                [str(self.cluster), "--runs", "3", "--output-dir", str(self.out)]
+            )
+        self.assertEqual(3, code, "a case the harness stopped short of is INCONCLUSIVE")
+        return json.loads((self.out / "benchmark.json").read_text(encoding="utf-8"))
+
+    def test_a_partially_launched_case_still_counts_toward_surface_uniformity(self) -> None:
+        """P2, and I declined this in round 8 on a reading of `CaseVerdict.inconclusive` that is
+        true of the VERDICT and false of the ARTIFACT: `main` overrides `inconclusive` for a case
+        the harness stopped short of, after `_scored` recorded its observed surface. That case
+        then left the uniformity check while the batch union still counted it, so a batch measured
+        against two different competitions could report `components_uniform: true`. My round-8
+        test called `_scored` directly and never saw the override — it pinned nothing."""
+        benchmark = self._partial_batch()
+        case = benchmark["cases"][0]
+        self.assertTrue(case["inconclusive"], "fixture guard: the override must have fired")
+        self.assertEqual(1, case["runs_observed"], "but one run did observe a surface")
+        self.assertTrue(case["components_observed"]["skills"], "and that surface is recorded")
+        # The union counts it, so the uniformity claim must be computed over it too.
+        self.assertEqual(
+            sorted(case["components_observed"]["skills"]),
+            sorted(benchmark["conditions"]["components_observed"]["skills"]),
+        )
+        self.assertTrue(eval_routing._batch_components_uniform(benchmark["cases"]))
+        # And the assertion that actually has teeth: pair the overridden case with a complete one
+        # that saw a DIFFERENT surface. If the filter drops the overridden case, this batch reads
+        # uniform over a single surface -- the false green the finding describes.
+        elsewhere = dict(case, inconclusive=False, runs_observed=3, components_observed={
+            "agents": case["components_observed"]["agents"],
+            "skills": case["components_observed"]["skills"] + ["a-component-only-it-saw"],
+        })
+        self.assertFalse(
+            eval_routing._batch_components_uniform([case, elsewhere]),
+            "the overridden case's surface must reach the uniformity check",
+        )
+
+    def test_a_surface_only_a_partial_case_saw_can_break_batch_uniformity(self) -> None:
+        """The direction that was silently unreachable: the overridden case is the one carrying
+        the divergent competition."""
+        overridden = {"components_observed": {"agents": [], "skills": ["a", "b"]},
+                      "components_uniform": True, "inconclusive": True, "runs_observed": 1}
+        complete = {"components_observed": {"agents": [], "skills": ["a"]},
+                    "components_uniform": True, "inconclusive": False, "runs_observed": 3}
+        self.assertFalse(eval_routing._batch_components_uniform([complete, overridden]))
+
+    def test_an_unregistered_component_aborts_the_batch_rather_than_one_run(self) -> None:
+        """P2: `evals/README.md` records the retained contract — missing fleet registration
+        aborts with exit 2 and writes nothing. Excluding the run let the remaining ones pass every
+        case and write a benchmark that reads clean against a partially loaded plugin, and when
+        every run was excluded it still wrote an INCONCLUSIVE artifact at exit 3."""
+        self.trace.write_text(trace(
+            {"type": "system", "subtype": "init", "agents": [], "skills": []},
+            result_event(),
+        ), encoding="utf-8")
+        code, stderr = self._main()
+        self.assertEqual(2, code)
+        self.assertIn("eval aborted", stderr)
+        self.assertIn("incomplete routing competition", stderr)
+        self.assertFalse((self.out / "benchmark.json").exists())
+
+    def test_the_executable_bit_is_part_of_the_plugin_identity(self) -> None:
+        """P2, and created by round 9's own fix: carrying the bit into the frozen copy made a mode
+        change behaviour while the hash still ignored it, so two plugins that execute differently
+        compared equal and a chmod between the identity read and the freeze evaded both checks."""
+        provenance = eval_routing.provenance
+        plugin = self.tmp / "mode-plugin"
+        (plugin / ".claude-plugin").mkdir(parents=True)
+        (plugin / ".claude-plugin" / "plugin.json").write_bytes(b'{"name":"probe"}\n')
+        (plugin / "agents").mkdir()
+        (plugin / "agents" / "probe.md").write_bytes(b"---\nname: probe\n---\nx\n")
+        hook = plugin / "hooks" / "hooks.json"
+        hook.parent.mkdir()
+        hook.write_text("${CLAUDE_PLUGIN_ROOT}/scripts/check.sh", encoding="utf-8")
+        runner = plugin / "scripts" / "check.sh"
+        runner.parent.mkdir()
+        runner.write_bytes(b"#!/bin/sh\nexit 0\n")
+
+        runner.chmod(0o644)
+        not_executable = provenance.plugin_identity(plugin)["sha256"]
+        runner.chmod(0o755)
+        executable = provenance.plugin_identity(plugin)["sha256"]
+        self.assertNotEqual(
+            not_executable, executable,
+            "identical bytes that execute differently must not carry one identity",
+        )
+        self.assertEqual("sde-agents/eval-provenance/v5", provenance.PROVENANCE_SCHEMA)
+
+    def test_a_chmod_between_identity_and_freeze_is_refused(self) -> None:
+        """The second half of the same finding: the frozen snapshot is compared to the identity
+        recorded before it, so a mode change in between must break that comparison."""
+        provenance = eval_routing.provenance
+        plugin = self.tmp / "chmod-plugin"
+        (plugin / ".claude-plugin").mkdir(parents=True)
+        (plugin / ".claude-plugin" / "plugin.json").write_bytes(b'{"name":"probe"}\n')
+        (plugin / "agents").mkdir()
+        (plugin / "agents" / "probe.md").write_bytes(b"---\nname: probe\n---\nx\n")
+        hook = plugin / "hooks" / "hooks.json"
+        hook.parent.mkdir()
+        hook.write_text("${CLAUDE_PLUGIN_ROOT}/scripts/check.sh", encoding="utf-8")
+        runner = plugin / "scripts" / "check.sh"
+        runner.parent.mkdir()
+        runner.write_bytes(b"#!/bin/sh\nexit 0\n")
+        runner.chmod(0o755)
+
+        with provenance.frozen_plugin(plugin) as (_frozen, identity):
+            runner.chmod(0o644)
+        with self.assertRaisesRegex(provenance.ProvenanceError, "changed while the batch"):
+            provenance.verify_frozen_plugin(plugin, identity)
+
+    def test_cleanup_recognises_the_child_harness_temp_root_spelling(self) -> None:
+        """P2, and created by round 8/9's own fixes: this process canonicalizes its temp root to
+        the real path while the spawned harness inherits the ordinary spelling, so on macOS the
+        containment check compared `/private/var/...` against `/var/...` and skipped every
+        cleanup — leaving the plugin copies and transcripts behind after each eval."""
+        real = self.tmp / "private" / "scratch"
+        real.mkdir(parents=True)
+        link = self.tmp / "scratch"          # stands in for macOS `/var` -> `/private/var`
+        link.symlink_to(real, target_is_directory=True)
+        kept = real / "claude-eval-child" / "run-1"
+        kept.mkdir(parents=True)
+        (kept / "trace.jsonl").write_text("{}", encoding="utf-8")
+        # The child reports the UN-canonical spelling; this process canonicalized its own.
+        child_path = link / "claude-eval-child" / "run-1" / "trace.jsonl"
+
+        with (
+            mock.patch.dict(eval_routing.os.environ, {"TMPDIR": str(link)}, clear=False),
+            mock.patch.object(
+                eval_routing.tempfile, "gettempdir", return_value=str(real.parent / "scratch")
+            ),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            eval_routing._remove_kept_temp_dirs({"c": [{"tracePath": str(child_path)}]})
+        self.assertFalse(
+            (real / "claude-eval-child").exists(),
+            "the harness's own directory must be removed under either spelling",
+        )
+
+    def test_the_auth_classifier_reads_the_kernel_decoder(self) -> None:
+        """P1 (`AGENTS.md` hard rule, one parser per fact): `eval_clean_room` kept a private
+        result-event parser while `fleet.stream.final_result` was added in this PR, so a later
+        decoding fix could make auth acceptance and run usability disagree about one transcript
+        — with the auth answer able to abort a paid batch."""
+        source = (REPO / "scripts" / "eval_clean_room.py").read_text(encoding="utf-8")
+        self.assertIn("return stream.final_result(transcript)", source)
+        self.assertNotIn('event.get("type") == "result"', source)
+        seen: list[str] = []
+        with mock.patch.object(
+            eval_clean_room.stream, "final_result",
+            side_effect=lambda text: (seen.append(text), None)[1],
+        ):
+            eval_clean_room.result_event("{}")
+        self.assertEqual(["{}"], seen)

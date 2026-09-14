@@ -22,6 +22,12 @@ import sys
 import tempfile
 from pathlib import Path
 
+_REPO_ROOT = str(Path(__file__).resolve().parents[1])
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)  # `import fleet` when run as `python3 scripts/<name>.py`
+
+from fleet import stream  # noqa: E402
+
 CREDENTIALS = ".credentials.json"
 AUTH_ENV_VARS = (
     "ANTHROPIC_API_KEY",
@@ -198,16 +204,14 @@ def clean_env():
 
 
 def result_event(transcript: str) -> dict | None:
-    """Return the final structured CLI result event, if one was emitted."""
-    result = None
-    for line in transcript.splitlines():
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(event, dict) and event.get("type") == "result":
-            result = event
-    return result
+    """The final structured CLI result event, read by the kernel's decoder.
+
+    A thin alias, kept because callers import this name. The parsing itself is NOT repeated here:
+    a private copy meant a later malformed-event or decoding fix could land in one reader and not
+    the other, and then authentication acceptance and run usability would disagree about the same
+    transcript -- with the auth answer able to abort a paid batch.
+    """
+    return stream.final_result(transcript)
 
 
 def raise_if_auth_failed(transcript: str, stderr: str = "") -> None:

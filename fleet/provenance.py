@@ -51,7 +51,14 @@ REPO = Path(__file__).resolve().parents[1]
 # schema mismatch before it compares `selection`, so those captures can never reach the changed
 # hashing at all. A v5 would therefore rename something no reader can observe. Bump when a capture
 # exists that the change would misreport; not merely because the hash moved.
-PROVENANCE_SCHEMA = "sde-agents/eval-provenance/v4"
+# v5 (2026-09-14): the identity binds the EXECUTABLE bit as well as the bytes. Review made the
+# frozen copy carry that bit so a plugin running one of its own files behaves in the snapshot as
+# it does at source -- which made a mode behaviourally significant while the hash still ignored
+# it, so two plugins with a helper at 0644 and 0755 executed differently and compared equal, and
+# a chmod between the identity read and the freeze evaded both provenance comparisons. Binding it
+# is the coherent half of that fix; a v4 capture and a v5 one are not comparable, which the
+# schema field makes visible rather than silent.
+PROVENANCE_SCHEMA = "sde-agents/eval-provenance/v5"
 
 
 # `claude --plugin-dir` discovers these authored/runtime surfaces. The allowlist is deliberate:
@@ -530,14 +537,33 @@ def _plugin_runtime_files(plugin_dir: Path) -> tuple[Path, dict[str, bytes], set
     return root, files, included
 
 
+def _is_executable(path: Path) -> bool:
+    """Whether this file carries any execute bit, refusing to guess when it cannot be read.
+
+    Bound into the plugin identity (schema v5). The file was just read to build the snapshot, so
+    a stat failure here is genuinely anomalous -- defaulting to "not executable" would silently
+    produce an identity for bytes whose behaviour was never established.
+    """
+    try:
+        return bool(path.stat().st_mode & 0o111)
+    except OSError as exc:
+        raise ProvenanceError(f"cannot read the mode of {path}: {exc}") from exc
+
+
 def _plugin_identity_from_files(
     root: Path,
     files: dict[str, bytes],
     included: set[str],
 ) -> dict:
-    """Identify the exact in-memory snapshot returned by `_plugin_runtime_files`."""
+    """Identify the exact in-memory snapshot returned by `_plugin_runtime_files`.
+
+    Content AND the executable bit. The bit is part of what the frozen copy reproduces, so
+    leaving it out of the digest let two plugins that execute differently carry one identity.
+    Only that bit is bound: read/write permissions do not change what a session can run, and
+    folding them in would make an identity depend on the operator's umask.
+    """
     digest = hashlib.sha256()
-    digest.update(b"sde-agents-plugin-content-v1\0")
+    digest.update(b"sde-agents-plugin-content-v2\0")
     for relative in sorted(files):
         name_bytes = relative.encode("utf-8")
         content = files[relative]
@@ -545,6 +571,7 @@ def _plugin_identity_from_files(
         digest.update(name_bytes)
         digest.update(len(content).to_bytes(8, "big"))
         digest.update(content)
+        digest.update(b"\x01" if _is_executable(root / Path(relative)) else b"\x00")
 
     git_head, git_dirty = _git_identity(root)
     return {
