@@ -93,6 +93,29 @@ retired to native `claude plugin eval`; the hooks stay single-file and dependenc
 generated adapters byte-identical and every existing verdict unchanged unless its PR records the
 change; the routing runner is not wired onto the kernel before it retires (provenance hole).
 
+**Phase 4 open obligation — thirteen runner tests not yet re-homed.** `fleet/provenance.py` took
+the runner's identity machinery and 21 of its tests. Thirteen more drove that machinery through
+the runner's `main` and cannot run until the thin replacement exists, and four of those test the
+evaluator self-binding that phase 4 deliberately drops (see the decision record's phase-4
+amendment). Phase 4 does not merge until each is re-homed against the new entry point or deleted
+with its reason recorded:
+
+`test_routing_benchmark_writes_complete_provenance`,
+`test_routing_benchmark_refuses_plugin_content_changed_during_run`,
+`test_a_cluster_edited_mid_batch_into_a_bad_target_exits_two`,
+`test_routing_batch_aborts_auth_failure_without_writing_benchmark`,
+`test_routing_batch_requires_every_selected_agent_to_be_registered`,
+`test_routing_batch_cancels_queued_runs_after_registration_failure`,
+`test_routing_executes_frozen_plugin_when_source_changes_and_restores` and
+`test_routing_refuses_frozen_plugin_mutated_by_a_session` (both now covered directly by
+`FrozenPluginTest`, so these two are re-homed already),
+`test_transient_private_snapshot_mutation_is_a_host_sandbox_boundary`; and the self-binding four:
+`test_clean_room_classifier_is_loaded_once_per_evaluator_process`,
+`test_clean_room_identity_hashes_the_exact_compiled_source_buffer`,
+`test_standalone_runner_is_bound_to_its_actual_compiled_source_buffer`,
+`test_loaded_a_disk_b_identity_records_the_executing_routing_buffer`,
+`test_registry_survives_drive_letter_case_drift`.
+
 **Acceptance:** Per phase, the oracle named in the record's phase table, plus green tiers.
 Closes when phase 5 merges and the lint ratchet table in `pyproject.toml` is empty.
 
