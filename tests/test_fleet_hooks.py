@@ -20,6 +20,7 @@ import io
 import json
 import os
 import shutil
+import stat
 import tempfile
 import unittest
 from pathlib import Path
@@ -108,6 +109,36 @@ class RenderTests(unittest.TestCase):
         self.assertIn('"agent_type":"gate-ns:gated"', case_blocks(gate_command)["SQ"])
         self.assertNotIn("guard-ns", gate_command)
 
+    def test_emptying_a_roster_generates_and_validates(self) -> None:
+        # End to end, in both spellings an operator would reach for. `frozenset()` in particular
+        # was unreadable by the AST roster reader, which turned a valid configuration into a
+        # generation failure.
+        for spelling in ("frozenset()", "frozenset([])"):
+            with self.subTest(spelling=spelling), repo_copy() as dst:
+                script = dst / GATE_SCRIPT
+                script.write_text(
+                    script.read_text(encoding="utf-8").replace(
+                        'GATED_AGENT_NAMES = frozenset({"homelab-engineer"})',
+                        f"GATED_AGENT_NAMES = {spelling}",
+                        1,
+                    ),
+                    encoding="utf-8",
+                )
+                generator.write_generated_outputs(dst)
+                entries = json.loads(
+                    (dst / generator.HOOKS_FILE).read_text(encoding="utf-8")
+                )["hooks"]["PreToolUse"][0]["hooks"]
+                self.assertEqual(1, len(entries), entries)
+                self.assertIn("readonly-guard.py", entries[0]["command"])
+                fleet = Fleet.load(dst)
+                self.assertEqual(
+                    [],
+                    validate_fleet.validate_plugin(
+                        dst, fleet.agent_names, fleet.skill_names
+                    ),
+                )
+                self.assertEqual([], generator.validate_generated_outputs(dst))
+
     def test_a_shell_unsafe_name_is_refused_rather_than_interpolated(self) -> None:
         # Both roster spans land inside the hook's shell, and the identity span lands inside
         # SINGLE QUOTES. An apostrophe closes that quote and puts the rest in command position,
@@ -131,16 +162,20 @@ class RenderTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     hooks.render(hooks.GUARD_TEMPLATE, ["code-reviewer"], rejected)
 
-    def test_an_empty_roster_is_refused_rather_than_rendered(self) -> None:
-        # `case "$IN" in ) ;;` is a shell syntax error. The runtime swallows it, so the hook would
-        # fail on every Bash call while reading as armed. Refusing is the only honest answer.
-        with self.assertRaisesRegex(ValueError, "cannot be empty"):
-            hooks.render(hooks.GUARD_TEMPLATE, [], "sde-agents")
-        with self.assertRaisesRegex(ValueError, "cannot be empty"):
-            hooks.hooks_json(
-                hooks.Roster(frozenset(), "sde-agents"),
-                hooks.Roster(frozenset({"gated"}), "sde-agents"),
-            )
+    def test_an_empty_roster_renders_no_hook_rather_than_a_broken_one(self) -> None:
+        # `case "$IN" in ) ;;` is a shell syntax error the runtime swallows, so an empty roster
+        # must not render a hook. But it is a VALID configuration, not an error: the gate's own
+        # `_GATED` set goes empty and it returns every caller to the host, so removing the last
+        # gated agent must not break generation (Copilot, PR #193). The honest rendering of
+        # "covers nobody" is no hook at all.
+        self.assertIsNone(hooks.render(hooks.GUARD_TEMPLATE, [], "sde-agents"))
+        document = hooks.hooks_document(
+            hooks.Roster(frozenset({"guarded"}), "sde-agents"),
+            hooks.Roster(frozenset(), "sde-agents"),
+        )
+        entries = document["hooks"]["PreToolUse"][0]["hooks"]
+        self.assertEqual(1, len(entries), entries)
+        self.assertIn("readonly-guard.py", entries[0]["command"])
 
     def test_both_templates_carry_exactly_one_of_each_placeholder(self) -> None:
         # `render` substitutes once per placeholder. A template that gained a second copy would
@@ -243,6 +278,53 @@ class GeneratorWiringTests(unittest.TestCase):
                     generator._actual_generated_files(dst, tracked_files=None)
                 with self.assertRaisesRegex(ValueError, "(?:link|junction|reparse)"):
                     generator.write_generated_outputs(dst)
+            finally:
+                remove_directory_link(target)
+
+    def test_the_replacement_keeps_the_file_mode(self) -> None:
+        # `tempfile.mkstemp` creates 0600, and `os.replace` installs that inode as the hook file —
+        # so the atomic-replace fix would quietly narrow a normal 0644 hook to owner-only on every
+        # `--write`, while byte validation still passed and another reader in a shared checkout
+        # could no longer load it (Copilot, PR #193). Driven directly rather than through
+        # `repo_copy`, whose restoration is content-level only and does not carry file modes.
+        with tempfile.TemporaryDirectory() as directory:
+            existing = Path(directory) / "hooks.json"
+            existing.write_bytes(b"old")
+            os.chmod(existing, 0o644)
+            generator._replace_generated_file(existing, b"new")
+            self.assertEqual(b"new", existing.read_bytes())
+            self.assertEqual(0o644, stat.S_IMODE(existing.stat().st_mode))
+
+            # A file that did not exist gets what a plain create would have given it, never 0600.
+            fresh = Path(directory) / "fresh.json"
+            generator._replace_generated_file(fresh, b"new")
+            umask = os.umask(0)
+            os.umask(umask)
+            self.assertEqual(0o666 & ~umask, stat.S_IMODE(fresh.stat().st_mode))
+
+    def test_a_refused_hook_path_leaves_the_adapter_trees_intact(self) -> None:
+        # The standalone path was validated inside the write loop, after every generated root had
+        # already been removed and recreated — so a link or malformed shape raised with the
+        # checkout in neither the old state nor the new one. The hook file is the FIRST entry in
+        # the write loop, so nothing else had been written back yet (Copilot, PR #193).
+        with repo_copy() as dst:
+            outside = dst / "outside-hooks"
+            outside.mkdir()
+            target = dst / "hooks"
+            for path in sorted(target.iterdir()):
+                path.replace(outside / path.name)
+            target.rmdir()
+            create_directory_link(outside, target)
+            try:
+                before = sorted(p.name for p in (dst / ".github" / "agents").iterdir())
+                self.assertTrue(before, "no adapters to lose — fixture is not exercising this")
+                with self.assertRaisesRegex(ValueError, "(?:link|junction|reparse)"):
+                    generator.write_generated_outputs(dst)
+                self.assertEqual(
+                    before,
+                    sorted(p.name for p in (dst / ".github" / "agents").iterdir()),
+                    "a refused hook path destroyed the adapter trees it had already replaced",
+                )
             finally:
                 remove_directory_link(target)
 
@@ -441,6 +523,66 @@ class ValidatorCrossCheckTests(unittest.TestCase):
             )
             self.assertIn(nested, command, "the nested case header moved; re-anchor this test")
             hook["command"] = command.replace(nested, "", 1)
+            path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+            fleet = Fleet.load(dst)
+            issues = validate_fleet.validate_plugin(dst, fleet.agent_names, fleet.skill_names)
+            self.assertTrue(
+                any(
+                    "no-interpreter fallback" in issue and "homelab-engineer" in issue
+                    for issue in issues
+                ),
+                issues,
+            )
+
+    def test_a_narrowed_pattern_is_not_accepted_as_the_roster_token(self) -> None:
+        # `pattern in block` does not prove the pattern IS an alternative: rendering
+        # `*homelab-engineer*requires-extra*` contains `*homelab-engineer*`, satisfies a substring
+        # check, and still never matches an ordinary payload for that agent (Copilot, PR #193).
+        # The check now compares whole `case` alternatives.
+        with repo_copy() as dst:
+            path = dst / "hooks" / "hooks.json"
+            document = json.loads(path.read_text(encoding="utf-8"))
+            hook = document["hooks"]["PreToolUse"][0]["hooks"][1]
+            hook["command"] = hook["command"].replace(
+                "*homelab-engineer*)", "*homelab-engineer*requires-extra*)", 1
+            )
+            path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+            fleet = Fleet.load(dst)
+            issues = validate_fleet.validate_plugin(dst, fleet.agent_names, fleet.skill_names)
+            self.assertTrue(
+                any(
+                    "fast-path filter" in issue and "homelab-engineer" in issue
+                    for issue in issues
+                ),
+                issues,
+            )
+
+    def test_a_decoy_roster_nested_in_the_fast_path_is_not_read_as_the_fallback(self) -> None:
+        # Selecting the first block per variable took whichever came first in the text. A
+        # roster-shaped `case "$SQ"` nested INSIDE the fast path decides nothing — the fast path
+        # has already chosen to run the interpreter — so a malformed hook could satisfy the check
+        # with a decoy while the real fallback matched nobody (Copilot, PR #193). Only blocks
+        # opened at depth 0 are considered now.
+        with repo_copy() as dst:
+            path = dst / "hooks" / "hooks.json"
+            document = json.loads(path.read_text(encoding="utf-8"))
+            hook = document["hooks"]["PreToolUse"][0]["hooks"][1]
+            command = hook["command"]
+            identity = (
+                '''*'"agent_type":"sde-agents:homelab-engineer"'*'''
+                '''|*'"agent_type":"homelab-engineer"'*'''
+            )
+            self.assertIn(identity, command, "the identity roster moved; re-anchor this test")
+            # Gut the real fallback FIRST: the decoy contains the same text, and planting it
+            # first would make a single replace hit the decoy instead.
+            command = command.replace(identity, '''*'"agent_type":"NOBODY"'*''', 1)
+            command = command.replace(
+                "*homelab-engineer*) ;;",
+                f'*homelab-engineer*) case "$SQ" in {identity}) ;; esac ;;',
+                1,
+            )
+            self.assertIn(identity, command, "the decoy was not planted")
+            hook["command"] = command
             path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
             fleet = Fleet.load(dst)
             issues = validate_fleet.validate_plugin(dst, fleet.agent_names, fleet.skill_names)

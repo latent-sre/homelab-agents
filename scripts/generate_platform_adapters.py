@@ -35,6 +35,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -1274,6 +1275,17 @@ def _replace_generated_file(path: Path, content: bytes) -> None:
     directories, so every entry there is a fresh inode before it is written.
     """
 
+    # `mkstemp` creates 0600, and `os.replace` would install that inode as the hook file -- so
+    # every `--write` would quietly narrow a normal 0644 hook to owner-only while byte validation
+    # still passed, and another reader in a shared checkout could no longer load it (Copilot,
+    # PR #193). Carry the existing mode over, or fall back to the umask-respecting default a
+    # plain create would have produced.
+    try:
+        mode = stat.S_IMODE(path.stat().st_mode)
+    except FileNotFoundError:
+        umask = os.umask(0)
+        os.umask(umask)
+        mode = 0o666 & ~umask
     descriptor, temporary_name = tempfile.mkstemp(
         dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
     )
@@ -1281,6 +1293,7 @@ def _replace_generated_file(path: Path, content: bytes) -> None:
     try:
         with os.fdopen(descriptor, "wb") as handle:
             handle.write(content)
+        os.chmod(temporary, mode)
         os.replace(temporary, path)
     except BaseException:
         temporary.unlink(missing_ok=True)
@@ -1354,6 +1367,13 @@ def _remove_generated_root(target: Path) -> None:
 def write_generated_outputs(root: Path) -> int:
     for relative_root in (*RETIRED_GENERATED_ROOTS, *GENERATED_ROOTS):
         _safe_generated_root(root, relative_root, operation="replace")
+    # Standalone outputs are preflighted with the roots, BEFORE anything is deleted. Checking them
+    # only in the write loop means a link or a malformed shape raises after the adapter trees have
+    # been removed and recreated, leaving a checkout that is neither the old state nor the new one
+    # (Copilot, PR #193). The second check in the loop stays: this one runs before
+    # `expected_outputs`, and the roots are rewritten in between.
+    for relative_file in GENERATED_FILES:
+        _safe_generated_file(root, relative_file, operation="replace")
     expected = expected_outputs(root)
     for relative_root in RETIRED_GENERATED_ROOTS:
         _remove_generated_root(_safe_generated_root(root, relative_root, operation="replace"))

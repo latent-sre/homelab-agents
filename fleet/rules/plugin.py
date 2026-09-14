@@ -23,17 +23,51 @@ from fleet.snapshot import GATE_ROSTER, GUARD_ROSTER, Fleet
 # whitespace-stripped copy, so JSON spacing cannot decide whether the fallback fires. Either
 # variable opens a roster block, and the cross-check must recognise both.
 CASE_BLOCK_RE = re.compile(r'case "\$(IN|SQ)" in')
+# Every `case` opener and closer, so nesting depth can be tracked. The gate opens three at the
+# outer level (`$IN`, the policy selector, `$SQ`) and one INSIDE its fallback, and only the outer
+# ones decide anything.
+CASE_TOKEN_RE = re.compile(r"\bcase\s+\S+\s+in\b|\besac\b")
 # The two blocks a roster must reach. Named, not counted: see `_select_roster_blocks`.
 ROSTER_VARIABLES = ("IN", "SQ")
 GROUP = "plugin"
 
 
 def _roster_blocks(command: str) -> list[tuple[str, str]]:
-    """Every roster-bearing `case` block, paired with the variable that opened it."""
-    parts = CASE_BLOCK_RE.split(command)
-    return [
-        (parts[index], parts[index + 1].split("esac", 1)[0]) for index in range(1, len(parts), 2)
-    ]
+    """Every roster-bearing `case` block at the OUTER level, with the variable that opened it.
+
+    Depth is tracked rather than assumed. A `case "$SQ"` nested inside the fast path decides
+    nothing -- the fast path already chose to run the interpreter by the time it is reached -- but
+    a malformed hook can put a roster-shaped decoy there and leave the real fallback matching
+    nobody. Taking the first block per variable would then check the decoy and pass (Copilot,
+    PR #193). Only blocks opened at depth 0 are returned.
+    """
+
+    blocks: list[tuple[str, str]] = []
+    depth = 0
+    for token in CASE_TOKEN_RE.finditer(command):
+        text = token.group(0)
+        if text == "esac":
+            depth = max(0, depth - 1)
+            continue
+        if depth == 0:
+            variable = CASE_BLOCK_RE.match(text)
+            if variable is not None:
+                blocks.append((variable.group(1), command[token.end() :]))
+        depth += 1
+    return blocks
+
+
+def _case_alternatives(block: str) -> set[str]:
+    """The `case` alternatives the block actually matches on, as exact tokens.
+
+    A SUBSTRING test does not prove a pattern is present: a rendered
+    `*homelab-engineer*requires-extra*` contains `*homelab-engineer*`, satisfies the check, and
+    still never matches an ordinary payload for that agent (Copilot, PR #193). The alternative
+    list ends at the first unquoted `)`, which is where `case` itself ends it, and the roster
+    tokens this fleet renders contain no `)`.
+    """
+
+    return {alternative.strip() for alternative in block.split(")", 1)[0].split("|")}
 
 
 def _missing_patterns(variable: str, name: str, plugin_name: str, block: str) -> list[str]:
@@ -44,6 +78,9 @@ def _missing_patterns(variable: str, name: str, plugin_name: str, block: str) ->
     English sentence names the gated agent -- so the roster could be replaced with a name that
     gates nobody and the check still found the agent, in prose (Copilot, PR #193). Matching the
     exact `case` alternation tokens closes that: prose does not contain them.
+
+    Each token must be an ENTIRE alternative, not a substring of one: a pattern narrowed to
+    `*name*something-else*` contains the expected text and matches nothing real.
 
     These tokens are spelled HERE rather than imported from `fleet.hooks`, deliberately. This is
     the independent check on what that renderer produced; building the expectation from the
@@ -63,7 +100,8 @@ def _missing_patterns(variable: str, name: str, plugin_name: str, block: str) ->
             f"""*'"agent_type":"{plugin_name}:{name}"'*""",
             f"""*'"agent_type":"{name}"'*""",
         ]
-    return [pattern for pattern in wanted if pattern not in block]
+    present = _case_alternatives(block)
+    return [pattern for pattern in wanted if pattern not in present]
 
 
 def _select_roster_blocks(blocks: list[tuple[str, str]]) -> dict[str, str]:
@@ -244,19 +282,23 @@ def plugin_findings(
                     )
                 )
         gate_command = fleet.hook_command_for("live-effect-gate.py")
+        # An EMPTY roster gates nobody by design, and the renderer emits no hook for it -- so an
+        # absent gate hook is correct there, and demanding one would fail a valid configuration.
+        # A non-empty roster with no hook is the silent-disarm this rule exists for.
         if gate_command is None:
-            findings.append(
-                Finding(
-                    "plugin.hooks.gate",
-                    f"{hooks_path}: no PreToolUse/Bash hook runs "
-                    f"scripts/live-effect-gate.py. A plugin-shipped agent cannot carry its own "
-                    f"hooks, "
-                    f"so this file is the ONLY place the live-effect gate can be attached — "
-                    f"without "
-                    f"it, homelab-engineer's managed gate is prose.",
-                    hooks_path,
+            if gated:
+                findings.append(
+                    Finding(
+                        "plugin.hooks.gate",
+                        f"{hooks_path}: no PreToolUse/Bash hook runs "
+                        f"scripts/live-effect-gate.py. A plugin-shipped agent cannot carry its own "
+                        f"hooks, "
+                        f"so this file is the ONLY place the live-effect gate can be attached — "
+                        f"without "
+                        f"it, homelab-engineer's managed gate is prose.",
+                        hooks_path,
+                    )
                 )
-            )
         elif "${CLAUDE_PLUGIN_ROOT}/scripts/live-effect-gate.py" not in gate_command:
             findings.append(
                 Finding(
@@ -317,18 +359,21 @@ def plugin_findings(
                             )
 
     command = fleet.hook_command_for("readonly-guard.py")
+    # Same reasoning as the gate above: an empty GUARDED_AGENT_NAMES guards nobody by design and
+    # renders no hook, so only a non-empty roster owes one.
     if command is None:
-        findings.append(
-            Finding(
-                "plugin.hooks.guard",
-                f"{hooks_path}: no PreToolUse hook with matcher 'Bash' and a command. "
-                f"A plugin-shipped agent cannot carry its own hooks, so this file is the ONLY "
-                f"place the "
-                f"read-only guard can be attached — without it, code-reviewer holds Bash "
-                f"unguarded.",
-                hooks_path,
+        if guarded:
+            findings.append(
+                Finding(
+                    "plugin.hooks.guard",
+                    f"{hooks_path}: no PreToolUse hook with matcher 'Bash' and a command. "
+                    f"A plugin-shipped agent cannot carry its own hooks, so this file is the ONLY "
+                    f"place the "
+                    f"read-only guard can be attached — without it, code-reviewer holds Bash "
+                    f"unguarded.",
+                    hooks_path,
+                )
             )
-        )
     else:
         if "readonly-guard.py" not in command:
             findings.append(

@@ -107,17 +107,19 @@ def _assert_shell_safe(value: str, what: str) -> None:
         )
 
 
-def render(template: str, names: Iterable[str], plugin_name: str) -> str:
+def render(template: str, names: Iterable[str], plugin_name: str) -> str | None:
     """One hook command, with both roster copies rendered from the same set of names."""
     names = list(names)
+    if not names:
+        # An empty roster would render `case "$IN" in ) ;;` -- a shell syntax error the runtime
+        # swallows, leaving the hook non-zero on every Bash call. But an empty roster is a VALID
+        # configuration, not an error: the gate's own `_GATED` set goes empty and it returns every
+        # caller to the host, so removing the last gated agent must not break generation (Copilot,
+        # PR #193). The honest rendering of "covers nobody" is no hook at all.
+        return None
     _assert_shell_safe(plugin_name, "PLUGIN_NAME")
     for name in names:
         _assert_shell_safe(name, "roster name")
-    if not names:
-        # An empty roster would render `case "$IN" in ) ;;` -- a shell syntax error that the
-        # runtime swallows, leaving the hook exiting non-zero on every Bash call. Refusing is the
-        # only answer that cannot be mistaken for an armed hook.
-        raise ValueError("a hook roster cannot be empty; the rendered `case` would not parse")
     return template.replace(FAST_PATH, fast_path_pattern(names), 1).replace(
         IDENTITY, identity_pattern(names, plugin_name), 1
     )
@@ -135,25 +137,15 @@ def hooks_document(guard: Roster, gate: Roster) -> dict[str, object]:
     identity block from the guard's namespace would be a silent disagreement this file cannot
     show.
     """
-    return {
-        "hooks": {
-            "PreToolUse": [
-                {
-                    "matcher": "Bash",
-                    "hooks": [
-                        {
-                            "type": "command",
-                            "command": render(GUARD_TEMPLATE, guard.names, guard.plugin_name),
-                        },
-                        {
-                            "type": "command",
-                            "command": render(GATE_TEMPLATE, gate.names, gate.plugin_name),
-                        },
-                    ],
-                }
-            ]
-        }
-    }
+    entries = [
+        {"type": "command", "command": command}
+        for command in (
+            render(GUARD_TEMPLATE, guard.names, guard.plugin_name),
+            render(GATE_TEMPLATE, gate.names, gate.plugin_name),
+        )
+        if command is not None
+    ]
+    return {"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": entries}]}}
 
 
 def hooks_json(guard: Roster, gate: Roster) -> bytes:
