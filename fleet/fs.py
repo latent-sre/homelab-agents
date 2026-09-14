@@ -71,17 +71,34 @@ def atomic_write_bytes(path: Path, content: bytes) -> None:
     The bytes land in a sibling temporary file, are flushed and fsync'ed, then renamed over the
     target with `os.replace`, which is atomic on POSIX and on NTFS. A failure at any step removes
     the temporary file and leaves the previous content untouched.
+
+    Replacing an entry rather than truncating an inode is also what keeps a hard link from
+    redirecting the write: a hard link is invisible to any link check, because `lstat` reports an
+    ordinary file, and an in-place write would go through the shared inode to whatever else points
+    at it.
+
+    The existing file's MODE is carried over, and a new file gets what a plain create would have
+    given it. `mkstemp` makes its file 0600, so without this every rewrite would silently narrow a
+    world-readable file to owner-only -- invisible to content checks, and enough to stop another
+    reader in a shared checkout from loading it (Copilot, PR #193).
     """
     import tempfile
 
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        mode = stat.S_IMODE(path.stat().st_mode)
+    except FileNotFoundError:
+        umask = os.umask(0)
+        os.umask(umask)
+        mode = 0o666 & ~umask
     handle, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     try:
         with os.fdopen(handle, "wb") as stream:
             stream.write(content)
             stream.flush()
             os.fsync(stream.fileno())
+        os.chmod(temporary, mode)
         os.replace(temporary, path)
     except BaseException:
         try:

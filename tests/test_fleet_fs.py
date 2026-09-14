@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import stat
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -66,6 +67,27 @@ class ReadTests(TempDirTestCase):
 
 
 class AtomicWriteTests(TempDirTestCase):
+    def test_atomic_write_keeps_the_existing_file_mode(self) -> None:
+        # `mkstemp` creates 0600 and `os.replace` installs that inode, so without carrying the
+        # mode over every rewrite would silently narrow a world-readable file to owner-only --
+        # invisible to any content check, and enough to stop another reader in a shared checkout
+        # from loading it (Copilot, PR #193). Every caller of this helper rewrites files that
+        # already exist, so the fix belongs here rather than in one of them.
+        with tempfile.TemporaryDirectory() as directory:
+            existing = Path(directory) / "kept.json"
+            existing.write_bytes(b"first")
+            os.chmod(existing, 0o644)
+            fs.atomic_write_bytes(existing, b"second")
+            self.assertEqual(b"second", existing.read_bytes())
+            self.assertEqual(0o644, stat.S_IMODE(existing.stat().st_mode))
+
+            # A file that did not exist gets what a plain create would have given it, never 0600.
+            fresh = Path(directory) / "fresh.json"
+            fs.atomic_write_bytes(fresh, b"new")
+            umask = os.umask(0)
+            os.umask(umask)
+            self.assertEqual(0o666 & ~umask, stat.S_IMODE(fresh.stat().st_mode))
+
     def test_write_replaces_content_and_leaves_no_temporary_file(self) -> None:
         target = self.base / "nested" / "out.toml"
         fs.atomic_write_bytes(target, b"first")

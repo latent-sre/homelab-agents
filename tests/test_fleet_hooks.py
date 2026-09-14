@@ -20,7 +20,6 @@ import io
 import json
 import os
 import shutil
-import stat
 import tempfile
 import unittest
 from pathlib import Path
@@ -280,27 +279,6 @@ class GeneratorWiringTests(unittest.TestCase):
                     generator.write_generated_outputs(dst)
             finally:
                 remove_directory_link(target)
-
-    def test_the_replacement_keeps_the_file_mode(self) -> None:
-        # `tempfile.mkstemp` creates 0600, and `os.replace` installs that inode as the hook file —
-        # so the atomic-replace fix would quietly narrow a normal 0644 hook to owner-only on every
-        # `--write`, while byte validation still passed and another reader in a shared checkout
-        # could no longer load it (Copilot, PR #193). Driven directly rather than through
-        # `repo_copy`, whose restoration is content-level only and does not carry file modes.
-        with tempfile.TemporaryDirectory() as directory:
-            existing = Path(directory) / "hooks.json"
-            existing.write_bytes(b"old")
-            os.chmod(existing, 0o644)
-            generator._replace_generated_file(existing, b"new")
-            self.assertEqual(b"new", existing.read_bytes())
-            self.assertEqual(0o644, stat.S_IMODE(existing.stat().st_mode))
-
-            # A file that did not exist gets what a plain create would have given it, never 0600.
-            fresh = Path(directory) / "fresh.json"
-            generator._replace_generated_file(fresh, b"new")
-            umask = os.umask(0)
-            os.umask(umask)
-            self.assertEqual(0o666 & ~umask, stat.S_IMODE(fresh.stat().st_mode))
 
     def test_a_refused_hook_path_leaves_the_adapter_trees_intact(self) -> None:
         # The standalone path was validated inside the write loop, after every generated root had

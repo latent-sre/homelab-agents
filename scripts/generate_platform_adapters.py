@@ -35,10 +35,8 @@ import json
 import os
 import re
 import shutil
-import stat
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from types import ModuleType
 
@@ -1260,46 +1258,6 @@ def _safe_generated_root(root: Path, relative: Path, *, operation: str) -> Path:
     return target
 
 
-def _replace_generated_file(path: Path, content: bytes) -> None:
-    """Replace a standalone generated file by directory entry, never by truncating its inode.
-
-    `write_bytes` opens the EXISTING inode and truncates it. A hard link is indistinguishable from
-    a regular file -- `lstat` reports one, and the link/reparse checks above cannot see it -- so a
-    hard link at `hooks/hooks.json` pointing at a file outside the checkout means `--write`
-    silently overwrites that file and leaves the link in place. Reproduced on this PR's own head
-    (Codex, PR #193). Writing a sibling temp file and `os.replace`-ing it swaps the directory
-    entry instead: the old inode keeps its bytes, the outside file is untouched, and the swap is
-    atomic, so a concurrent reader never sees a half-written or absent hook.
-
-    The files inside a generated ROOT do not need this: `--write` removes and recreates those
-    directories, so every entry there is a fresh inode before it is written.
-    """
-
-    # `mkstemp` creates 0600, and `os.replace` would install that inode as the hook file -- so
-    # every `--write` would quietly narrow a normal 0644 hook to owner-only while byte validation
-    # still passed, and another reader in a shared checkout could no longer load it (Copilot,
-    # PR #193). Carry the existing mode over, or fall back to the umask-respecting default a
-    # plain create would have produced.
-    try:
-        mode = stat.S_IMODE(path.stat().st_mode)
-    except FileNotFoundError:
-        umask = os.umask(0)
-        os.umask(umask)
-        mode = 0o666 & ~umask
-    descriptor, temporary_name = tempfile.mkstemp(
-        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
-    )
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "wb") as handle:
-            handle.write(content)
-        os.chmod(temporary, mode)
-        os.replace(temporary, path)
-    except BaseException:
-        temporary.unlink(missing_ok=True)
-        raise
-
-
 def _safe_generated_file(root: Path, relative: Path, *, operation: str) -> Path:
     """Resolve a declared standalone generated file, refusing any link-like path COMPONENT.
 
@@ -1388,8 +1346,12 @@ def write_generated_outputs(root: Path) -> int:
             # Re-checked here, not just at inspect time: `--write` is the call that can overwrite
             # a file outside the checkout, and the roots above were cleared and recreated since.
             path = _safe_generated_file(root, relative, operation="write")
-            path.parent.mkdir(parents=True, exist_ok=True)
-            _replace_generated_file(path, content)
+            # The kernel's atomic writer, not a second one here: it replaces the directory entry
+            # instead of truncating the inode, which is what keeps a hard link at this path from
+            # redirecting the write to whatever else points at that inode, and it carries the
+            # existing mode over. A file inside a generated ROOT needs none of that -- those
+            # directories were removed and recreated above, so every entry is a fresh inode.
+            _fs.atomic_write_bytes(path, content)
             continue
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
