@@ -295,8 +295,11 @@ and the probe; no contract-graded re-measure is available.
 
 #### DIALECT-001 — the frontmatter reader strips quotes instead of parsing the scalar
 
-**Status:** `active` — found by the phase-3 property tests over `fleet/frontmatter.py`; latent
-today, recorded rather than fixed because the repair changes what every rule sees.
+**Status:** `decision-needed` — found by the phase-3 property tests over `fleet/frontmatter.py`;
+latent today. The only next action is choosing between two incompatible parser policies, and
+neither has been selected, so this is an operator choice rather than work underway (the same shape
+as PORT-002 above). Marking it `active` would tell a later stateless session that someone is
+already on it.
 
 **Outcome:** `parse_lines` reads a quoted scalar with `value.strip("'\"")` — a crude strip of
 quote characters from both ends, not a scalar parser. Two consequences share that one cause:

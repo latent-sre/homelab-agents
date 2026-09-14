@@ -642,34 +642,83 @@ class ProbeTimeoutRecoveryTests(unittest.TestCase):
         self.assertFalse(probe_plugin.spawn_succeeded(absent, agent))
 
     def test_an_answered_gate_arm_is_graded_even_when_its_peer_times_out(self) -> None:
-        """An arm that completed carries evidence of its own.
+        """Drives `_probe_live_effect_gate` itself, because the defect was CONTROL FLOW.
 
-        The loop used to return on the first unanswered arm, throwing away a completed
-        transcript the probe had already paid to observe — so an AGENT arm proving the live verb
-        ran was discarded because MAIN timed out.
+        The first version of this test rebuilt the loop in its own body and inserted the expected
+        FAIL by hand. It executed none of the production branch it claimed to cover, so
+        reinstating the early return left it green -- a test that reads as enforcement while
+        enforcing nothing, which is the class this PR keeps finding (Codex, #190).
+
+        The AGENT arm answers with a transcript showing the live verb RAN unguarded; the MAIN arm
+        times out. The observed regression must survive its peer's timeout.
         """
-        answered = probe_plugin._proc.CommandResult(("claude",), 0, "", "")
-        timed_out = probe_plugin._proc.CommandResult(
-            ("claude",), None, "", "", timed_out=True, error="timed out"
+        marker = probe_plugin.GATE_CMD.format(marker="AGENT")
+        ran_unguarded = "\n".join(
+            json.dumps(event)
+            for event in (
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "id": "call_gate",
+                                "name": "Bash",
+                                "input": {"command": marker},
+                            }
+                        ]
+                    },
+                },
+                {
+                    "type": "user",
+                    "message": {
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "call_gate",
+                                "content": "GATEPROBE_AGENT\nno such file",
+                            }
+                        ]
+                    },
+                },
+            )
         )
-        probe = probe_plugin.Probe()
-        with contextlib.redirect_stdout(io.StringIO()):
-            for marker, result in (("AGENT", answered), ("MAIN", timed_out)):
-                probe.answered(result, f"the live-effect gate differential ({marker} arm)")
-            # Standing in for the AGENT arm's own grading, which the early return skipped.
-            probe.reading(answered)
-            probe.check(probe_plugin.FAIL, "the live verb RAN for homelab-engineer")
 
-        statuses = {label: status for status, label, _ in probe.results}
+        def spawn(cmd, **_kwargs):
+            argv = tuple(cmd)
+            if "--agent" in argv:
+                return probe_plugin._proc.CommandResult(argv, 0, ran_unguarded, "")
+            return probe_plugin._proc.CommandResult(
+                argv, None, "", "", timed_out=True, error="timed out"
+            )
+
+        probe = probe_plugin.Probe()
+        with (
+            mock.patch.object(probe_plugin, "run", side_effect=spawn),
+            mock.patch.object(probe_plugin, "CLAUDE", "claude"),
+            mock.patch.object(probe_plugin, "existing_path", return_value=None),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            probe_plugin._probe_live_effect_gate(probe, Path("probe-target"))
+
+        verdicts = {label: status for status, label, _ in probe.results}
         self.assertEqual(
             probe_plugin.SKIP,
-            statuses["the live-effect gate differential (MAIN arm)"],
-            "the unanswered arm must still be reported",
+            verdicts.get("the live-effect gate differential (MAIN arm)"),
+            "the timed-out MAIN arm was not reported",
+        )
+        agent_verdict = verdicts.get(
+            "the gate DENIED homelab-engineer's live verb under dontAsk"
+        )
+        self.assertIsNotNone(
+            agent_verdict,
+            "the answered AGENT arm was never graded -- the early return is back",
         )
         self.assertEqual(
             probe_plugin.FAIL,
-            statuses["the live verb RAN for homelab-engineer"],
-            "the answered arm's observed regression was discarded with its peer",
+            agent_verdict,
+            "the AGENT arm observed the live verb running unguarded, and that verdict was "
+            "discarded or downgraded because its peer timed out",
         )
 
     def test_an_answering_leg_clears_the_previous_session_truncation(self) -> None:

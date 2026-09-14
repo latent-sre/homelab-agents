@@ -558,37 +558,51 @@ class DoctorUsesTheKernelResult(unittest.TestCase):
         self.assertEqual({"stderr": "warn"}, details)
 
     def test_every_command_failure_branch_carries_the_cause(self) -> None:
-        """Each defensive branch fires, and each one names WHY, not just that something failed.
+        """All FOUR production branches, driven through their own functions.
 
-        The worktree branch was missed on the first pass because it was fixed by searching for
-        one variable's spelling rather than for the pattern, so this drives all four branches
-        through the real check functions instead of asserting on the helper alone.
+        An earlier version of this test was named "every" while driving only the two
+        `_git_checks` branches, so the CLI and plugin-list branches could have gone back to a
+        bare `stderr` diagnostic with the suite green (Codex, #190). A test that asserts on the
+        helper alone proves nothing about a branch that never calls it, and a name that overstates
+        its coverage is worse than no test, because it stops anyone looking.
         """
         timed_out = fleet_doctor.CommandResult(
-            ("git",), None, "", "", timed_out=True, error="timed out after 30s"
+            ("cmd",), None, "", "", timed_out=True, error="timed out after 30s"
         )
         ok_head = fleet_doctor.CommandResult(("git",), 0, "a" * 40 + "\n", "")
 
-        # repository.git: the first command fails.
+        def assert_cause(check: fleet_doctor.Check, where: str) -> None:
+            self.assertEqual("inconclusive", check.status, where)
+            self.assertEqual("timed out after 30s", check.details.get("error"), where)
+            self.assertTrue(check.details.get("timed_out"), where)
+
+        # 1. repository.git -- the first command fails.
         checks = fleet_doctor._git_checks(Path("/repo"), lambda argv: timed_out)
-        git_check = next(c for c in checks if c.check_id == "repository.git")
-        self.assertEqual("inconclusive", git_check.status)
-        self.assertEqual("timed out after 30s", git_check.details["error"])
-        self.assertTrue(git_check.details["timed_out"])
+        assert_cause(next(c for c in checks if c.check_id == "repository.git"), "repository.git")
 
-        # repository.worktree: the revision reads, the status command does not.
-        def head_then_timeout(argv):
-            return ok_head if "rev-parse" in argv else timed_out
-
-        checks = fleet_doctor._git_checks(Path("/repo"), head_then_timeout)
-        worktree = next(c for c in checks if c.check_id == "repository.worktree")
-        self.assertEqual("inconclusive", worktree.status)
-        self.assertEqual(
-            "timed out after 30s",
-            worktree.details["error"],
-            "the worktree branch reported a blank diagnostic",
+        # 2. repository.worktree -- the revision reads, the status command does not.
+        checks = fleet_doctor._git_checks(
+            Path("/repo"), lambda argv: ok_head if "rev-parse" in argv else timed_out
         )
-        self.assertTrue(worktree.details["timed_out"])
+        assert_cause(
+            next(c for c in checks if c.check_id == "repository.worktree"), "repository.worktree"
+        )
+
+        # 3. host.<name>.cli -- the executable is found but its version never comes back.
+        cli_checks, _ = fleet_doctor._cli_checks(
+            lambda command: f"/usr/bin/{command}", lambda argv: timed_out
+        )
+        version_checks = [c for c in cli_checks if c.check_id.endswith(".cli")]
+        self.assertTrue(version_checks, "no CLI version check was produced")
+        for check in version_checks:
+            assert_cause(check, check.check_id)
+
+        # 4. host.<name>.plugin -- the plugin inventory never comes back.
+        listing_check, healthy = fleet_doctor._plugin_listing_check(
+            "claude", "/usr/bin/claude", lambda argv: timed_out
+        )
+        assert_cause(listing_check, "host.claude.plugin")
+        self.assertFalse(healthy, "a failed listing must not report the inventory as readable")
 
     def test_a_timed_out_command_is_not_read_as_a_passing_check(self) -> None:
         """The trap the migration had to avoid, pinned as behaviour rather than as a comment."""
