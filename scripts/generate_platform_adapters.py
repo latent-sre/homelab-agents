@@ -1310,6 +1310,28 @@ def _safe_generated_file(root: Path, relative: Path, *, operation: str) -> Path:
     for part in relative.parts:
         current /= part
         _assert_no_generated_path_indirection(current, operation=operation)
+        # Shape, once indirection is ruled out (so `exists` cannot follow a link somewhere else).
+        # Without this a directory at `hooks/hooks.json`, or a regular file at `hooks/`, reads as
+        # a MISSING hook: validation tells the operator to run `--write`, and that write then
+        # fails on `mkdir` or `os.replace` with an errno the advice did not predict. A malformed
+        # output is a third state, and saying so is the difference between a repair that works
+        # and one the operator is sent to twice (Copilot, PR #193).
+        if not current.exists():
+            break
+        if current == target:
+            if not current.is_file():
+                raise ValueError(
+                    f"refusing to {operation} generated path that is not a regular file: "
+                    f"{current}. Remove it by hand, then regenerate -- this is malformed output, "
+                    f"not an absent one, and replacing it blindly could delete a directory "
+                    f"nothing here put there."
+                )
+        elif not current.is_dir():
+            raise ValueError(
+                f"refusing to {operation} generated path under a non-directory: {current} is "
+                f"not a directory, so the generated file below it cannot exist. Remove it by "
+                f"hand, then regenerate."
+            )
     return target
 
 

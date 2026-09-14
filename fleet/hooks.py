@@ -31,6 +31,8 @@ import json
 from collections.abc import Iterable
 from typing import NamedTuple
 
+from fleet.frontmatter import NAME_RE
+
 
 class Roster(NamedTuple):
     """One hook script's subjects and the namespace it spells them under.
@@ -81,9 +83,36 @@ def identity_pattern(names: Iterable[str], plugin_name: str) -> str:
     )
 
 
+def _assert_shell_safe(value: str, what: str) -> None:
+    """Refuse a name that would not survive interpolation into a shell `case` pattern.
+
+    Both spans land inside the hook's shell, and the identity span lands inside SINGLE QUOTES.
+    An apostrophe in either value closes that quote and puts the rest in command position: a
+    `PLUGIN_NAME` of `x') ;; *) rm -rf ~; ;; esac; #` renders a hook that runs `rm` on the next
+    Bash call (Copilot, PR #193 -- reproduced before this guard existed). The generator renders
+    whatever tree it is pointed at, so these values are not trusted input; escaping is not enough
+    either, because a pattern is glob-significant as well as quote-significant.
+
+    The grammar is the fleet's own component-name grammar (`fleet.frontmatter.NAME_RE`), not a
+    second spelling of it: these ARE component names, and every character it admits is inert in
+    both a shell word and a glob. Refusing is right rather than conservative -- a name this
+    rejects could not be a fleet component anyway, so there is nothing legitimate to lose.
+    """
+
+    if not NAME_RE.fullmatch(value):
+        raise ValueError(
+            f"{what} {value!r} is not a fleet component name "
+            f"({NAME_RE.pattern}); refusing to interpolate it into the hook's shell, where a "
+            f"quote or metacharacter would run as a command rather than match one"
+        )
+
+
 def render(template: str, names: Iterable[str], plugin_name: str) -> str:
     """One hook command, with both roster copies rendered from the same set of names."""
     names = list(names)
+    _assert_shell_safe(plugin_name, "PLUGIN_NAME")
+    for name in names:
+        _assert_shell_safe(name, "roster name")
     if not names:
         # An empty roster would render `case "$IN" in ) ;;` -- a shell syntax error that the
         # runtime swallows, leaving the hook exiting non-zero on every Bash call. Refusing is the

@@ -170,7 +170,7 @@ with its reason recorded:
 therefore closes when the phase-5 PR merges. Adding a fourth entry still owes the same
 justification — this is not a reopened backlog.
 
-The three ruled permanent, and why none of them is a cleanup anyone skipped:
+All three are ruled permanent, and none of them is a cleanup anyone skipped:
 
 - `scripts/probe_plugin.py` — its long lines live inside the triple-quoted prompt and workflow
   source the probe sends to a live model. A physical line inside a triple-quoted string cannot

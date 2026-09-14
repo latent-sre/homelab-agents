@@ -19,6 +19,7 @@ import contextlib
 import io
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -106,6 +107,29 @@ class RenderTests(unittest.TestCase):
         self.assertNotIn("gate-ns", guard_command)
         self.assertIn('"agent_type":"gate-ns:gated"', case_blocks(gate_command)["SQ"])
         self.assertNotIn("guard-ns", gate_command)
+
+    def test_a_shell_unsafe_name_is_refused_rather_than_interpolated(self) -> None:
+        # Both roster spans land inside the hook's shell, and the identity span lands inside
+        # SINGLE QUOTES. An apostrophe closes that quote and puts the rest in command position,
+        # so a crafted PLUGIN_NAME renders a hook that RUNS a command on the next Bash call
+        # rather than matching one. The generator renders whatever tree it is pointed at, so
+        # these values are not trusted input (Copilot, PR #193 — reproduced before the guard).
+        injection = "x') ;; *) touch /tmp/sde-agents-pwned; ;; esac; #"
+        for label, names, plugin in (
+            ("plugin name", ["code-reviewer"], injection),
+            ("roster name", ["code-reviewer", injection], "sde-agents"),
+        ):
+            with self.subTest(field=label):
+                with self.assertRaisesRegex(ValueError, "not a fleet component name"):
+                    hooks.render(hooks.GUARD_TEMPLATE, names, plugin)
+        # The grammar is the fleet's, so anything a component could legitimately be still renders.
+        self.assertIn(
+            "*code-reviewer*", hooks.render(hooks.GUARD_TEMPLATE, ["code-reviewer"], "sde-agents")
+        )
+        for rejected in ("code reviewer", "UPPER", "a;b", "*", "a/b", ""):
+            with self.subTest(value=rejected):
+                with self.assertRaises(ValueError):
+                    hooks.render(hooks.GUARD_TEMPLATE, ["code-reviewer"], rejected)
 
     def test_an_empty_roster_is_refused_rather_than_rendered(self) -> None:
         # `case "$IN" in ) ;;` is a shell syntax error. The runtime swallows it, so the hook would
@@ -257,6 +281,35 @@ class GeneratorWiringTests(unittest.TestCase):
                 )
             finally:
                 victim.unlink(missing_ok=True)
+
+    def test_a_malformed_path_shape_is_named_rather_than_reported_as_missing(self) -> None:
+        # A directory at `hooks/hooks.json`, or a regular file at `hooks/`, is neither an absent
+        # hook nor a stale one. Read as "missing", validation sends the operator to `--write`, and
+        # that write then fails on `mkdir` or `os.replace` with an errno the advice did not
+        # predict — a repair path the diagnostic advertises and the code cannot deliver
+        # (Copilot, PR #193).
+        shapes = (
+            ("a directory where the hook file belongs", "not a regular file"),
+            ("a regular file where the hook directory belongs", "under a non-directory"),
+        )
+        for (label, expected), broken in zip(shapes, ("leaf", "parent"), strict=True):
+            with self.subTest(shape=label), repo_copy() as dst:
+                hooks_dir = dst / "hooks"
+                if broken == "leaf":
+                    (dst / generator.HOOKS_FILE).unlink()
+                    (dst / generator.HOOKS_FILE).mkdir()
+                else:
+                    shutil.rmtree(hooks_dir)
+                    hooks_dir.write_text("not a directory\n", encoding="utf-8")
+
+                issues = generator.validate_generated_outputs(dst)
+                self.assertTrue(any(expected in issue for issue in issues), issues)
+                self.assertFalse(
+                    any("missing generated hook file" in issue for issue in issues),
+                    f"malformed output reported as absent: {issues}",
+                )
+                with self.assertRaisesRegex(ValueError, expected):
+                    generator.write_generated_outputs(dst)
 
     def test_a_linked_hook_script_is_refused_before_its_roster_is_read(self) -> None:
         # The hook scripts are canonical sources that now feed a SHIPPED artifact. A link at
