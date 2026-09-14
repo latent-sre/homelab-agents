@@ -9,8 +9,7 @@ from pathlib import Path
 from unittest import mock
 
 from fleet import hooks
-from scripts import generate_platform_adapters
-from scripts import validate_fleet
+from scripts import generate_platform_adapters, validate_fleet
 from tests.support import (
     REPO,
     create_directory_link,
@@ -18,6 +17,7 @@ from tests.support import (
     remove_directory_link,
     repo_copy,
 )
+
 COPILOT_TOOL_ALIASES = {"agent", "edit", "execute", "read", "search", "web"}
 WRITE_TOOLS = {"Edit", "NotebookEdit", "Write"}
 

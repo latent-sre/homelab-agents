@@ -51,7 +51,7 @@ class SyncPlan:
 
 
 def _installed_bytes(source: bytes) -> bytes:
-    return f"{INSTALL_MARKER}\n".encode("utf-8") + source
+    return f"{INSTALL_MARKER}\n".encode() + source
 
 
 def _is_managed(content: bytes) -> bool:

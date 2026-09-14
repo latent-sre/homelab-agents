@@ -6,11 +6,10 @@ import importlib.util
 import io
 import json
 import os
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
-
 
 SOURCE = Path(__file__).resolve().parents[1] / 'skills/sre-tool/assets/cli_skeleton.py'
 spec = importlib.util.spec_from_file_location('cli_skeleton', SOURCE)

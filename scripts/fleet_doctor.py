@@ -16,10 +16,10 @@ import re
 import shutil
 import sys
 from collections import Counter
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Callable, Sequence
 
 # Importing repository helpers would otherwise create `scripts/__pycache__` in a clean checkout,
 # violating the doctor's read-only contract before its first check ran.
@@ -673,7 +673,7 @@ def collect_report(
         )
     )
     counts = Counter(check.status for check in checks)
-    generated_at = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    generated_at = (now or datetime.now(UTC)).astimezone(UTC)
     return {
         "schema_version": 1,
         "generated_at": generated_at.isoformat().replace("+00:00", "Z"),

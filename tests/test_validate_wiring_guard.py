@@ -1,10 +1,14 @@
 from __future__ import annotations
 
-import unittest
 import json
+import unittest
 from pathlib import Path
 
-from tests.validate_fleet_wiring_support import PluginWiringMixin, READONLY_BASH_AGENT, _add_guarded_name
+from tests.validate_fleet_wiring_support import (
+    READONLY_BASH_AGENT,
+    PluginWiringMixin,
+    _add_guarded_name,
+)
 
 
 class PluginWiringGuardTests(PluginWiringMixin, unittest.TestCase):

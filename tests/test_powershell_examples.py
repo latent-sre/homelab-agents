@@ -1,14 +1,13 @@
 """A failed native process must stop the documented dependent-step recipe."""
 from __future__ import annotations
 
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
-
+from pathlib import Path
 
 SHELL = shutil.which('pwsh') or shutil.which('powershell')
 SOURCE = Path(__file__).resolve().parents[1] / 'skills/code-craft/references/powershell.md'

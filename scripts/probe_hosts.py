@@ -10,10 +10,10 @@ import shutil
 import sys
 import time
 from collections import Counter
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Callable, Mapping, Sequence
 
 _REPO_ROOT = str(Path(__file__).resolve().parents[1])
 if _REPO_ROOT not in sys.path:
@@ -79,7 +79,7 @@ Which = Callable[[str], str | None]
 
 
 def _timestamp() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _run(argv: Sequence[str], cwd: Path, timeout: int) -> CommandResult:

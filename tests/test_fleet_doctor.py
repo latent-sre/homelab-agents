@@ -4,7 +4,7 @@ import io
 import tempfile
 import unittest
 from contextlib import redirect_stdout
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest import mock
 
@@ -388,7 +388,7 @@ class FleetDoctorTests(unittest.TestCase):
                     codex_home=codex_home,
                     run=run,
                     which=which,
-                    now=datetime(2026, 7, 31, tzinfo=timezone.utc),
+                    now=datetime(2026, 7, 31, tzinfo=UTC),
                 )
 
             after = {path.relative_to(home): path.read_bytes() for path in home.rglob("*") if path.is_file()}

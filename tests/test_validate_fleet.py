@@ -9,7 +9,6 @@ from pathlib import Path
 from scripts import validate_fleet
 from tests.support import REPO
 
-
 FIXTURES = Path(__file__).parent / "fixtures"
 
 

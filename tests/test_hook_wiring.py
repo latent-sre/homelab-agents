@@ -37,6 +37,7 @@ import unittest
 from pathlib import Path
 
 from tests.support import REPO
+
 HOOKS = REPO / "hooks" / "hooks.json"
 AGENT = REPO / "agents" / "code-reviewer.md"
 SH = shutil.which("sh")
