@@ -82,7 +82,9 @@ restarted from `main`. Phase 4 (routing evals handed to `claude plugin eval`, th
 fleet-side, provenance moved onto the kernel) merged as PR #191. Phase 5 (`hooks/hooks.json`
 rendered from the guard and gate rosters by `fleet/hooks.py` and byte-checked by the adapter
 generator) is implemented on the same branch, restarted from `main`. All five phases are then
-implemented; MACH-001 still closes on the lint ratchet, which holds 12 file entries.
+implemented; MACH-001 still closes on the lint ratchet, which holds 27 file entries and 147
+suppressed findings (counted 2026-09-14 by removing the table and re-running `ruff check .`). An
+earlier figure of "12 file entries" in this item was wrong.
 
 **Outcome:** Every maintainer instrument under `scripts/` runs on the `fleet/` kernel with one
 implementation per primitive, policy held as data, structured findings, and the routing runner

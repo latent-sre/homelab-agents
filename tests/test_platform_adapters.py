@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import tempfile
 import tomllib
@@ -356,7 +355,7 @@ class PlatformAdapterTests(unittest.TestCase):
                 retired = root / ".claude" / "agents"
                 linked = root / link_relative
 
-                def is_link(path: Path) -> bool:
+                def is_link(path: Path, linked: Path = linked) -> bool:
                     return path == linked
 
                 with (

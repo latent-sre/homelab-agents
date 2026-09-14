@@ -142,7 +142,11 @@ class PartialResultsTest(CliTestCase):
                 with self.subTest(failure_at=failure_at, error_type=error_type):
                     effects = []
 
-                    def remove(name):
+                    # Bound as defaults, not captured: the closure is consumed in this
+                    # iteration today, and a late-binding capture would silently grade a later
+                    # iteration's case if that ever stopped being true.
+                    def remove(name, effects=effects, failure_at=failure_at,
+                               error_type=error_type):
                         effects.append(name)
                         if len(effects) == failure_at + 1:
                             # The effect happened before its acknowledgement failed.
@@ -168,7 +172,7 @@ class PartialResultsTest(CliTestCase):
             with self.subTest(failure_at=failure_at):
                 calls = []
 
-                def remove(name):
+                def remove(name, calls=calls, failure_at=failure_at):
                     calls.append(name)
                     if len(calls) == failure_at + 1:
                         raise cli.Failure('target unavailable')

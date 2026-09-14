@@ -282,9 +282,9 @@ class Probe:
         skipped = [r for r in self.results if r[0] == SKIP]
         print(f"\n{len(passed)}/{len(self.results)} passed, {len(failed)} failed, {len(skipped)} inconclusive")
 
-        for status, label, detail in failed:
+        for _status, label, detail in failed:
             print(f"\nFAILED: {label}\n  {detail}")
-        for status, label, detail in skipped:
+        for _status, label, detail in skipped:
             print(f"\nINCONCLUSIVE: {label}\n  {detail}")
 
         if failed:

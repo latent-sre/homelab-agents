@@ -113,11 +113,11 @@ class NativeClaudeContentsTests(unittest.TestCase):
                 path.write_text(data, encoding="utf-8")
                 returncodes: list[int] = []
 
-                def run(argv, **kwargs):
+                def run(argv, *, _returncodes=returncodes, **kwargs):
                     completed = subprocess.run(
                         argv, capture_output=True, encoding="utf-8", **kwargs,
                     )
-                    returncodes.append(completed.returncode)
+                    _returncodes.append(completed.returncode)
                     return completed
 
                 self.assertEqual(1, validate_claude_plugin.validate(

@@ -3,7 +3,6 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from scripts import validate_fleet
 from tests.validate_fleet_wiring_support import PluginWiringMixin
 
 

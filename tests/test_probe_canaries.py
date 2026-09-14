@@ -1332,7 +1332,7 @@ class GateProbeTargetInertness(unittest.TestCase):
         # A guard that inspects a different path than the command uses enforces nothing.
         targets = probe_plugin.gate_targets()
         self.assertEqual(2, len(targets))
-        for marker, target in zip(("AGENT", "MAIN"), targets):
+        for marker, target in zip(("AGENT", "MAIN"), targets, strict=True):
             with self.subTest(marker=marker):
                 self.assertIn(target, probe_plugin.GATE_CMD.format(marker=marker))
                 self.assertIn(marker, target)

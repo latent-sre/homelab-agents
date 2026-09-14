@@ -4,7 +4,6 @@ import unittest
 import json
 from pathlib import Path
 
-from scripts import validate_fleet
 from tests.validate_fleet_wiring_support import PluginWiringMixin, READONLY_BASH_AGENT, _add_guarded_name
 
 
@@ -31,7 +30,7 @@ class PluginWiringGuardTests(PluginWiringMixin, unittest.TestCase):
         for target in ("code-reviewer_v2", "Code-Reviewer", "code--reviewer"):
             with self.subTest(target=target):
 
-                def mutate(repo: Path) -> None:
+                def mutate(repo: Path, target: str = target) -> None:
                     path = repo / "agents" / "researcher.md"
                     path.write_text(
                         path.read_text(encoding="utf-8")
@@ -179,7 +178,6 @@ class PluginWiringGuardTests(PluginWiringMixin, unittest.TestCase):
 
     def test_guarding_an_agent_that_does_not_exist_is_reported(self) -> None:
         def mutate(repo: Path) -> None:
-            path = repo / "scripts" / "readonly-guard.py"
             _add_guarded_name(repo, "ghost")
 
         issues = self._issues_after(mutate)
