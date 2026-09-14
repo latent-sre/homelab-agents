@@ -72,12 +72,12 @@ red check is fixed if trivial, else recorded in `docs/fleet-roadmap.md`.
 - **T3 — release/CLI pin bump** (manual, real API): `scripts/probe_plugin.py` + every routing
   cluster — no affected-only subset. Before a paired routing run, check by hand
   that a stored capture's cluster, cases, evaluator, and plugin bytes are unchanged **and** its
-  recorded conditions equal the run you are about to make: requested model, **observed** model,
-  threshold, timeout, `max_turns`, the **CLI version**, and `components_observed` — the routing
-  competition each session actually saw — with `components_uniform` true on both sides.
-  `clean_room_requested` is NOT one of them: it was measured to change nothing under the native
-  harness, so comparing it proves nothing (`evals/README.md` owns this list and the reasons).
-  Only then is the before-side reusable. The after-side stays fresh.
+  recorded conditions equal the run you are about to make. The condition list is **the artifact,
+  not a list restated here**: `runs_per_case` plus every key of the capture's own `conditions`
+  block, minus three exceptions, with `models_observed` holding exactly one model and
+  `components_uniform` true on **both** sides — `evals/README.md` owns the exceptions and the
+  reasons, and enumerating the fields anywhere else kept coming up one short as the harness
+  gained levers. Only then is the before-side reusable. The after-side stays fresh.
 
 Limit new broad static reviews to two rounds for prose-behavior changes (agent/skill text), three
 for other fleet prose. These caps bound repeated broad reviews, not focused checks and corrections

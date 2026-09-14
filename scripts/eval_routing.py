@@ -690,6 +690,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"--runs must be >= 1 (got {args.runs}); 0 would make every negative pass vacuously",
               file=sys.stderr)
         return 2
+    if args.limit is not None and args.limit < 0:
+        # A negative reaches Python slicing rather than being refused: `cases[:-1]` silently drops
+        # the LAST selected case and pays for a subset the caller never asked for, producing a
+        # benchmark that looks valid and measures something else.
+        print(f"--limit must be >= 0 (got {args.limit}); a negative silently drops cases from the "
+              "end of the selection", file=sys.stderr)
+        return 2
     try:
         args.threshold = routing.validated_threshold(args.threshold)
     except ValueError as exc:
@@ -1018,6 +1025,16 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
         "native_claude_version": result.get("claudeVersion"),
         "native_cost_usd": result.get("costUsd"),
     }
+
+    if not conditions["cli_version"]:
+        # The T3 reuse contract requires the CLI version to be EQUAL between captures, and the
+        # harness's behaviour and bundled competition both move with it. An artifact that cannot
+        # state it is missing a required condition -- and two failed probes would compare equal
+        # as `null`, which reads as agreement rather than as two unknowns.
+        _remove_kept_temp_dirs(runs_by_case)
+        print("\ncould not read the Claude CLI version, which the reuse contract requires as a "
+              "condition; benchmark.json was not written", file=sys.stderr)
+        return 3
 
     if len(models) > 1:
         # The retiring runner said this loudly and the first rewrite dropped it. A benchmark whose

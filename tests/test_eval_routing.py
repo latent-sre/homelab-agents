@@ -24,6 +24,15 @@ from fleet import fs as fs_module
 from scripts import eval_clean_room, eval_routing
 from tests.support import REPO
 
+# The `conditions` keys `scripts/eval_routing.py` writes. Pinned here so the reuse-rule checks
+# below are about the real artifact; `CodexThirteenthRoundTest` proves this list matches a run.
+RECORDED_CONDITION_KEYS = (
+    "auth_provider", "clean_room_requested", "cli_version", "components_observed",
+    "components_uniform", "concurrency", "harness", "max_turns", "model_requested",
+    "models_observed", "native_claude_version", "native_cost_usd", "plugin_dir", "threshold",
+    "timeout_s",
+)
+
 
 def trace(*events: dict) -> str:
     return "\n".join(json.dumps(event) for event in events)
@@ -1395,13 +1404,17 @@ class CopilotReviewTest(MainIntegrationTest):
 
     def test_the_t3_reuse_checklist_names_the_conditions_that_decide_comparability(self) -> None:
         """AGENTS.md is always loaded, so a stale checklist there outranks the eval docs in
-        practice: it told maintainers to compare a flag that was measured to change nothing."""
-        text = (REPO / "AGENTS.md").read_text(encoding="utf-8")
-        checklist = text[text.index("T3 — release/CLI pin bump"):][:1200]
-        for condition in ("components_observed", "max_turns", "observed** model"):
-            with self.subTest(condition=condition):
-                self.assertIn(condition, checklist)
-        self.assertIn("clean_room_requested` is NOT one of them", checklist)
+        practice: it told maintainers to compare a flag that was measured to change nothing.
+
+        Now that the contract derives from the artifact, AGENTS.md must say so rather than
+        restate a list — and the conditions this finding was about must still be reached.
+        """
+        assert_compared_by_the_reuse_rule(self, "components_observed", "max_turns",
+                                          "models_observed")
+        agents = " ".join((REPO / "AGENTS.md").read_text(encoding="utf-8").split())
+        bullet = agents[agents.index("T3 — release/CLI pin bump"):][:1300]
+        self.assertIn("the artifact, not a list restated here", bullet)
+        self.assertNotIn("clean_room_requested` is NOT one of them", bullet)
 
 
 class CodexSixthRoundTest(MainIntegrationTest):
@@ -1444,14 +1457,14 @@ class CodexSixthRoundTest(MainIntegrationTest):
     def test_the_owning_reuse_checklist_names_max_turns(self) -> None:
         """P2: `max_turns` decides how many chances a session has to dispatch, so a capture under
         a different cap is not a before-side. The T3 bullet in AGENTS.md had been updated; the
-        document that OWNS the contract, and the playbook maintainers actually follow, had not."""
-        text = (REPO / "evals" / "README.md").read_text(encoding="utf-8")
-        checklist = text[text.index("## Baseline retention"):][:2000]
-        for condition in ("`max_turns`", "`components_observed`", "**observed** model"):
-            with self.subTest(condition=condition):
-                self.assertIn(condition, checklist)
-        self.assertIn("`clean_room_requested` is deliberately NOT on the list", checklist)
-        self.assertNotIn("clean-room setting", text)
+        document that OWNS the contract, and the playbook maintainers follow, had not.
+
+        Round 13 replaced the enumeration with a rule over the artifact, so this now asserts what
+        it always meant: the rule reaches `max_turns`, and the observed model is not exempt.
+        """
+        assert_compared_by_the_reuse_rule(self, "max_turns", "models_observed")
+        readme = (REPO / "evals" / "README.md").read_text(encoding="utf-8")
+        self.assertNotIn("clean-room setting", readme)
 
     def test_the_agents_playbook_defers_to_that_owner_rather_than_restating_it(self) -> None:
         """The same list stated twice drifts: this copy was still naming the flag measured to
@@ -2144,21 +2157,19 @@ class CodexEleventhRoundTest(MainIntegrationTest):
             ]})
 
     def test_the_reuse_checklist_requires_the_cli_version_and_a_uniform_surface(self) -> None:
-        """P2 x2, at the owner and its paraphrase. The CLI version decides harness behaviour and
-        the bundled competition, and this procedure runs at pin bumps; `components_uniform: false`
-        says the capture's own runs saw different competitors, which no equal union repairs."""
-        owner = " ".join(
-            (REPO / "evals" / "README.md").read_text(encoding="utf-8").split()
-        )
-        checklist = owner[owner.index("## Baseline retention"):][:2600]
-        for required in ("`cli_version`", "components_uniform", "pin bumps"):
-            with self.subTest(owner=required):
-                self.assertIn(required, checklist)
-        agents = " ".join((REPO / "AGENTS.md").read_text(encoding="utf-8").split())
-        bullet = agents[agents.index("T3 — release/CLI pin bump"):][:1300]
-        for required in ("**CLI version**", "`components_uniform` true on both sides"):
-            with self.subTest(agents=required):
-                self.assertIn(required, bullet)
+        """P2 x2. The CLI version decides harness behaviour and the bundled competition, and this
+        procedure runs at pin bumps; `components_uniform: false` says the capture's own runs saw
+        different competitors, which no equal union repairs.
+
+        Both are still required after round 13 turned the checklist into a rule: the CLI version
+        because the rule compares every recorded condition, and the uniformity flag because it is
+        one of the two that need MORE than equality.
+        """
+        assert_compared_by_the_reuse_rule(self, "cli_version", "components_uniform")
+        owner = " ".join((REPO / "evals" / "README.md").read_text(encoding="utf-8").split())
+        section = owner[owner.index("## Baseline retention"):][:4000]
+        self.assertIn("must be **true** on both sides", section)
+        self.assertIn("exactly one** model", section)
 
     def test_the_roadmap_does_not_claim_the_registration_check_was_lost(self) -> None:
         """P2: the disposition told a maintainer that registration and auth aborts belong to the
@@ -2312,3 +2323,120 @@ class CodexTwelfthRoundTest(MainIntegrationTest):
             1, entry.count("makes them a single anchor"),
             "the old claim survives only as a quoted correction",
         )
+
+
+def assert_compared_by_the_reuse_rule(test: unittest.TestCase, *conditions: str) -> None:
+    """Each named condition is compared when a capture is checked for reuse.
+
+    Round 13 replaced the enumerated checklist with a rule derived from the artifact, because the
+    enumeration came up one field short three rounds running. The findings that produced each of
+    those fields are still pinned — here, in the form the contract now takes: the field is
+    recorded in `conditions`, and it is NOT one of the three documented exceptions, so the rule
+    covers it. Deleting these assertions with the prose they used to read would have discarded the
+    findings along with the wording.
+    """
+    readme = (REPO / "evals" / "README.md").read_text(encoding="utf-8")
+    section = readme[readme.index("## Baseline retention"):][:4000]
+    test.assertIn("every key of the capture's own `conditions` block", section)
+    excepted = set(re.findall(r"\| `([a-z_]+)` \|", section))
+    recorded = set(RECORDED_CONDITION_KEYS)
+    for condition in conditions:
+        with test.subTest(condition=condition):
+            test.assertIn(
+                condition, recorded, "the artifact must record it for the rule to reach it"
+            )
+            test.assertNotIn(condition, excepted, "and it must not be one of the exceptions")
+
+
+class CodexThirteenthRoundTest(MainIntegrationTest):
+    """The five findings from the Codex review of `f9dd32a`. All five real.
+
+    Four were the same artifact: the T3 reuse checklist, enumerated one field short for a third
+    consecutive round. The fix is structural — the contract now derives the list from the
+    capture's own `conditions` block, and the test below fails when a new condition is added
+    without deciding whether it is compared.
+    """
+
+    def _conditions_keys(self) -> set[str]:
+        """The condition keys the runner actually writes, taken from a real run."""
+        code, _stderr = self._main()
+        self.assertEqual(0, code)
+        benchmark = json.loads((self.out / "benchmark.json").read_text(encoding="utf-8"))
+        return set(benchmark["conditions"])
+
+    def test_every_recorded_condition_is_compared_or_explicitly_excepted(self) -> None:
+        """P2 x3 in one: `runs_per_case`, `auth_provider` and the exactly-one-model rule were all
+        missing from an enumerated checklist. Enumeration is the defect — each lever the harness
+        gained landed in the artifact and not in the list — so the contract now derives from the
+        artifact, and this test is what keeps that true."""
+        readme = (REPO / "evals" / "README.md").read_text(encoding="utf-8")
+        section = readme[readme.index("## Baseline retention"):][:4000]
+        excepted = set(re.findall(r"\| `([a-z_]+)` \|", section))
+        self.assertEqual(
+            {"clean_room_requested", "native_cost_usd", "plugin_dir"}, excepted,
+            "the exception table is the contract; changing it is a deliberate act",
+        )
+        keys = self._conditions_keys()
+        self.assertTrue(
+            excepted <= keys,
+            f"the contract excepts fields the artifact does not record: {excepted - keys}",
+        )
+        # Everything else is compared by the rule, so nothing can be silently forgotten again.
+        for required in ("auth_provider", "concurrency", "max_turns", "cli_version"):
+            with self.subTest(condition=required):
+                self.assertIn(required, keys)
+                self.assertNotIn(required, excepted)
+        self.assertIn("`runs_per_case`", section)
+        self.assertIn("exactly one** model", section)
+        self.assertIn("must be **true** on both sides", section)
+
+    def test_a_benchmark_is_not_written_without_a_cli_version(self) -> None:
+        """P2, and a consequence of making the CLI version a reuse condition one round earlier: a
+        probe that times out or returns nothing yields None, and two failed probes then compare
+        equal as `null` — which reads as agreement rather than as two unknowns."""
+        with mock.patch.object(eval_routing, "cli_version", return_value=None):
+            stderr = io.StringIO()
+            with (
+                mock.patch.object(eval_routing, "CLAUDE", "claude"),
+                mock.patch.object(eval_routing.subprocess, "run", side_effect=self._fake_native()),
+                contextlib.redirect_stderr(stderr),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                code = eval_routing.main(
+                    [str(self.cluster), "--runs", "1", "--output-dir", str(self.out)]
+                )
+        self.assertEqual(3, code)
+        self.assertIn("could not read the Claude CLI version", stderr.getvalue())
+        self.assertFalse((self.out / "benchmark.json").exists())
+
+    def test_a_negative_limit_is_refused_before_any_session(self) -> None:
+        """P2: `--limit -1` is truthy, reaches Python slicing, and silently drops the LAST
+        selected case — paying for a subset the caller never asked for and writing a benchmark
+        that looks valid."""
+        for limit in ("-1", "-5"):
+            with self.subTest(limit=limit):
+                stderr = io.StringIO()
+                with (
+                    mock.patch.object(eval_routing, "CLAUDE", "claude"),
+                    mock.patch.object(
+                        eval_routing.subprocess, "run",
+                        side_effect=AssertionError("a session must never launch"),
+                    ),
+                    contextlib.redirect_stderr(stderr),
+                    contextlib.redirect_stdout(io.StringIO()),
+                ):
+                    code = eval_routing.main([str(self.cluster), "--runs", "1", "--limit", limit])
+                self.assertEqual(2, code)
+                self.assertIn("--limit must be >= 0", stderr.getvalue())
+
+    def test_limit_zero_and_absent_still_mean_every_selected_case(self) -> None:
+        """The boundary the refusal must not swallow: 0 and absent both mean 'no limit'."""
+        for argv_extra in ((), ("--limit", "0")):
+            with self.subTest(argv=argv_extra):
+                shutil.rmtree(self.out, ignore_errors=True)
+                code, _stderr = self._main(argv_extra=argv_extra)
+                self.assertEqual(0, code)
+                benchmark = json.loads(
+                    (self.out / "benchmark.json").read_text(encoding="utf-8")
+                )
+                self.assertEqual(1, len(benchmark["cases"]))
