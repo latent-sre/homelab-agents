@@ -137,3 +137,44 @@ def copytree_ignore(root: Path):
         return ignored
 
     return _ignore
+
+
+def safe_path_segment(value: str, *, what: str) -> str:
+    """One path component, or a refusal naming what was wrong.
+
+    A name that reaches a filesystem path has to be checked before it is joined, not after. Two
+    ways it goes wrong, both found by review on a generated eval tree rather than by a test:
+
+    - An **absolute** value silently discards the base it is joined to. `Path("/base") / "/tmp/x"`
+      is `/tmp/x`, not `/base/tmp/x`, so a case id of `/tmp/x` writes outside the tree entirely.
+    - A value containing `..` climbs out of it. `evals/generated/../../../victim` under a private
+      snapshot root resolves to a sibling of that root — and the caller that then removes a stale
+      directory would remove whatever is there.
+
+    Refusing is the only safe answer: sanitising by stripping the offending parts silently renames
+    what the caller asked for, and two different inputs would collide on one output.
+    """
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{what} must be a non-empty string (got {value!r})")
+    if value in (".", "..") or "/" in value or "\\" in value or os.sep in value:
+        raise ValueError(
+            f"{what} must be a single path component, with no separator and no '..': {value!r}"
+        )
+    if Path(value).is_absolute() or (os.altsep and os.altsep in value):
+        raise ValueError(f"{what} must be relative, not an absolute path: {value!r}")
+    return value
+
+
+def contained_path(root: Path, relative: str, *, what: str) -> Path:
+    """`root / relative`, proven to stay under `root`.
+
+    The belt to `safe_path_segment`'s braces, for a multi-segment relative path that is assembled
+    rather than supplied whole. Resolution is done WITHOUT following symlinks
+    (`absolute_without_resolving`), because resolving first would accept a path whose containment
+    depends on a link that a repository under evaluation could have planted.
+    """
+    base = absolute_without_resolving(root)
+    candidate = absolute_without_resolving(root / relative)
+    if base != candidate and base not in candidate.parents:
+        raise ValueError(f"{what} escapes {base}: {relative!r} -> {candidate}")
+    return candidate

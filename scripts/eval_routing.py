@@ -43,7 +43,7 @@ _REPO_ROOT = str(Path(__file__).resolve().parents[1])
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)  # `import fleet` when run as `python3 scripts/<name>.py`
 
-from fleet import nativecases, provenance, routing, stream  # noqa: E402
+from fleet import fs, nativecases, provenance, routing, stream  # noqa: E402
 
 REPO = Path(_REPO_ROOT)
 CLAUDE = shutil.which("claude")
@@ -62,6 +62,10 @@ EVALUATOR_PATHS = (
     REPO / "fleet" / "routing.py",
     REPO / "fleet" / "nativecases.py",
     REPO / "fleet" / "stream.py",
+    # The emitters `nativecases` generates prompts and grader regexes with. A change here alters
+    # the tool permissions a session runs under or the pattern a grader matches, so leaving it out
+    # made two runs measuring different generated inputs carry the same evaluator hash.
+    REPO / "fleet" / "frontmatter.py",
 )
 
 
@@ -98,10 +102,25 @@ def write_cases(eval_dir: Path, files: dict[str, str], spec: dict) -> None:
     the measurement, and a leftover directory from a previous cluster would otherwise be run and
     scored as if the cluster still declared it.
     """
+    # This REMOVES a directory tree, so the path it was handed is checked before anything is
+    # deleted. A `..` anywhere in it means the caller assembled it from a name that climbed out of
+    # the intended root -- the traversal is already done by the time it arrives here, so refusing
+    # the un-normalised path is the last point at which it can be caught. (Checking `eval_dir`
+    # against its own parent, which a first version did, is vacuous: every path is under its own
+    # parent.) The caller separately validates the cluster name as a single path segment.
+    if ".." in eval_dir.parts:
+        raise ValueError(
+            f"generated eval directory must be a normalised path, not one that climbs out of its "
+            f"root: {eval_dir}"
+        )
+    targets = {
+        relative: fs.contained_path(eval_dir, relative, what="generated case file")
+        for relative in files
+    }
     if eval_dir.exists():
         shutil.rmtree(eval_dir)
     for relative, content in files.items():
-        target = eval_dir / relative
+        target = targets[relative]
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
     (eval_dir / "GENERATED.json").write_text(nativecases.manifest(spec, files), encoding="utf-8")
@@ -173,6 +192,9 @@ def fired_per_run(
             text = Path(str(run.get("tracePath"))).read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
             fired.append(None)
+            # An empty surface keeps `surfaces` index-aligned with `fired`; the registration check
+            # in `_scored` zips them, and a short list would silently shift every later run.
+            surfaces.append({"agents": [], "skills": []})
             notes.append(f"{label}: trace unreadable ({exc}); harness said {run.get('error')!r}")
             continue
         model = stream.observed_model(text)
@@ -196,6 +218,26 @@ def _scored(
     case: dict, members: list[str], runs: list[dict], roster: frozenset[str], threshold: float
 ) -> dict:
     fired, notes, models, surfaces = fired_per_run(runs, roster)
+
+    # A run whose session never REGISTERED the components this case is graded against cannot
+    # evidence that they did not fire: they could not have. Without this, a stale or external
+    # `--plugin-dir` that omits a component turned every negative naming it into a vacuous pass --
+    # the retiring runner refused such a batch outright, and dropping that guard was a false-green
+    # generator, not a simplification.
+    _polarity, targets = routing.scoring_targets(case, members)
+    for index, surface in enumerate(surfaces):
+        if fired[index] is None:
+            continue
+        registered = routing.bare_names(
+            [*surface.get("agents", []), *surface.get("skills", [])]
+        )
+        missing = targets - registered
+        if missing:
+            fired[index] = None
+            notes.append(
+                f"run {index + 1}: graded component(s) {sorted(missing)} were not registered in "
+                "this session, so it cannot evidence whether they fired"
+            )
     verdict = routing.grade_case(case, members, fired)
     member_set = set(members)
     valid = [f for f in fired if f is not None]
@@ -243,6 +285,13 @@ def _scored(
             key: sorted({name for s in surfaces for name in s.get(key, [])})
             for key in ("agents", "skills")
         },
+        # Whether every run that produced a surface saw the SAME one. The union above cannot tell
+        # "all runs saw this" from "one run saw an extra component", and only the first supports
+        # the uniform-competition claim the artifact is stored to make.
+        "components_uniform": len({
+            (tuple(s.get("agents", [])), tuple(s.get("skills", [])))
+            for s, f in zip(surfaces, fired, strict=True) if f is not None
+        }) <= 1,
     }
 
 
@@ -349,7 +398,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         members = provenance.validated_members(spec.get("members"))
-    except provenance.ProvenanceError as exc:
+        # Checked HERE, with the rest of the cluster, rather than where it is joined to a path:
+        # the name becomes a directory `write_cases` removes before recreating, so a traversing
+        # name must be refused before anything is computed or any session is paid for.
+        fs.safe_path_segment(spec["cluster"], what="cluster")
+    except (provenance.ProvenanceError, ValueError) as exc:
         print(f"{exc}", file=sys.stderr)
         return 2
 
@@ -365,24 +418,43 @@ def main(argv: list[str] | None = None) -> int:
     for case in cases:
         try:
             routing.scoring_targets(case, members)
+            # `scoring_targets` never looks at the prompt, so without this a `None` prompt reached
+            # the generator, became the literal string "None", and bought a paid session and a
+            # recorded routing verdict for input the retiring runner refused outright.
+            prompt = case.get("prompt")
+            if not isinstance(prompt, str) or not prompt.strip():
+                raise ValueError(
+                    f"case {case.get('id')!r} prompt must be a non-empty string (got {prompt!r})"
+                )
+            fs.safe_path_segment(str(case.get("id")), what="case id")
         except ValueError as exc:
             print(f"cluster error: {exc}", file=sys.stderr)
             return 2
 
-    clean_room = contextlib.nullcontext(None)
-    auth_mode: dict | None = None
+    try:
+        from scripts import eval_clean_room
+    except ImportError:  # running as a bare script rather than a package
+        sys.path.insert(0, str(REPO / "scripts"))
+        import eval_clean_room  # type: ignore[no-redef]
+
+    # Classified for EVERY run, not just clean-room ones. Recording `null` on an ordinary run made
+    # two benchmarks taken against different providers -- Anthropic versus Bedrock versus Vertex --
+    # look identical in their conditions, which is exactly the comparison this block exists to stop.
+    clean_room: contextlib.AbstractContextManager = contextlib.nullcontext(None)
+    env: dict | None = None
+    try:
+        auth_mode = eval_clean_room.auth_provider_mode(None, clean_room=bool(args.clean_room))
+        if args.clean_room:
+            # `clean_env()` raises AuthUnavailable when it is ENTERED, not when it is constructed,
+            # so entering it here keeps the documented exit-2 path from becoming a traceback. The
+            # stack holds it open for the batch and yields the environment the sessions run under.
+            stack = contextlib.ExitStack()
+            env = stack.enter_context(eval_clean_room.clean_env())
+            clean_room = stack
+    except eval_clean_room.AuthUnavailable as exc:
+        print(f"clean room unavailable: {exc}", file=sys.stderr)
+        return 2
     if args.clean_room:
-        try:
-            from scripts import eval_clean_room
-        except ImportError:  # running as a bare script rather than a package
-            sys.path.insert(0, str(REPO / "scripts"))
-            import eval_clean_room  # type: ignore[no-redef]
-        try:
-            auth_mode = eval_clean_room.auth_provider_mode(None, clean_room=True)
-        except eval_clean_room.AuthUnavailable as exc:
-            print(f"clean room unavailable: {exc}", file=sys.stderr)
-            return 2
-        clean_room = eval_clean_room.clean_env()
         print("! --clean-room was measured on 2026-09-14 to change nothing under `claude plugin "
               "eval`, which sets its own config dir. Read `components_observed` in the written "
               "conditions for the surface these sessions actually saw.", file=sys.stderr)
@@ -401,7 +473,10 @@ def main(argv: list[str] | None = None) -> int:
         max_turns=args.max_turns, timeout_seconds=args.timeout,
     )
 
-    with clean_room as env, provenance.frozen_plugin(args.plugin_dir) as (frozen, identity):
+    with clean_room, provenance.frozen_plugin(args.plugin_dir) as (frozen, identity):
+        # The name is already validated as a single path segment above, and `write_cases` refuses
+        # an un-normalised directory of its own; a third check here would be one no test can make
+        # fire, which is the kind of guard this repository treats as worse than none.
         eval_dir_name = f"evals/generated/{spec['cluster']}"
         write_cases(frozen / eval_dir_name, files, spec)
         result_path = frozen / "native-result.json"
@@ -417,17 +492,29 @@ def main(argv: list[str] | None = None) -> int:
             return 3
         runs_by_case = _run_records(result)
         try:
-            provenance.verify_frozen_plugin(args.plugin_dir, identity)
+            # The copy that actually RAN, not the source checkout. Checking the source cannot
+            # see a mutation a session made inside the private snapshot -- which is the one thing
+            # this check exists to catch, and what the retiring runner passed here.
+            provenance.verify_frozen_plugin(frozen, identity)
         except provenance.ProvenanceError as exc:
             print(f"\nprovenance error: {exc}; benchmark.json was not written", file=sys.stderr)
             return 2
     # Grade BEFORE cleaning up: the verdict is computed from the traces inside those kept
     # directories, and reversing these two lines deletes the evidence first and reports every case
     # INCONCLUSIVE with an unreadable-trace note. It did, on the first end-to-end run.
-    scored = [
-        _scored(case, members, runs_by_case.get(str(case["id"]), []), FLEET, args.threshold)
-        for case in cases
-    ]
+    # A case the harness stopped short of -- `--max-cost-usd` aborts before launching a run --
+    # comes back with fewer records than were requested. Grading that array as-is computed a 1/1
+    # rate while the artifact still claimed `runs_per_case: 3`, and a passing first run could exit
+    # 0. Padding to the requested count makes the unreached runs invalid, so they are excluded and
+    # reported rather than silently shrinking the denominator.
+    scored = []
+    for case in cases:
+        records = list(runs_by_case.get(str(case["id"]), []))
+        missing = args.runs - len(records)
+        if missing > 0:
+            records += [{"tracePath": None, "error": "run never launched (harness stopped early)"}]
+            records += [dict(records[-1]) for _ in range(missing - 1)]
+        scored.append(_scored(case, members, records, FLEET, args.threshold))
     _remove_kept_temp_dirs(runs_by_case)
     inconclusive = [s for s in scored if s["inconclusive"]]
     passed = sum(1 for s in scored if s["passed"])
@@ -471,9 +558,19 @@ def main(argv: list[str] | None = None) -> int:
             key: sorted({n for entry in scored for n in entry["components_observed"][key]})
             for key in ("agents", "skills")
         },
+        # A union alone cannot distinguish "every run saw this surface" from "one run saw an extra
+        # component", and it is the first reading that the artifact is meant to support. False here
+        # means the batch was measured against changing competition and is not one baseline.
+        "components_uniform": all(entry["components_uniform"] for entry in scored),
         "native_claude_version": result.get("claudeVersion"),
         "native_cost_usd": result.get("costUsd"),
     }
+
+    if len(models) > 1:
+        # The retiring runner said this loudly and the first rewrite dropped it. A benchmark whose
+        # runs spanned tiers is not one baseline, and nothing downstream can tell from the rates.
+        print(f"\n! WARNING: runs did not use one model ({', '.join(models)}) — this benchmark "
+              "mixes conditions and must not be diffed as a single baseline", file=sys.stderr)
 
     benchmark = {
         "cluster": spec["cluster"],

@@ -37,6 +37,7 @@ import json
 from collections.abc import Iterable, Mapping
 
 from fleet.frontmatter import yaml_flow_list, yaml_scalar, yaml_single_quoted
+from fleet.fs import safe_path_segment
 
 # Read-only tools plus the two a routing decision travels through. The retiring runner ran
 # `claude -p` under default headless permissions, which denies the mutating tools by approval
@@ -121,7 +122,10 @@ def case_files(
     allowed_tools: Iterable[str] = DEFAULT_ALLOWED_TOOLS,
 ) -> dict[str, str]:
     """One case's files, keyed by path relative to the generated eval directory."""
-    case_id = str(case["id"])
+    # The id becomes a DIRECTORY NAME below, so it is checked before it is joined to anything.
+    # An absolute id silently discards the base it is joined to (`Path("/base") / "/tmp/x"` is
+    # `/tmp/x`), which wrote generated case files outside the eval tree entirely.
+    case_id = safe_path_segment(str(case["id"]), what="case id")
     cluster = str(spec["cluster"])
     polarity = case["polarity"]
     agent_set = set(agents)

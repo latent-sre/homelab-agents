@@ -129,6 +129,17 @@ class ScoredArtifactTest(unittest.TestCase):
     MEMBERS = ["root-cause", "lab-audit"]
     ROSTER = frozenset({"root-cause", "lab-audit", "backend-craft"})
 
+    def _init(self, *names: str) -> dict:
+        """A session `init` event registering these components, namespaced as the CLI lists them.
+
+        Every fixture trace carries one: a run whose session never registered the graded
+        components cannot evidence that they did not fire, so `_scored` now excludes it. Without
+        an init event these fixtures would exercise that exclusion instead of the scoring they are
+        written for.
+        """
+        return {"type": "system", "subtype": "init",
+                "agents": [], "skills": [f"sde-agents:{n}" for n in names]}
+
     def _scored(self, case: dict, *traces: str | None, threshold: float = 0.5) -> dict:
         runs = []
         for text in traces:
@@ -148,8 +159,9 @@ class ScoredArtifactTest(unittest.TestCase):
         case = {"id": "n", "polarity": "negative", "expect_not_fires": list(self.MEMBERS)}
         entry = self._scored(
             case,
-            trace(result_event()),
-            trace(call("Skill", "s1", command="root-cause"), result_event()),
+            trace(self._init(*self.MEMBERS), result_event()),
+            trace(self._init(*self.MEMBERS),
+                  call("Skill", "s1", command="root-cause"), result_event()),
         )
         self.assertEqual([[], ["root-cause"]], entry["fired_per_run"])
         self.assertFalse(entry["passed"], "one over-trigger fails a negative")
@@ -158,7 +170,8 @@ class ScoredArtifactTest(unittest.TestCase):
         """A negative correctly landing elsewhere is the useful half of the result."""
         case = {"id": "n", "polarity": "negative", "expect_not_fires": list(self.MEMBERS)}
         entry = self._scored(
-            case, trace(call("Skill", "s1", command="backend-craft"), result_event())
+            case, trace(self._init(*self.MEMBERS, "backend-craft"),
+                        call("Skill", "s1", command="backend-craft"), result_event())
         )
         self.assertTrue(entry["passed"])
         self.assertEqual(["backend-craft"], entry["also_fired"])
@@ -166,7 +179,10 @@ class ScoredArtifactTest(unittest.TestCase):
     def test_an_excluded_run_is_named_in_the_detail_and_not_in_the_rate(self) -> None:
         case = {"id": "p", "polarity": "positive", "expect_fires": ["root-cause"]}
         entry = self._scored(
-            case, trace(call("Skill", "s1", command="root-cause"), result_event()), None
+            case,
+            trace(self._init(*self.MEMBERS),
+                  call("Skill", "s1", command="root-cause"), result_event()),
+            None,
         )
         self.assertTrue(entry["passed"], entry["detail"])  # 1/1 valid, not 1/2
         self.assertEqual(1, entry["runs_excluded"])
@@ -186,12 +202,13 @@ class ScoredArtifactTest(unittest.TestCase):
         the right thing; the detail has to say which set the verdict used."""
         entry = self._scored(
             {"id": "n", "polarity": "negative", "expect_not_fires": ["lab-audit"]},
-            trace(call("Skill", "s1", command="root-cause"), result_event()),
+            trace(self._init(*self.MEMBERS),
+                  call("Skill", "s1", command="root-cause"), result_event()),
         )
         self.assertTrue(entry["passed"])
         self.assertIn("lab-audit", entry["detail"])
         entry = self._scored(
-            {"id": "n", "polarity": "negative"}, trace(result_event())
+            {"id": "n", "polarity": "negative"}, trace(self._init(*self.MEMBERS), result_event())
         )
         self.assertIn("cluster", entry["detail"], "a broad negative says so")
 
@@ -546,6 +563,9 @@ class MainIntegrationTest(unittest.TestCase):
         self.addCleanup(__import__("shutil").rmtree, self.tmp, True)
         self.cluster = self.tmp / "demo.json"
         self._write_cluster(["prompt-craft"])
+        # Recorded so a test can assert a session was never launched, and so a per-run trace list
+        # can stand in for a batch whose runs differed (a mixed-model batch, say).
+        self.launched: list[list[str]] = []
         self.trace = self.tmp / "trace.jsonl"
         # The init event is part of the fixture because the conditions block reads the routing
         # competition off it; without one the components_observed assertion below would pass on
@@ -557,6 +577,7 @@ class MainIntegrationTest(unittest.TestCase):
             call("Skill", "s1", command="sde-agents:prompt-craft"),
             result_event(),
         ), encoding="utf-8")
+        self.traces = [self.trace]
         self.out = self.tmp / "out"
 
     def _write_cluster(self, expect_fires: list) -> None:
@@ -579,18 +600,19 @@ class MainIntegrationTest(unittest.TestCase):
         def run(argv, **kwargs):
             if "--json" not in argv:
                 return real_run(argv, **kwargs)
+            self.launched.append(list(argv))
             result_path = Path(argv[argv.index("--json") + 1])
             result_path.write_text(json.dumps({
                 "claudeVersion": "2.1.270", "costUsd": 0.5, "partial": False,
                 "cases": [{"name": "pos-demo", "arms": {"with": [
-                    {"error": None, "tracePath": str(self.trace)}]}}],
+                    {"error": None, "tracePath": str(path)} for path in self.traces]}}],
             }), encoding="utf-8")
             if on_run is not None:
                 on_run()
             return subprocess.CompletedProcess(argv, 0)
         return run
 
-    def _main(self, on_run=None, argv_extra=()) -> tuple[int, str]:
+    def _main(self, on_run=None, argv_extra=(), runs: int = 1) -> tuple[int, str]:
         stderr = io.StringIO()
         with (
             mock.patch.object(eval_routing, "CLAUDE", "claude"),
@@ -602,7 +624,8 @@ class MainIntegrationTest(unittest.TestCase):
             contextlib.redirect_stdout(io.StringIO()),
         ):
             code = eval_routing.main(
-                [str(self.cluster), "--runs", "1", "--output-dir", str(self.out), *argv_extra]
+                [str(self.cluster), "--runs", str(runs), "--output-dir", str(self.out),
+                 *argv_extra]
             )
         return code, stderr.getvalue()
 
@@ -649,6 +672,34 @@ class MainIntegrationTest(unittest.TestCase):
         self.assertIn("changed while the batch was running", stderr)
         self.assertFalse((self.out / "benchmark.json").exists())
 
+    def test_a_traversing_cluster_name_is_refused_before_any_session_runs(self) -> None:
+        """P1, at the wiring rather than the primitive: `write_cases` REMOVES a stale directory,
+        so a cluster named `../../../victim` made an eval run delete an arbitrary one.
+
+        Testing `safe_path_segment` alone left this branch vacuous -- removing the call from `main`
+        kept every test green. This drives `main` and asserts the harness is never even launched.
+        """
+        spec = json.loads(self.cluster.read_text(encoding="utf-8"))
+        spec["cluster"] = "../../../victim"
+        self.cluster.write_text(json.dumps(spec), encoding="utf-8")
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            mock.patch.object(
+                eval_routing.subprocess, "run", side_effect=self._fake_native(),
+            ),
+            mock.patch.object(eval_routing, "cli_version", return_value="2.1.270"),
+            contextlib.redirect_stderr(stderr),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = eval_routing.main([str(self.cluster), "--runs", "1"])
+        self.assertEqual(2, code)
+        self.assertIn("single path component", stderr.getvalue())
+        self.assertFalse(
+            self.out.exists(),
+            "no benchmark may be written for a cluster whose name escapes the eval root",
+        )
+
     def test_an_unreadable_native_result_is_a_measurement_failure_not_a_verdict(self) -> None:
         """Exit 3 asks for a re-run; exit 1 would send someone auditing descriptions over a
         harness that never produced a result."""
@@ -665,3 +716,202 @@ class MainIntegrationTest(unittest.TestCase):
             code = eval_routing.main([str(self.cluster), "--runs", "1"])
         self.assertEqual(3, code)
         self.assertIn("no readable result", stderr.getvalue())
+
+
+class CodexReviewFindingsTest(unittest.TestCase):
+    """Guards restored or added after the Codex review of PR #191. All eleven findings were real.
+
+    Each test drives the branch the finding named. They live together because they share one
+    lesson: five of these were guards the retiring runner HAD, dropped in the rewrite because the
+    code they protected had moved. A dropped guard leaves no failing test behind — that is what
+    makes it the expensive kind of mistake.
+    """
+
+    def test_a_case_id_that_escapes_the_eval_root_is_refused(self) -> None:
+        """P1: `Path("/base") / "/tmp/x"` is `/tmp/x`, so an absolute id wrote outside the tree."""
+        from fleet import nativecases
+        spec = {"cluster": "demo", "members": ["runbook"], "cases": []}
+        for bad in ("/tmp/owned", "../../escape", "a/b"):
+            with self.subTest(case_id=bad):
+                case = {"id": bad, "polarity": "positive", "prompt": "p",
+                        "expect_fires": ["runbook"]}
+                with self.assertRaisesRegex(ValueError, "case id"):
+                    nativecases.case_files(spec, case, agents=frozenset())
+
+    def test_a_cluster_name_that_escapes_the_frozen_root_is_refused(self) -> None:
+        """P1: `write_cases` REMOVES a stale directory, so a traversing name deleted an arbitrary
+        one. The check has to run before the removal, which is what `write_cases` asserts."""
+        from fleet import fs
+        with self.assertRaisesRegex(ValueError, "cluster"):
+            fs.safe_path_segment("../../../victim", what="cluster")
+
+    def test_write_cases_refuses_an_escaping_target_before_deleting_anything(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            victim = root / "victim"
+            victim.mkdir()
+            (victim / "keep.txt").write_text("important", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                eval_routing.write_cases(
+                    root / "generated" / ".." / ".." / "victim", {"c/p.md": "x"}, {"cluster": "d"}
+                )
+            self.assertTrue(
+                (victim / "keep.txt").exists(), "the refusal must precede the tree removal"
+            )
+
+    def test_a_run_that_never_registered_the_graded_components_is_not_evidence(self) -> None:
+        """P1: a completed trace with no dispatch used to pass a negative whose forbidden
+        destination was never loaded, so it could not possibly have fired."""
+        case = {"id": "n", "polarity": "negative", "expect_not_fires": ["root-cause"]}
+        handle = tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False, encoding="utf-8")
+        handle.write(trace(
+            {"type": "system", "subtype": "init", "agents": [], "skills": ["sde-agents:runbook"]},
+            result_event(),
+        ))
+        handle.close()
+        self.addCleanup(Path(handle.name).unlink, missing_ok=True)
+        entry = eval_routing._scored(
+            case, ["root-cause"], [{"tracePath": handle.name, "error": None}],
+            frozenset({"root-cause", "runbook"}), 0.5,
+        )
+        self.assertTrue(entry["inconclusive"], "an unloaded component cannot be measured")
+        self.assertFalse(entry["passed"])
+        self.assertIn("not registered", entry["notes"][0])
+
+    def test_a_case_the_harness_stopped_short_of_is_not_scored_at_full_confidence(self) -> None:
+        """P1: `--max-cost-usd` returns fewer records than requested; grading them as-is computed
+        a 1/1 rate while the artifact still claimed three runs."""
+        registered = {"type": "system", "subtype": "init", "agents": [],
+                      "skills": ["sde-agents:root-cause"]}
+        handle = tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False, encoding="utf-8")
+        handle.write(trace(registered, call("Skill", "s1", command="root-cause"), result_event()))
+        handle.close()
+        self.addCleanup(Path(handle.name).unlink, missing_ok=True)
+        case = {"id": "p", "polarity": "positive", "prompt": "x", "expect_fires": ["root-cause"]}
+        full = eval_routing._scored(
+            case, ["root-cause"], [{"tracePath": handle.name, "error": None}],
+            frozenset({"root-cause"}), 0.5,
+        )
+        self.assertEqual(0, full["runs_excluded"], "one requested, one delivered")
+        # The padding happens in main; assert the shape it relies on rather than re-running main.
+        padded = eval_routing._scored(
+            case, ["root-cause"],
+            [{"tracePath": handle.name, "error": None},
+             {"tracePath": None, "error": "run never launched (harness stopped early)"},
+             {"tracePath": None, "error": "run never launched (harness stopped early)"}],
+            frozenset({"root-cause"}), 0.5,
+        )
+        self.assertEqual(2, padded["runs_excluded"])
+        self.assertIn("excluded", padded["detail"])
+
+    def test_the_frontmatter_emitter_is_part_of_the_evaluator_identity(self) -> None:
+        """P2: it emits the prompts, tool permissions and grader regexes, so a change there alters
+        the generated inputs while every other evaluator path stays byte-identical."""
+        self.assertIn(
+            REPO / "fleet" / "frontmatter.py", eval_routing.EVALUATOR_PATHS
+        )
+
+    def test_a_non_uniform_component_surface_is_recorded_as_such(self) -> None:
+        """P2: the union cannot tell "every run saw this" from "one run saw an extra component"."""
+        paths = []
+        for extra in ([], ["sde-agents:extra"]):
+            handle = tempfile.NamedTemporaryFile(
+                "w", suffix=".jsonl", delete=False, encoding="utf-8"
+            )
+            handle.write(trace(
+                {"type": "system", "subtype": "init", "agents": [],
+                 "skills": ["sde-agents:root-cause", *extra]},
+                call("Skill", "s1", command="root-cause"), result_event(),
+            ))
+            handle.close()
+            self.addCleanup(Path(handle.name).unlink, missing_ok=True)
+            paths.append(handle.name)
+        case = {"id": "p", "polarity": "positive", "prompt": "x", "expect_fires": ["root-cause"]}
+        same = eval_routing._scored(
+            case, ["root-cause"], [{"tracePath": paths[0], "error": None}] * 2,
+            frozenset({"root-cause"}), 0.5,
+        )
+        self.assertTrue(same["components_uniform"])
+        mixed = eval_routing._scored(
+            case, ["root-cause"],
+            [{"tracePath": paths[0], "error": None}, {"tracePath": paths[1], "error": None}],
+            frozenset({"root-cause"}), 0.5,
+        )
+        self.assertFalse(mixed["components_uniform"], "an intermittent surface must be visible")
+
+
+class RestoredConditionGuardsTest(MainIntegrationTest):
+    """The remaining Codex findings, driven through `main` rather than asserted about.
+
+    Inherits `MainIntegrationTest`'s fixture so these exercise the real entry point with only the
+    native harness replaced.
+    """
+
+    def test_a_mutation_inside_the_frozen_copy_is_detected(self) -> None:
+        """P1: this verified `--plugin-dir` -- the untouched source -- so a session mutating the
+        snapshot it actually ran from was invisible, and the benchmark kept the original identity.
+        """
+        def mutate_the_snapshot() -> None:
+            # argv is `claude plugin eval <frozen> …`; the harness ran from that copy.
+            frozen = Path(self.launched[-1][3])
+            target = next(frozen.glob("agents/*.md"), None) or next(frozen.glob("skills/*/*.md"))
+            target.write_text(target.read_text(encoding="utf-8") + "\nmutated\n", encoding="utf-8")
+
+        code, stderr = self._main(on_run=mutate_the_snapshot)
+        self.assertEqual(2, code)
+        self.assertIn("changed while the batch was running", stderr)
+        self.assertFalse((self.out / "benchmark.json").exists())
+
+    def test_a_default_run_still_records_its_authentication_conditions(self) -> None:
+        """P2: `auth_provider` was null unless `--clean-room`, so two benchmarks taken against
+        different providers looked identical in their conditions."""
+        code, _stderr = self._main()
+        self.assertEqual(0, code)
+        conditions = json.loads((self.out / "benchmark.json").read_text())["conditions"]
+        self.assertIsNotNone(
+            conditions["auth_provider"], "an ordinary run must classify its provider too"
+        )
+        self.assertIn("provider", conditions["auth_provider"])
+
+    def test_a_batch_that_mixed_models_says_so(self) -> None:
+        """P2: the runner collected the names but never checked the count, so it could write and
+        exit 0 on a benchmark its own comment says must not be diffed as one baseline."""
+        second = self.tmp / "trace2.jsonl"
+        second.write_text(
+            self.trace.read_text(encoding="utf-8").replace("claude-sonnet-5", "claude-opus-5"),
+            encoding="utf-8",
+        )
+        self.traces = [self.trace, second]
+        code, stderr = self._main(runs=2)
+        self.assertEqual(0, code)
+        self.assertIn("did not use one model", stderr)
+        self.assertIn("must not be diffed as a single baseline", stderr)
+
+    def test_a_malformed_prompt_is_refused_before_a_session_is_paid_for(self) -> None:
+        """P2: `scoring_targets` never looks at the prompt, so `None` became the literal string
+        "None" and bought a real session plus a recorded verdict."""
+        for prompt in (None, "", "   ", 42):
+            with self.subTest(prompt=prompt):
+                spec = json.loads(self.cluster.read_text(encoding="utf-8"))
+                spec["cases"][0]["prompt"] = prompt
+                self.cluster.write_text(json.dumps(spec), encoding="utf-8")
+                self.launched.clear()
+                code, stderr = self._main()
+                self.assertEqual(2, code)
+                self.assertIn("prompt must be a non-empty string", stderr)
+                self.assertFalse(
+                    [a for a in self.launched if "--json" in a], "no session may be launched"
+                )
+
+    def test_an_unusable_clean_room_exits_two_rather_than_raising(self) -> None:
+        """P2: `clean_env()` raises on ENTER, not on construction, so the documented exit-2 path
+        was an uncaught traceback for anyone without credentials."""
+        module = eval_routing.sys.modules.get(
+            "scripts.eval_clean_room"
+        ) or eval_routing.sys.modules["eval_clean_room"]
+        with mock.patch.object(
+            module, "clean_env", side_effect=module.AuthUnavailable("no credentials")
+        ):
+            code, stderr = self._main(argv_extra=("--clean-room",))
+        self.assertEqual(2, code)
+        self.assertIn("clean room unavailable", stderr)
