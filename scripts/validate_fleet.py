@@ -193,9 +193,13 @@ def hook_command(root: Path) -> str | None:
 def load_guard(root: Path):
     """Import scripts/readonly-guard.py by path -- the hyphen makes it un-importable by name.
 
-    This EXECUTES the guard (content-keyed, see fleet/modules.py). The validator's own rules no
-    longer need this: they read the rosters as data. It remains for the tests that exercise the
-    guard's behaviour and for the generator's roster lookup.
+    This EXECUTES the guard (content-keyed, see fleet/modules.py). TEST-ONLY: nothing in the
+    validator or the generator calls it. The rules read the rosters as data, and the adapter
+    generator moved onto that same reader when `hooks/hooks.json` became generated output -- it
+    renders a SHIPPED artifact, so importing the tree's own hook to learn who it guards is exactly
+    the execution the guard exists to prevent. What is left is the tests that exercise the guard's
+    behaviour, which need the real module. Do not reintroduce a production caller (Codex, PR #193:
+    this docstring still named the generator, and a script docstring is read as its contract).
     """
     source = root / "scripts" / "readonly-guard.py"
     module = load_module_by_content(source, "readonly_guard")

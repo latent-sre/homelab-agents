@@ -37,6 +37,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from types import ModuleType
 
@@ -1258,6 +1259,34 @@ def _safe_generated_root(root: Path, relative: Path, *, operation: str) -> Path:
     return target
 
 
+def _replace_generated_file(path: Path, content: bytes) -> None:
+    """Replace a standalone generated file by directory entry, never by truncating its inode.
+
+    `write_bytes` opens the EXISTING inode and truncates it. A hard link is indistinguishable from
+    a regular file -- `lstat` reports one, and the link/reparse checks above cannot see it -- so a
+    hard link at `hooks/hooks.json` pointing at a file outside the checkout means `--write`
+    silently overwrites that file and leaves the link in place. Reproduced on this PR's own head
+    (Codex, PR #193). Writing a sibling temp file and `os.replace`-ing it swaps the directory
+    entry instead: the old inode keeps its bytes, the outside file is untouched, and the swap is
+    atomic, so a concurrent reader never sees a half-written or absent hook.
+
+    The files inside a generated ROOT do not need this: `--write` removes and recreates those
+    directories, so every entry there is a fresh inode before it is written.
+    """
+
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(content)
+        os.replace(temporary, path)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
 def _safe_generated_file(root: Path, relative: Path, *, operation: str) -> Path:
     """Resolve a declared standalone generated file, refusing any link-like path COMPONENT.
 
@@ -1313,11 +1342,14 @@ def write_generated_outputs(root: Path) -> int:
     for relative, content in expected.items():
         # Re-checked here, not just at inspect time: `--write` is the call that can overwrite a
         # file outside the checkout, and the roots above were cleared and recreated since.
-        path = (
-            _safe_generated_file(root, relative, operation="write")
-            if relative in GENERATED_FILES
-            else root / relative
-        )
+        if relative in GENERATED_FILES:
+            # Re-checked here, not just at inspect time: `--write` is the call that can overwrite
+            # a file outside the checkout, and the roots above were cleared and recreated since.
+            path = _safe_generated_file(root, relative, operation="write")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            _replace_generated_file(path, content)
+            continue
+        path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
     return len(expected)

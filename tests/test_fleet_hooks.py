@@ -18,6 +18,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -220,6 +221,42 @@ class GeneratorWiringTests(unittest.TestCase):
                     generator.write_generated_outputs(dst)
             finally:
                 remove_directory_link(target)
+
+    def test_a_hard_linked_hook_file_is_replaced_not_truncated(self) -> None:
+        # A hard link is invisible to every link/reparse check: `lstat` reports a regular file.
+        # `write_bytes` opens the EXISTING inode and truncates it, so a hard link at
+        # `hooks/hooks.json` pointing outside the checkout means `--write` silently overwrites
+        # that file. Reproduced on this PR's own head after the symlink fixes (Codex, PR #193).
+        # `os.replace` swaps the directory entry instead, leaving the old inode's bytes alone.
+        with repo_copy() as dst:
+            # Same filesystem is required for a hard link, so the victim sits beside the copy.
+            victim = dst.parent / "hard-link-victim.txt"
+            victim.write_text("EXTERNAL SECRET\n", encoding="utf-8")
+            target = dst / generator.HOOKS_FILE
+            try:
+                target.unlink()
+                try:
+                    os.link(victim, target)
+                except OSError as exc:  # e.g. a filesystem without hard links
+                    self.skipTest(f"cannot create hard links here: {exc}")
+                self.assertEqual(2, victim.stat().st_nlink)
+
+                generator.write_generated_outputs(dst)
+
+                self.assertEqual(
+                    "EXTERNAL SECRET\n",
+                    victim.read_text(encoding="utf-8"),
+                    "--write truncated the shared inode instead of replacing the entry",
+                )
+                self.assertEqual(1, victim.stat().st_nlink)
+                self.assertEqual(HOOKS.read_bytes(), target.read_bytes())
+                self.assertEqual(
+                    ["hooks.json"],
+                    sorted(path.name for path in (dst / "hooks").iterdir()),
+                    "the atomic replace left a temporary file behind",
+                )
+            finally:
+                victim.unlink(missing_ok=True)
 
     def test_a_linked_hook_script_is_refused_before_its_roster_is_read(self) -> None:
         # The hook scripts are canonical sources that now feed a SHIPPED artifact. A link at
