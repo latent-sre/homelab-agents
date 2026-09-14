@@ -99,7 +99,9 @@ class PluginWiringGuardTests(PluginWiringMixin, unittest.TestCase):
             _add_guarded_name(repo, "sde-fullstack")
 
         issues = self._issues_after(mutate)
-        self.assertTrue(any("never names 'sde-fullstack'" in i for i in issues), issues)
+        self.assertTrue(
+            any("is missing" in i and "'sde-fullstack'" in i for i in issues), issues
+        )
 
     def test_name_present_in_only_one_hook_roster_is_reported(self) -> None:
         # REGRESSION (review-reported, reproduced): the hook holds TWO rosters — the `case`

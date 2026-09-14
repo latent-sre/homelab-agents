@@ -36,6 +36,36 @@ def _roster_blocks(command: str) -> list[tuple[str, str]]:
     ]
 
 
+def _missing_patterns(variable: str, name: str, plugin_name: str, block: str) -> list[str]:
+    """The roster patterns `name` must contribute to this block, and which of them are absent.
+
+    A BARE-NAME substring search is not enough, and that is not hypothetical: with the gate's
+    nested `case "$IN"` header removed, the `$SQ` slice runs on into the denial reason, whose
+    English sentence names the gated agent -- so the roster could be replaced with a name that
+    gates nobody and the check still found the agent, in prose (Copilot, PR #193). Matching the
+    exact `case` alternation tokens closes that: prose does not contain them.
+
+    These tokens are spelled HERE rather than imported from `fleet.hooks`, deliberately. This is
+    the independent check on what that renderer produced; building the expectation from the
+    renderer's own helper would compare the file against a copy its author wrote, which is the
+    one thing a diagnostic naming an external authority must not do (`AGENTS.md`). The roster
+    names and the namespace still come from the hook script, which is the authority here.
+    """
+
+    if variable == "IN":
+        # The fast path is a loose substring filter over the raw payload, by design: it only
+        # decides whether the interpreter is launched.
+        wanted = [f"*{name}*"]
+    else:
+        # The fallback matches the IDENTITY, in both spellings, against the whitespace-stripped
+        # payload. Either spelling missing leaves that spelling unguarded.
+        wanted = [
+            f"""*'"agent_type":"{plugin_name}:{name}"'*""",
+            f"""*'"agent_type":"{name}"'*""",
+        ]
+    return [pattern for pattern in wanted if pattern not in block]
+
+
 def _select_roster_blocks(blocks: list[tuple[str, str]]) -> dict[str, str]:
     """The fast-path filter and the no-interpreter fallback, chosen by the variable each reads.
 
@@ -258,17 +288,21 @@ def plugin_findings(
                     )
                 )
             else:
-                for label, block in (
-                    ("fast-path filter", gate_cases["IN"]),
-                    ("no-interpreter fallback", gate_cases["SQ"]),
+                for label, variable in (
+                    ("fast-path filter", "IN"),
+                    ("no-interpreter fallback", "SQ"),
                 ):
+                    block = gate_cases[variable]
                     for name in sorted(gated):
-                        if name not in block:
+                        missing = _missing_patterns(
+                            variable, name, gate.plugin_name or plugin_name, block
+                        )
+                        if missing:
                             findings.append(
                                 Finding(
                                     "plugin.hooks.gate",
                                     f"{hooks_path}: the live-effect-gate hook's "
-                                    f"{label} never names {name!r}, but "
+                                    f"{label} is missing {missing} for {name!r}, but "
                                     f"scripts/live-effect-gate.py "
                                     f"lists it in GATED_AGENT_NAMES. The fast-path decides "
                                     f"whether the "
@@ -335,16 +369,20 @@ def plugin_findings(
                 )
             )
         else:
-            for label, block in (
-                ("fast-path filter", cases["IN"]),
-                ("no-interpreter fallback", cases["SQ"]),
+            for label, variable in (
+                ("fast-path filter", "IN"),
+                ("no-interpreter fallback", "SQ"),
             ):
+                block = cases[variable]
                 for name in sorted(guarded):
-                    if name not in block:
+                    missing = _missing_patterns(
+                        variable, name, guard.plugin_name or plugin_name, block
+                    )
+                    if missing:
                         findings.append(
                             Finding(
                                 "plugin.hooks.guard",
-                                f"{hooks_path}: the hook's {label} never names "
+                                f"{hooks_path}: the hook's {label} is missing {missing} for "
                                 f"{name!r}, but scripts/readonly-guard.py lists it in "
                                 f"GUARDED_AGENT_NAMES. The fast-path decides whether the guard "
                                 f"runs at "

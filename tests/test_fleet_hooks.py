@@ -15,6 +15,8 @@ decides correctly.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import tempfile
 import unittest
@@ -32,7 +34,12 @@ from fleet.snapshot import (
 )
 from scripts import generate_platform_adapters as generator
 from scripts import validate_fleet
-from tests.support import REPO, repo_copy
+from tests.support import (
+    REPO,
+    create_directory_link,
+    remove_directory_link,
+    repo_copy,
+)
 
 HOOKS = REPO / "hooks" / "hooks.json"
 
@@ -193,6 +200,78 @@ class GeneratorWiringTests(unittest.TestCase):
             guard, _ = generator._hook_rosters(dst)
             self.assertIn("code-reviewer", guard.names)
 
+    def test_a_link_in_place_of_the_hook_directory_is_refused(self) -> None:
+        # The leaf-only check this PR first shipped protected `hooks/hooks.json` and left `hooks/`
+        # free to be a link — so validation AND `--write` would both follow it and overwrite a
+        # file outside the checkout while the repository looked regenerated (Copilot, PR #193).
+        # Every path COMPONENT is checked now, on inspect and again immediately before writing.
+        with repo_copy() as dst:
+            outside = dst / "outside-hooks"
+            outside.mkdir()
+            target = dst / "hooks"
+            for path in sorted(target.iterdir()):
+                path.replace(outside / path.name)
+            target.rmdir()
+            create_directory_link(outside, target)
+            try:
+                with self.assertRaisesRegex(ValueError, "(?:link|junction|reparse)"):
+                    generator._actual_generated_files(dst, tracked_files=None)
+                with self.assertRaisesRegex(ValueError, "(?:link|junction|reparse)"):
+                    generator.write_generated_outputs(dst)
+            finally:
+                remove_directory_link(target)
+
+    def test_a_linked_hook_script_is_refused_before_its_roster_is_read(self) -> None:
+        # The hook scripts are canonical sources that now feed a SHIPPED artifact. A link at
+        # `scripts/readonly-guard.py` would let `--write` derive the armed hook from a roster
+        # outside the checkout, and byte-drift validation would then certify it as current
+        # (Copilot, PR #193). They get the same check `agents/` and `skills/` have.
+        for script in (GUARD_SCRIPT, GATE_SCRIPT):
+            with self.subTest(script=script), tempfile.TemporaryDirectory() as outside_dir:
+                planted = Path(outside_dir) / "roster.py"
+                with repo_copy() as dst:
+                    path = dst / script
+                    original = path.read_bytes()
+                    planted.write_bytes(original)
+                    path.unlink()
+                    try:
+                        path.symlink_to(planted)
+                    except OSError as exc:  # e.g. Windows without symlink privilege
+                        path.write_bytes(original)
+                        self.skipTest(f"cannot create symlinks here: {exc}")
+                    with self.assertRaisesRegex(
+                        ValueError, "(?:link|junction|reparse)"
+                    ):
+                        generator.expected_outputs(dst)
+
+    def test_the_write_summary_counts_the_hook_file_separately(self) -> None:
+        # `--write`'s count came from `len(expected)`, which now includes the hook file, so the
+        # summary called it a platform adapter (Copilot, PR #193). The two are different artifacts
+        # with different failure modes, and the line an operator reads should say so.
+        with repo_copy() as dst:
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                self.assertEqual(0, generator.main(["--write", "--root", str(dst)]))
+            summary = buffer.getvalue()
+        self.assertIn("hook file", summary)
+        adapters = int(summary.split("Generated ", 1)[1].split(" ", 1)[0])
+        self.assertEqual(
+            adapters + len(generator.GENERATED_FILES),
+            len(generator.expected_outputs(dst)),
+            summary,
+        )
+
+    def test_a_missing_hook_file_reports_an_unarmed_plugin_not_roster_drift(self) -> None:
+        # An absent hook file is not a hook covering the wrong roster — it is no hook at all, and
+        # an operator triaging the two needs the difference (Copilot, PR #193).
+        with repo_copy() as dst:
+            (dst / generator.HOOKS_FILE).unlink()
+            issues = generator.validate_generated_outputs(dst)
+            missing = [i for i in issues if "missing generated hook file" in i]
+            self.assertTrue(missing, issues)
+            self.assertIn("not attached at all and nothing is armed", missing[0])
+            self.assertNotIn("would still exit 0", missing[0])
+
     def test_a_link_in_place_of_the_hook_file_is_refused(self) -> None:
         # `--write` writes the hook file by path. Through a link that path is somewhere else, and
         # the repository would look regenerated while the bytes landed outside it. The generated
@@ -242,6 +321,39 @@ class ValidatorCrossCheckTests(unittest.TestCase):
             issues = validate_fleet.validate_plugin(
                 dst, Fleet.load(dst).agent_names, Fleet.load(dst).skill_names
             )
+            self.assertTrue(
+                any(
+                    "no-interpreter fallback" in issue and "homelab-engineer" in issue
+                    for issue in issues
+                ),
+                issues,
+            )
+
+    def test_prose_naming_a_roster_member_is_not_read_as_a_roster(self) -> None:
+        # The residual hole in this PR's first fix (Copilot, PR #193): selecting the `$SQ` block
+        # by variable still let `CASE_BLOCK_RE` delimit it, so removing the gate's NESTED
+        # `case "$IN"` header extends the slice into the denial reason — an English sentence that
+        # names homelab-engineer. A bare-name substring check then found the agent in prose while
+        # the real identity roster gated nobody. Measured before the fix: zero findings.
+        with repo_copy() as dst:
+            path = dst / "hooks" / "hooks.json"
+            document = json.loads(path.read_text(encoding="utf-8"))
+            hook = document["hooks"]["PreToolUse"][0]["hooks"][1]
+            command = hook["command"].replace(
+                '''*'"agent_type":"sde-agents:homelab-engineer"'*'''
+                '''|*'"agent_type":"homelab-engineer"'*''',
+                '''*'"agent_type":"sde-agents:NOBODY"'*''',
+                1,
+            )
+            nested = (
+                '''case "$IN" in *bypassPermissions*|*dontAsk*'''
+                '''|*'"permission_mode":"auto"'*|*'"permission_mode": "auto"'*) '''
+            )
+            self.assertIn(nested, command, "the nested case header moved; re-anchor this test")
+            hook["command"] = command.replace(nested, "", 1)
+            path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+            fleet = Fleet.load(dst)
+            issues = validate_fleet.validate_plugin(dst, fleet.agent_names, fleet.skill_names)
             self.assertTrue(
                 any(
                     "no-interpreter fallback" in issue and "homelab-engineer" in issue

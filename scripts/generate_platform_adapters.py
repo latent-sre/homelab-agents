@@ -557,6 +557,11 @@ def _hook_roster(root: Path, script: str, constant: str) -> _hooks.Roster:
     "could not be read" render the same adapter and only one of them is true.
     """
 
+    # The hook scripts are canonical sources like `agents/` and `skills/`, and now feed a
+    # SHIPPED artifact: a link at `scripts/readonly-guard.py` would make `--write` derive the
+    # armed hook from a roster outside the checkout, which byte-drift validation would then
+    # certify as current (Copilot, PR #193).
+    _assert_canonical_source_path(root / script, root)
     record = HookScript.load(root / script, constant)
     if record.rosters is None:
         raise ValueError(record.error or f"{root / script}: cannot read {constant}")
@@ -866,8 +871,7 @@ def _actual_generated_files(
     # naming the regeneration command. The indirection check is the same one the roots get -- a
     # link here would send `--write` through it to a path outside the repository.
     for relative in GENERATED_FILES:
-        path = root / relative
-        _assert_no_generated_path_indirection(path, operation="inspect")
+        path = _safe_generated_file(root, relative, operation="inspect")
         if path.is_file():
             paths.add(relative)
     return paths
@@ -981,8 +985,24 @@ def _output_kind(relative: Path) -> str:
     return "hook file" if relative in GENERATED_FILES else "platform adapter"
 
 
+def _missing_consequence(relative: Path) -> str:
+    """What an ABSENT output costs. Distinct from drift: an absent hook file is not a hook
+    covering the wrong roster, it is no hook at all, and an operator triaging the two needs to
+    tell an unarmed plugin from a stale one (Copilot, PR #193)."""
+
+    if relative in GENERATED_FILES:
+        return (
+            "A plugin-shipped agent cannot carry its own hooks, so with this file absent the "
+            "read-only guard and the live-effect gate are not attached at all and nothing is "
+            "armed;"
+        )
+    return (
+        "Copilot, VS Code, or Codex would silently lose this component;"
+    )
+
+
 def _drift_consequence(relative: Path) -> str:
-    """Name what the stale or missing file actually costs -- the hook file is not an adapter.
+    """What a STALE output costs -- the hook file is not an adapter.
 
     A hook whose roster lags its script is not host drift: it is the fleet's only armed control
     disagreeing with the list of agents it is supposed to cover, and it still exits 0.
@@ -1038,7 +1058,7 @@ def validate_generated_outputs(root: Path) -> list[str]:
     for relative in sorted(set(expected) - actual):
         issues.append(
             f"{root / relative}: missing generated {_output_kind(relative)}. "
-            f"{_drift_consequence(relative)} run "
+            f"{_missing_consequence(relative)} run "
             f"`python scripts/generate_platform_adapters.py --write`."
         )
     for relative in sorted(actual - set(expected)):
@@ -1238,6 +1258,32 @@ def _safe_generated_root(root: Path, relative: Path, *, operation: str) -> Path:
     return target
 
 
+def _safe_generated_file(root: Path, relative: Path, *, operation: str) -> Path:
+    """Resolve a declared standalone generated file, refusing any link-like path COMPONENT.
+
+    `_safe_generated_root`'s sibling, and it walks the ancestors for the same reason: checking
+    only the leaf leaves `hooks/` free to be a link, and both validation and `--write` would then
+    read and overwrite a file outside the checkout while the repository looked regenerated
+    (Copilot, PR #193 -- the leaf-only version shipped in this PR's first push).
+    """
+
+    if relative not in GENERATED_FILES:
+        raise ValueError(f"refusing to {operation} undeclared generated path: {relative}")
+
+    resolved_root = root.resolve()
+    target = resolved_root / relative
+    if target == resolved_root or not target.is_relative_to(resolved_root):
+        raise ValueError(
+            f"refusing to {operation} generated path outside repository: {target}"
+        )
+
+    current = resolved_root
+    for part in relative.parts:
+        current /= part
+        _assert_no_generated_path_indirection(current, operation=operation)
+    return target
+
+
 def _remove_generated_root(target: Path) -> None:
     """Clear a generated or retired root, whatever shape it is on disk.
 
@@ -1265,7 +1311,13 @@ def write_generated_outputs(root: Path) -> int:
         _remove_generated_root(target)
         target.mkdir(parents=True)
     for relative, content in expected.items():
-        path = root / relative
+        # Re-checked here, not just at inspect time: `--write` is the call that can overwrite a
+        # file outside the checkout, and the roots above were cleared and recreated since.
+        path = (
+            _safe_generated_file(root, relative, operation="write")
+            if relative in GENERATED_FILES
+            else root / relative
+        )
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
     return len(expected)
@@ -1309,7 +1361,11 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, ValueError) as exc:
             print(f"Platform adapter generation failed: {exc}", file=sys.stderr)
             return 1
-        print(f"Generated {count} platform adapter files.")
+        adapters = count - len(GENERATED_FILES)
+        print(
+            f"Generated {adapters} platform adapter files and "
+            f"{len(GENERATED_FILES)} hook file(s)."
+        )
         return 0
 
     issues = validate_platform_support(root)
