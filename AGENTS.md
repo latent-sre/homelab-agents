@@ -99,9 +99,12 @@ Two checks are manual and on demand, deliberately not CI gates (both drive real 
   binary still honors the guard's payload contract (owner: the `scripts/readonly-guard.py`
   docstring).
 - `python3 scripts/eval_routing.py evals/routing/<cluster>.json --runs 3` — routing evals, owed
-  before **and** after any description edit (the description playbook owns the recipe). Read
-  `evals/README.md` first — it owns the negative-case and narrowing semantics and the headless
-  caveat.
+  before **and** after any description edit (the description playbook owns the recipe).
+  `claude plugin eval` runs the sessions; the fleet computes the verdict from their traces, because
+  a native `tool_used` grader counts a dispatch that errored and cannot express a positive's
+  agent-or-skill disjunction. Read `evals/README.md` first — it owns the negative-case and
+  narrowing semantics, the headless caveat, and why `--clean-room` is still needed (the harness
+  inherits the operator's components).
 
 ## Change playbooks
 

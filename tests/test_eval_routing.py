@@ -528,3 +528,126 @@ class CaseFileTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MainIntegrationTest(unittest.TestCase):
+    """`main` end to end with the native harness mocked out.
+
+    The pieces are covered individually elsewhere; what is only testable here is the WIRING --
+    that the benchmark is written with complete provenance, and that the two guards which refuse
+    to write one actually fire. A guard nothing exercises reads as enforcement while enforcing
+    nothing, which is the failure this repository keeps finding.
+    """
+
+    PROMPT = "Tighten this tool description so it only fires for PDF form extraction."
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, self.tmp, True)
+        self.cluster = self.tmp / "demo.json"
+        self._write_cluster(["prompt-craft"])
+        self.trace = self.tmp / "trace.jsonl"
+        self.trace.write_text(trace(
+            call("Skill", "s1", command="sde-agents:prompt-craft"),
+            result_event(),
+        ), encoding="utf-8")
+        self.out = self.tmp / "out"
+
+    def _write_cluster(self, expect_fires: list) -> None:
+        self.cluster.write_text(json.dumps({
+            "cluster": "demo",
+            "members": ["prompt-craft", "prompt-engineer"],
+            "cases": [{"id": "pos-demo", "polarity": "positive", "prompt": self.PROMPT,
+                       "expect_fires": expect_fires}],
+        }), encoding="utf-8")
+
+    def _fake_native(self, on_run=None):
+        """Stand in for `claude plugin eval`: write the result document it would have written.
+
+        Patching `run` reaches the whole `subprocess` module, which provenance also uses for its
+        `git` calls, so anything that is not the eval invocation is delegated to the real one
+        rather than silently answered with a stub.
+        """
+        real_run = subprocess.run
+
+        def run(argv, **kwargs):
+            if "--json" not in argv:
+                return real_run(argv, **kwargs)
+            result_path = Path(argv[argv.index("--json") + 1])
+            result_path.write_text(json.dumps({
+                "claudeVersion": "2.1.270", "costUsd": 0.5, "partial": False,
+                "cases": [{"name": "pos-demo", "arms": {"with": [
+                    {"error": None, "tracePath": str(self.trace)}]}}],
+            }), encoding="utf-8")
+            if on_run is not None:
+                on_run()
+            return subprocess.CompletedProcess(argv, 0)
+        return run
+
+    def _main(self, on_run=None, argv_extra=()) -> tuple[int, str]:
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            mock.patch.object(
+                eval_routing.subprocess, "run", side_effect=self._fake_native(on_run)
+            ),
+            mock.patch.object(eval_routing, "cli_version", return_value="2.1.270 (Claude Code)"),
+            contextlib.redirect_stderr(stderr),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = eval_routing.main(
+                [str(self.cluster), "--runs", "1", "--output-dir", str(self.out), *argv_extra]
+            )
+        return code, stderr.getvalue()
+
+    def test_a_clean_run_writes_a_benchmark_with_complete_provenance(self) -> None:
+        code, _stderr = self._main()
+        self.assertEqual(0, code)
+        benchmark = json.loads((self.out / "benchmark.json").read_text(encoding="utf-8"))
+        self.assertEqual("demo", benchmark["cluster"])
+        self.assertEqual({"passed": 1, "total": 1}, benchmark["summary"])
+        self.assertEqual([["prompt-craft"]], benchmark["cases"][0]["fired_per_run"])
+        for key in ("eval_sources", "selection", "evaluator", "plugin"):
+            self.assertIn(key, benchmark["provenance"], f"provenance lost its {key}")
+        conditions = benchmark["conditions"]
+        # Read off the trace, not the request: an artifact recording what was ASKED for cannot be
+        # validly diffed, because on the pinned runs it exists to describe the two agree.
+        self.assertEqual(["claude-sonnet-5"], conditions["models_observed"])
+        self.assertEqual("claude plugin eval", conditions["harness"])
+        self.assertFalse(conditions["clean_room"])
+
+    def test_a_cluster_edited_mid_batch_into_a_bad_target_exits_two(self) -> None:
+        """The sessions are already paid for; the benchmark must not describe a different cluster
+        than the one that was measured."""
+        code, stderr = self._main(on_run=lambda: self._write_cluster(["not-a-member"]))
+        self.assertEqual(2, code)
+        self.assertIn("cluster error after sessions", stderr)
+        self.assertFalse((self.out / "benchmark.json").exists())
+
+    def test_a_cluster_edited_mid_batch_into_a_different_selection_writes_nothing(self) -> None:
+        def widen() -> None:
+            spec = json.loads(self.cluster.read_text(encoding="utf-8"))
+            spec["cases"].append({"id": "pos-added", "polarity": "positive",
+                                  "prompt": "another", "expect_fires": ["prompt-craft"]})
+            self.cluster.write_text(json.dumps(spec), encoding="utf-8")
+        code, stderr = self._main(on_run=widen)
+        self.assertEqual(2, code)
+        self.assertIn("changed while the batch was running", stderr)
+        self.assertFalse((self.out / "benchmark.json").exists())
+
+    def test_an_unreadable_native_result_is_a_measurement_failure_not_a_verdict(self) -> None:
+        """Exit 3 asks for a re-run; exit 1 would send someone auditing descriptions over a
+        harness that never produced a result."""
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            mock.patch.object(
+                eval_routing.subprocess, "run",
+                return_value=subprocess.CompletedProcess([], 1),
+            ),
+            contextlib.redirect_stderr(stderr),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = eval_routing.main([str(self.cluster), "--runs", "1"])
+        self.assertEqual(3, code)
+        self.assertIn("no readable result", stderr.getvalue())

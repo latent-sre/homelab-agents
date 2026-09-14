@@ -78,7 +78,8 @@ Phase 1 (rules, policy, findings, CLI, rosters as data) merged in PR #188; phase
 projections as a counted rewrite table, the verified Codex TOML emitter, `--diff`) is implemented
 on `claude/machinery-rewrite-fresh-ar08n6` and merged as PR #189. Phase 3 (probes and doctor on
 the kernel, `hypothesis` property tests, PROBE-006 closed) is implemented on the same branch,
-restarted from `main`; phases 4–5 remain.
+restarted from `main`. Phase 4 (routing evals handed to `claude plugin eval`, the verdict kept
+fleet-side, provenance moved onto the kernel) is implemented on the same branch; phase 5 remains.
 
 **Outcome:** Every maintainer instrument under `scripts/` runs on the `fleet/` kernel with one
 implementation per primitive, policy held as data, structured findings, and the routing runner
@@ -93,7 +94,36 @@ retired to native `claude plugin eval`; the hooks stay single-file and dependenc
 generated adapters byte-identical and every existing verdict unchanged unless its PR records the
 change; the routing runner is not wired onto the kernel before it retires (provenance hole).
 
-**Phase 4 open obligation — thirteen runner tests not yet re-homed.** `fleet/provenance.py` took
+**Phase 4 obligation — discharged 2026-09-14, with the disposition stated per test rather than
+in aggregate** (a first draft of this paragraph claimed all thirteen were re-homed and was wrong
+about four of them):
+
+- Re-homed to `FrozenPluginTest` in `tests/test_fleet_provenance.py`, driven directly instead of
+  through a runner: `test_routing_executes_frozen_plugin_when_source_changes_and_restores`,
+  `test_routing_refuses_frozen_plugin_mutated_by_a_session`,
+  `test_transient_private_snapshot_mutation_is_a_host_sandbox_boundary`.
+- Re-homed to `MainIntegrationTest` in `tests/test_eval_routing.py`, which drives `main` with the
+  native harness mocked and mutation-proves both guards:
+  `test_routing_benchmark_writes_complete_provenance`,
+  `test_routing_benchmark_refuses_plugin_content_changed_during_run`,
+  `test_a_cluster_edited_mid_batch_into_a_bad_target_exits_two`.
+- Deleted with the machinery the phase-4 amendment drops (evaluator self-binding):
+  `test_clean_room_classifier_is_loaded_once_per_evaluator_process`,
+  `test_clean_room_identity_hashes_the_exact_compiled_source_buffer`,
+  `test_standalone_runner_is_bound_to_its_actual_compiled_source_buffer`,
+  `test_loaded_a_disk_b_identity_records_the_executing_routing_buffer`,
+  `test_registry_survives_drive_letter_case_drift`.
+- Deleted because the behaviour is now the platform's: the three registration and auth-abort tests
+  (`test_routing_batch_aborts_auth_failure_without_writing_benchmark`,
+  `test_routing_batch_requires_every_selected_agent_to_be_registered`,
+  `test_routing_batch_cancels_queued_runs_after_registration_failure`). The fleet no longer spawns
+  sessions, so it can no longer observe a failed registration or cancel a queue; what it still
+  owes — never writing a benchmark for a measurement that did not happen — is covered by
+  `test_an_unreadable_native_result_is_a_measurement_failure_not_a_verdict`.
+
+The original list is kept below so a reviewer can check that disposition against it.
+
+**Phase 4 original obligation — thirteen runner tests not yet re-homed.** `fleet/provenance.py` took
 the runner's identity machinery and 21 of its tests. Thirteen more drove that machinery through
 the runner's `main` and cannot run until the thin replacement exists, and four of those test the
 evaluator self-binding that phase 4 deliberately drops (see the decision record's phase-4

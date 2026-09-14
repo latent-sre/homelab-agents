@@ -156,11 +156,49 @@ nothing it did not mean to.
 | 1 | `records`, `policy.toml`, `findings`, `cli`; validator rules become small pure functions over one snapshot, registered with an id and a "why"; tests migrate from message substrings to rule ids; hook rosters read by `ast` | every fixture under `tests/fixtures/` and every mutation test keeps its verdict; the message register is preserved |
 | 2 | `fleet/hosts/` projections; count-checked rewrite table; `tomli-w` TOML emitter; `--diff` on generate | committed adapters byte-identical; the tests' forbidden-phrase assertions pass |
 | 3 | probes and doctor as verbs over `proc`/`stream`/`findings`; `hypothesis` property tests for the guard tokenizer and the dialect; PROBE-006 closed by the runner's timeout result | `probe_plugin --help` still spends nothing; the INCONCLUSIVE oracles keep their polarity tests |
-| 4 | routing evals migrated to native cases; runner retired; `evals/README.md` amended | one paired run under both instruments on the same plugin bytes agrees on every case verdict |
+| 4 | routing evals migrated to native cases; runner reduced to a thin layer; `evals/README.md` amended | both instruments grade one live batch's identical traces and agree on every case verdict (see the phase-4 amendment) |
 | 5 | `hooks/hooks.json` generated from rosters | byte-identical hook file; `tests/test_hook_wiring.py` still executes the shell string |
 
 The lint ratchet in `pyproject.toml` lists, per legacy module, exactly the rule codes it
 violated on 2026-09-13; a module leaves the table in the phase that migrates it.
+
+## Phase 4 as implemented, and where it departs from the plan above
+
+Three things were settled by measurement during implementation and changed the design. Each is
+recorded here because the paragraph above states the opposite.
+
+**The native graders are a tripwire, not the verdict.** The plan handed grading to `tool_used`
+graders. Measured on 2026-09-14, `tool_used` counts a call whose input matches its regex whether
+or not the spawn SUCCEEDED, so on a positive case a routing regression can hide behind a dispatch
+that never landed — the retiring runner deliberately excluded those. And a positive passes when
+ANY of its expected destinations fires; all 18 multi-target positives in this repository name both
+an agent and a skill, so the disjunction spans two tools and no combination of `tool_used` graders
+states it. `fleet/routing.py` therefore keeps the runner's reading and applies it to the harness's
+own traces, which `--keep-temp` preserves. Evidence:
+`docs/archive/2026-09/native-grader-errored-spawn-2026-09-14.md`.
+
+**`scripts/eval_clean_room.py` does NOT retire.** The plan assumed the harness's own isolation
+made it redundant. Read off an eval child session's `init` event, that session inherits the
+operator's whole component surface — `code-review`, `debug` and `verify` among them, direct
+routing competitors for fleet members. `--clean-room` survives, using the same `CLAUDE_CONFIG_DIR`
+lever, and stays a recorded condition.
+
+**The evaluator self-binding is dropped.** The runner re-executed itself from checked bytes and
+hashed those, which it could do as one file that both ran sessions and graded them. Phase 4 splits
+those jobs across imported kernel modules, so binding only the entry script would cover a
+shrinking fraction of the code that decides a verdict while still reading like the old guarantee.
+`evaluator_identity` now hashes the named files on disk and claims exactly that. The window it no
+longer closes — an evaluator source edited between import and record, by the operator running the
+measurement — is narrower than the one `frozen_plugin` still closes for the plugin under test,
+which is a different party's bytes.
+
+**The oracle is restated.** "One paired run under both instruments" cannot mean two live batches:
+routing is stochastic, so two batches disagree case by case from variance alone and the comparison
+would measure run-to-run spread rather than the migration. Both instruments instead grade the SAME
+runs — one live batch, the retiring runner's reader and scorer applied to identical traces. All 12
+`prompt-tooling` case verdicts agreed, on the pass flag, the inconclusive flag, the excluded-run
+count and the per-run firing sets. What that oracle cannot exercise, and why, is recorded with it:
+`docs/archive/2026-09/routing-migration-oracle-2026-09-14.md`.
 
 ## Rejected alternatives
 

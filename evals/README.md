@@ -124,8 +124,8 @@ python3 scripts/eval_routing.py evals/routing/homelab-ops.json --runs 3 --model 
 
 **`--model` is required for any run you intend to diff against another.** Without it each session
 takes whatever the CLI defaults to, and that default is **not** inherited from the session that
-launched the runner — a `/model` change in an interactive session does not reach a `claude -p`
-child. This silently invalidated a comparison here: two runs of `craft-vs-fullstack` believed to
+launched the runner — a `/model` change in an interactive session does not reach the eval's
+child sessions. This silently invalidated a comparison here: two runs of `craft-vs-fullstack` believed to
 differ by model tier were both sonnet, so their near-identical results said nothing about the tier.
 
 Every `benchmark.json` therefore records a `conditions` block — `cli_version`, `model_requested`,
@@ -169,15 +169,33 @@ longer than that before its first tool call, so **the timeout and the model are 
 pin both together, and both are recorded in `conditions` (`timeout_s`, `model_requested`) because
 a shorter timeout excludes more runs and therefore moves every rate in the artifact.
 
-Each run is a fresh headless `claude -p … --plugin-dir .` session — a fresh *conversation*, which
-is **not** configuration isolation: the session still inherits everything under the user's
-`CLAUDE_CONFIG_DIR` (personal agents, skills, plugins, global CLAUDE.md), and a junction
-deployment makes the fleet register twice, bare and namespaced, in every run (measured in the
-archived 2026-07-29 isolation outcome (retired to Git history)).
+`claude plugin eval` runs the sessions; the fleet grades them. The cluster JSON is projected into
+native case directories under `evals/generated/` (git-ignored, rewritten every run — edit the
+cluster, never the generated copy), and the harness owns isolation, per-case runs, concurrency,
+cost ceilings and its own JSON result and HTML report.
+
+**The verdict is not the harness's.** Its `tool_used` graders are kept as a tripwire, but the
+score is computed by `fleet/routing.py` from each run's trace, for two measured reasons
+(`docs/archive/2026-09/native-grader-errored-spawn-2026-09-14.md`): `tool_used` counts a call
+whose input matches whether or not the spawn SUCCEEDED, so on a positive a regression can hide
+behind a dispatch that never landed; and a positive passes when ANY expected destination fires, a
+disjunction that spans the Agent and Skill tools in every multi-target positive here and that no
+combination of `tool_used` graders can state.
+
+**The harness is not a clean room.** Each run gets a fresh conversation and a fresh working
+directory, which is **not** configuration isolation: the eval child session inherits everything
+under the user's `CLAUDE_CONFIG_DIR`. Read off a real session's own `init` event on 2026-09-14,
+that included `code-review`, `debug`, `verify` and a dozen other components competing for the same
+routing decisions, and a junction deployment makes the fleet register twice, bare and namespaced.
 `--clean-room` relocates the configuration to a temporary
 directory holding only credentials (`scripts/eval_clean_room.py`) and is recorded in `conditions`
 — artifacts that differ on it measured different routing competitions and must not be diffed
-against each other. The runner prints per-case pass/fail and rates; pass `--output-dir <path>`
+against each other.
+
+**`--max-turns` is a measurement condition, not a convenience.** A routing decision missed because
+the session ran out of turns is not a routing failure, and the runner does not score it as one: a
+run counts as a measurement only when something fired or the session reached a non-error final
+result. Everything else is excluded and reported, so a rate always says how many runs it rests on. The runner prints per-case pass/fail and rates; pass `--output-dir <path>`
 to also write a `benchmark.json` there for before/after diffing. Exit codes separate the two things
 you would do about them — `0` all passed, `1` a case failed (a routing verdict to investigate), `3`
 nothing failed but something was `INCONCLUSIVE` (re-run it; nothing was measured), `2` a usage,
@@ -349,10 +367,24 @@ those: it holds the only Codex CLI run this repository has ever recorded.
 
 ## Relationship to `claude plugin eval`
 
-The native `claude plugin eval` is the right long-term home for this — it does ablation baselines,
-repetitions, and LLM grading natively. It is currently **early access** and does not run in every
-environment, so `scripts/eval_routing.py` is the stopgap that exercises these cases today. The case
-files are kept close to the native shape so they migrate when it opens; the runner retires then.
+The migration happened on 2026-09-14 (MACH-001 phase 4). `claude plugin eval` now runs every
+routing case: isolation, per-case runs, concurrency, cost ceilings, timeouts, the JSON result and
+the HTML report are all the platform's, and `scripts/eval_routing.py` dropped from about 1,450
+lines to 479.
+
+What the fleet kept is what the platform does not do — the verdict, the clean room, and
+measurement provenance. Each was a measured decision rather than a preference; the "Running"
+section above states the first two, and `fleet/provenance.py` holds the third, because nothing in
+the native result document identifies the plugin bytes a result was taken against.
+
+The oracle for the migration is recorded in
+`docs/archive/2026-09/routing-migration-oracle-2026-09-14.md`: one live batch of `prompt-tooling`
+graded by BOTH the retiring runner and the replacement, on identical traces, agreeing on all 12
+case verdicts. It also records what that oracle could not exercise and why.
+
+**A rate from before the migration is not comparable to one from after it.** The sessions now run
+under a declared tool set and a turn cap rather than the old wall clock, so the conditions block
+moved even where the grading did not. Re-baseline rather than diffing across the boundary.
 
 ## Coverage
 
