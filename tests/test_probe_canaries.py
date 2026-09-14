@@ -545,36 +545,101 @@ class ProbeTimeoutRecoveryTests(unittest.TestCase):
         )
         self.assertEqual(probe_plugin.SKIP, statuses["a canary was not present"])
 
-    def test_only_absence_based_verdicts_are_downgradable(self) -> None:
-        """Every `absence=True` in the probe is genuinely a not-found verdict.
+    def test_every_downgradable_verdict_fails_on_a_falsy_predicate(self) -> None:
+        """Structural, because prose is not checkable and my first attempt at this lied.
 
-        Read from the source rather than asserted from memory. This is the direction that is
-        safe to enumerate: a mark that drifts onto a presence-based verdict would silence it,
-        and there is no count to keep in step -- adding an unmarked check is always safe.
+        The earlier version of this test matched the detail text for absence words and flagged
+        `PASS if default_hits else FAIL` -- a genuine absence whose prose happens to describe the
+        consequence rather than the gap. Classifying semantics from wording produces both false
+        alarms and false confidence, so this asserts the shape instead.
+
+        A `probe.check(PASS if X else FAIL, ...)` reaches FAIL when X is FALSY: something was not
+        found. A bare `probe.check(FAIL, ...)` is reached because a branch condition was TRUE:
+        the oracle saw something. Only the first form may carry `absence=True`, and that is
+        decidable from the syntax tree rather than from how the message reads.
         """
         source = Path(probe_plugin.__file__).read_text(encoding="utf-8")
         tree = ast.parse(source)
-        marked = [
-            node.lineno
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "check"
-            and any(kw.arg == "absence" for kw in node.keywords)
-        ]
+        offenders = []
+        marked = 0
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "check"
+                and any(kw.arg == "absence" for kw in node.keywords)
+            ):
+                continue
+            marked += 1
+            verdict = node.args[0] if node.args else None
+            conditional_on_a_predicate = isinstance(verdict, ast.IfExp) and isinstance(
+                verdict.orelse, ast.Name
+            ) and verdict.orelse.id == "FAIL"
+            if not conditional_on_a_predicate:
+                offenders.append(node.lineno)
         self.assertTrue(marked, "no absence-based verdicts marked; the cascade is unsuppressed")
-        lines = source.split("\n")
-        for lineno in marked:
-            window = "\n".join(lines[max(0, lineno - 1) : lineno + 8])
-            with self.subTest(line=lineno):
-                self.assertTrue(
-                    any(
-                        phrase in window
-                        for phrase in ("never", "no ", "not ", "did not", "stayed", "exited")
-                    ),
-                    f"the verdict at line {lineno} is marked downgradable but does not read as "
-                    f"an absence; a presence-based verdict marked this way is silenced",
-                )
+        self.assertEqual(
+            [],
+            offenders,
+            f"lines {offenders} pass absence=True on an unconditional FAIL. That verdict is "
+            f"reached because something WAS observed, and marking it downgradable silences it "
+            f"on a truncated transcript.",
+        )
+
+    def test_an_errored_spawn_is_told_apart_from_an_absent_one(self) -> None:
+        """`spawn_succeeded` returning False conflated two different findings.
+
+        No correlated result at all is an absence and means nothing on a partial transcript. A
+        result that came back marked `is_error` is a plugin-loading or name-resolution failure
+        the oracle positively saw, and marking the combined predicate downgradable silenced it.
+        """
+        agent = "sde-agents:code-reviewer"
+        errored = json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "call_1",
+                            "name": "Agent",
+                            "input": {"subagent_type": agent},
+                        }
+                    ]
+                },
+            }
+        ) + "\n" + json.dumps(
+            {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {"type": "tool_result", "tool_use_id": "call_1", "is_error": True,
+                         "content": "boom"}
+                    ]
+                },
+            }
+        )
+        self.assertTrue(probe_plugin.spawn_errored(errored, agent))
+        self.assertFalse(probe_plugin.spawn_succeeded(errored, agent))
+
+        # An absent result is neither a success nor an observed error.
+        absent = json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "call_2",
+                            "name": "Agent",
+                            "input": {"subagent_type": agent},
+                        }
+                    ]
+                },
+            }
+        )
+        self.assertFalse(probe_plugin.spawn_errored(absent, agent))
+        self.assertFalse(probe_plugin.spawn_succeeded(absent, agent))
 
     def test_an_answered_gate_arm_is_graded_even_when_its_peer_times_out(self) -> None:
         """An arm that completed carries evidence of its own.

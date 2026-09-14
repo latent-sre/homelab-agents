@@ -11,8 +11,27 @@ close a bypass (`ls;(rm -rf /)` and 32 variants).
 |---|---|
 | CLI | 2.1.270 — the version pinned in `.github/workflows/validate.yml` |
 | Command | `python3 scripts/probe_plugin.py` |
-| Tree | `c9af8e803993` plus the round-4 review fixes, no other writer |
+| Tree | **`c9af8e803993`**, clean working tree, no other writer |
+| Guard blob probed | `9f7d6a6314a03025548bac80f4d269bd8601d101` (`scripts/readonly-guard.py`) |
+| Hook wiring probed | `e32c4b8c414d7d79c553f5b39ef3fc4ca5088ae6` (`hooks/hooks.json`) |
 | Exit | 1 — **14/17 passed, 2 failed, 1 inconclusive** |
+
+### Which bytes this covers, and which it does not
+
+An earlier revision of this file said the probed tree was `c9af8e803993` "plus the round-4
+review fixes". That was wrong: those fixes were made AFTER the run finished, and a receiver
+cannot validate a gate discharge against a tree that is not named (Codex, PR #190). The run was
+against `c9af8e803993` with a clean working tree.
+
+That matters for exactly one thing, and it is worth stating rather than glossing:
+
+- **The subject of the gate is unchanged.** `scripts/readonly-guard.py` and `hooks/hooks.json`
+  are byte-identical between the probed tree and the branch head — the blob digests above resolve
+  in both. So the guard evidence below applies to the head as it stands.
+- **The instrument changed afterwards.** `scripts/probe_plugin.py` gained 75 lines of
+  verdict-classification changes after this run, so the verdicts recorded here are those of the
+  probe as it stood at `c9af8e803993`. None of them involved a timeout, so none of the changed
+  classification logic was exercised in producing them; a re-run would exercise it.
 
 ## What the gate owed, and what it got
 

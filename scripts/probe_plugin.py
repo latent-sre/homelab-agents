@@ -400,6 +400,21 @@ def spawn_succeeded(text: str, agent_name: str) -> bool:
     )
 
 
+def spawn_errored(text: str, agent_name: str) -> bool:
+    """True iff a spawn of `agent_name` came back WITH is_error — an observation, not a gap.
+
+    `spawn_succeeded` returning False conflates two different findings: no correlated result at
+    all (an absence, meaningless on a truncated transcript) and a result that came back marked
+    is_error (a plugin-loading or name-resolution failure the oracle positively saw). Marking the
+    combined predicate as absence-based silenced the second, which is the mixed-predicate trap
+    this phase keeps re-learning (Codex, PR #190).
+    """
+    return any(
+        _names_agent(exchange.input, agent_name) and exchange.answered and exchange.is_error
+        for exchange in stream_events.correlate_tool_results(text, tool_names=("Agent", "Task"))
+    )
+
+
 def _names_agent(tool_input: dict, agent_name: str) -> bool:
     """Whether an Agent/Task call's input names `agent_name`.
 
@@ -824,6 +839,7 @@ def probe_workflow_contract(probe: "Probe") -> None:
         "default workflow agents carry the 'workflow-subagent' identity",
         "the identity string changed upstream; re-verify guard scoping assumptions before "
         "trusting workflows with guarded agents",
+        absence=True,
     )
     # Attempt-and-deny, both halves deterministic where they can be: the attempt is the hook-log
     # entry for the guarded agent's non-allowlisted `sort` (delivery of exactly the command the
@@ -848,6 +864,7 @@ def probe_workflow_contract(probe: "Probe") -> None:
         "the guard's own denial text never appeared in the session stream -- the attempt was "
         "delivered but nothing proves it was denied; an allowed `sort` and a denied `sort` "
         "produce identical hook-log lines",
+        absence=True,
     )
 
 
@@ -1030,13 +1047,23 @@ def main(argv: list[str] | None = None) -> int:
 
     print("\n== the plugin loaded, and its components are namespaced ==")
     for agent in ("sde-agents:code-reviewer", "sde-agents:sde-fullstack", "sde-agents:homelab-engineer"):
-        probe.check(
-            PASS if spawn_succeeded(text, agent) else FAIL,
-            f"{agent} spawned and returned without error",
-            "no Agent call naming this agent came back with a non-error result -- the plugin "
-            "did not load, or the namespaced name did not resolve",
-            absence=True,
-        )
+        label = f"{agent} spawned and returned without error"
+        if spawn_errored(text, agent):
+            # OBSERVED: a result came back marked is_error. A later timeout cannot un-see it.
+            probe.check(
+                FAIL,
+                label,
+                "an Agent call naming this agent returned is_error -- the plugin did not load, "
+                "or the namespaced name did not resolve",
+            )
+        else:
+            # ABSENCE: no correlated result at all, which proves nothing on a partial transcript.
+            probe.check(
+                PASS if spawn_succeeded(text, agent) else FAIL,
+                label,
+                "no Agent call naming this agent came back with any correlated result",
+                absence=True,
+            )
 
     print("\n== builder skills load only when needed ==")
     probe_builder_skills(probe, text)
