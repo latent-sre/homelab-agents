@@ -35,7 +35,9 @@ class CleanEnvironmentTest(unittest.TestCase):
                     os.environ.pop(key, None)
                 with eval_clean_room.clean_env() as env:
                     room = Path(env["CLAUDE_CONFIG_DIR"])
-                    self.assertEqual([eval_clean_room.CREDENTIALS], [p.name for p in room.iterdir()])
+                    self.assertEqual(
+                        [eval_clean_room.CREDENTIALS], [p.name for p in room.iterdir()]
+                    )
                     self.assertEqual(
                         '{"token":"test-secret"}',
                         (room / eval_clean_room.CREDENTIALS).read_text(encoding="utf-8"),

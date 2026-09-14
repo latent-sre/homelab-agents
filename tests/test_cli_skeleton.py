@@ -38,7 +38,8 @@ class CliTestCase(unittest.TestCase):
                 mock.patch.object(cli, 'delete', side_effect=remove or removed.append), \
                 mock.patch.object(cli, 'discover', return_value=inventory), \
                 mock.patch.object(cli.signal, 'signal'), \
-                mock.patch.object(cli.sys, 'stdin', stdin if stdin is not None else io.StringIO()), \
+                mock.patch.object(
+                    cli.sys, 'stdin', stdin if stdin is not None else io.StringIO()), \
                 contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 status = cli.main(['prune', *(['--json'] if machine else []), *flags])
         return status, stdout.getvalue(), stderr.getvalue(), removed
@@ -162,7 +163,8 @@ class PartialResultsTest(CliTestCase):
                         'unknown': [self.ITEMS[failure_at]],
                         'not_attempted': self.ITEMS[failure_at + 1:],
                     })
-                    self.assertEqual(effects, [item['name'] for item in self.ITEMS[:failure_at + 1]])
+                    self.assertEqual(
+                        effects, [item['name'] for item in self.ITEMS[:failure_at + 1]])
                     self.assertIn('acknowledgement lost', stderr)
                     self.assertIn('outcome unknown', stderr)
 

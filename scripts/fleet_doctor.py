@@ -172,7 +172,8 @@ def _git_checks(root: Path, run: CommandRunner) -> list[Check]:
 # Claude model under those settings. This estimate does not measure the active host's catalog. Over
 # budget, Claude Code does not drop a skill; it silently degrades plugin entries to bare
 # `- name` lines with no description (bundled skills are exempt and charge the budget first),
-# independently of Codex's token-based catalog budget. Probed on Claude CLI 2.1.233: binary constants
+# independently of Codex's token-based catalog budget. Probed on Claude CLI 2.1.233: binary
+# constants
 # (fraction 0.01, 4 chars/token, 200k default window, 1536-char per-description cap) plus live
 # headless sessions -- a 200k-window model rendered 18 of this fleet's 19 entries name-only
 # while larger-window models rendered all of them in full. The failure is silent at runtime:
@@ -181,7 +182,9 @@ _SKILL_LISTING_BUDGET_CHARS = 8000
 _SKILL_LISTING_MAX_DESC_CHARS = 1536
 
 
-def _workflow_listing_entries(root: Path, plugin_name: str) -> tuple[list[tuple[str, str]], list[str]]:
+def _workflow_listing_entries(
+    root: Path, plugin_name: str
+) -> tuple[list[tuple[str, str]], list[str]]:
     """((name, description) entries, unextractable-file paths) for workflows/*.js meta literals.
 
     Workflows appear in the model's skill listing exactly like skills (observed live on CLI
@@ -557,7 +560,8 @@ def _installation_checks(
             Check(
                 "host.claude.deployment",
                 "pass",
-                "Claude plugin mode is visible and no complete fleet junction deployment was found.",
+                "Claude plugin mode is visible and no complete fleet junction deployment was "
+                "found.",
             )
         )
     else:
@@ -582,7 +586,8 @@ def _installation_checks(
             Check(
                 "host.claude.readonly-guard",
                 "pass",
-                "Plugin mode can load the Claude read-only guard; behavioral proof remains a probe.",
+                "Plugin mode can load the Claude read-only guard; behavioral proof remains a "
+                "probe.",
             )
         )
     else:
@@ -729,7 +734,8 @@ def main(argv: list[str] | None = None) -> int:
     # it never obtained (DOCTOR-002). That is the same defect as the warnings one above, one level
     # down: the report said so on stdout and nothing a caller can branch on did.
     #
-    # It maps to 2, which already means "the doctor could not tell you" — the code the whole-report
+    # It maps to 2, which already means "the doctor could not tell you" — the code the
+    # whole-report
     # failure above returns. The ladder is ordered by how definite the answer is: 1 first, because
     # a check that FAILED is a definite negative and the most actionable thing here; then 2, where
     # nothing failed but the no-failures claim rests on checks that did not all run; then 3 for

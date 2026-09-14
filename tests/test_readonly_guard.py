@@ -466,7 +466,9 @@ class ReadonlyGuardTest(unittest.TestCase):
         self.assertEqual(decision(proc), "deny")
 
     def test_missing_command_field_passes_through(self) -> None:
-        proc = run_guard(json.dumps({"tool_name": "Bash", "agent_type": REVIEWER, "tool_input": {}}))
+        proc = run_guard(
+            json.dumps({"tool_name": "Bash", "agent_type": REVIEWER, "tool_input": {}})
+        )
         self.assertEqual(decision(proc), "allow")
 
 

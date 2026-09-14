@@ -126,7 +126,11 @@ class ProbeCanaryTests(unittest.TestCase):
     def test_code_craft_canary_is_present_and_not_supplied_by_the_prompt(self) -> None:
         text = (REPO / "skills" / "code-craft" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn(f"**{probe_plugin.CODE_CANARY}**", text)
-        for canary in (probe_plugin.CODE_CANARY, probe_plugin.BACKEND_CANARY, probe_plugin.FRONTEND_CANARY):
+        for canary in (
+            probe_plugin.CODE_CANARY,
+            probe_plugin.BACKEND_CANARY,
+            probe_plugin.FRONTEND_CANARY,
+        ):
             self.assertNotIn(canary, probe_plugin.PROMPT)
 
     def test_backend_craft_canary_is_present(self) -> None:
@@ -176,7 +180,11 @@ class BuilderSkillLoadingTests(unittest.TestCase):
             "builder", "Agent", subagent_type="sde-agents:sde-fullstack",
         )]
         if fetch:
-            blocks.append(self.call("backend", "Read", file_path="/plugin/skills/backend-craft/SKILL.md"))
+            blocks.append(
+                self.call(
+                    "backend", "Read", file_path="/plugin/skills/backend-craft/SKILL.md"
+                )
+            )
             if fetch_result:
                 blocks.append(self.result("backend", self.BACKEND))
         blocks.extend(extra)
@@ -189,7 +197,11 @@ class BuilderSkillLoadingTests(unittest.TestCase):
             if "message" in block:
                 events.append(block)
                 continue
-            actor = None if block.get("name") == "Agent" or block.get("tool_use_id") == "builder" else "builder"
+            actor = (
+                None
+                if block.get("name") == "Agent" or block.get("tool_use_id") == "builder"
+                else "builder"
+            )
             event = self.actor_event(actor, block)
             if not provenance:
                 event.pop("parent_tool_use_id")
@@ -271,7 +283,9 @@ class BuilderSkillLoadingTests(unittest.TestCase):
                     ))
 
     def test_async_launch_metadata_is_not_a_completed_builder_answer(self):
-        self.assertEqual(["INCONCLUSIVE"] * 3, self.check_loading(self.async_launch(), answer=False))
+        self.assertEqual(
+            ["INCONCLUSIVE"] * 3, self.check_loading(self.async_launch(), answer=False)
+        )
 
     def test_correlated_async_completion_supplies_the_builder_answer(self):
         for text_blocks in (False, True):
@@ -317,7 +331,9 @@ class BuilderSkillLoadingTests(unittest.TestCase):
         for variant in ("unclosed", "duplicate-id", "other-origin", "sidechain"):
             event = self.completion()
             if variant == "unclosed":
-                event["message"]["content"] = event["message"]["content"].replace("</task-notification>", "")
+                event["message"]["content"] = event["message"]["content"].replace(
+                    "</task-notification>", ""
+                )
             elif variant == "duplicate-id":
                 event["message"]["content"] = event["message"]["content"].replace(
                     "<result>", "<tool-use-id>builder</tool-use-id><result>",
@@ -335,7 +351,14 @@ class BuilderSkillLoadingTests(unittest.TestCase):
         for actor in (None, "reviewer"):
             with self.subTest(actor=actor):
                 statuses = self.check_loading(
-                    self.actor_event(actor, self.call("elsewhere", "Read", file_path="/plugin/skills/backend-craft/SKILL.md")),
+                    self.actor_event(
+                        actor,
+                        self.call(
+                            "elsewhere",
+                            "Read",
+                            file_path="/plugin/skills/backend-craft/SKILL.md",
+                        ),
+                    ),
                     self.actor_event(actor, self.result("elsewhere", self.BACKEND)),
                     fetch=False,
                 )
@@ -352,14 +375,20 @@ class BuilderSkillLoadingTests(unittest.TestCase):
     def test_an_observed_builder_cannot_borrow_a_different_actors_read(self):
         self.assertEqual("FAIL", self.check_loading(
             self.actor_event("builder", {"type": "text", "text": "Inspection finished."}),
-            self.actor_event(None, self.call("elsewhere", "Read", file_path="/plugin/skills/backend-craft/SKILL.md")),
+            self.actor_event(
+                None,
+                self.call(
+                    "elsewhere", "Read", file_path="/plugin/skills/backend-craft/SKILL.md"
+                ),
+            ),
             self.actor_event(None, self.result("elsewhere", self.BACKEND)),
             fetch=False,
         )[1])
 
     def test_no_builder_spawn_leaves_all_loading_checks_inconclusive(self):
         transcript = json.dumps(self.actor_event(
-            "reviewer", self.call("backend", "Read", file_path="/plugin/skills/backend-craft/SKILL.md"),
+            "reviewer",
+            self.call("backend", "Read", file_path="/plugin/skills/backend-craft/SKILL.md"),
         ))
         probe = probe_plugin.Probe()
         with contextlib.redirect_stdout(io.StringIO()):
@@ -374,8 +403,16 @@ class BuilderSkillLoadingTests(unittest.TestCase):
 
     def test_two_builder_invocations_cannot_pool_read_and_answer_evidence(self):
         statuses = self.check_loading(
-            self.actor_event(None, self.call("builder2", "Agent", subagent_type="sde-agents:sde-fullstack")),
-            self.actor_event("builder2", self.call("backend2", "Read", file_path="/plugin/skills/backend-craft/SKILL.md")),
+            self.actor_event(
+                None,
+                self.call("builder2", "Agent", subagent_type="sde-agents:sde-fullstack"),
+            ),
+            self.actor_event(
+                "builder2",
+                self.call(
+                    "backend2", "Read", file_path="/plugin/skills/backend-craft/SKILL.md"
+                ),
+            ),
             self.actor_event("builder2", self.result("backend2", self.BACKEND)),
             self.actor_event(None, self.result("builder2", "done")),
             fetch=False,
@@ -384,7 +421,12 @@ class BuilderSkillLoadingTests(unittest.TestCase):
 
     def test_another_actors_unrelated_reads_do_not_contaminate_the_builder(self):
         self.assertEqual(["PASS"] * 3, self.check_loading(
-            self.actor_event("reviewer", self.call("elsewhere", "Read", file_path="/plugin/skills/code-craft/SKILL.md")),
+            self.actor_event(
+                "reviewer",
+                self.call(
+                    "elsewhere", "Read", file_path="/plugin/skills/code-craft/SKILL.md"
+                ),
+            ),
             self.actor_event("reviewer", self.result("elsewhere", self.CODE + self.FRONTEND)),
         ))
 
@@ -431,17 +473,24 @@ class BuilderSkillLoadingTests(unittest.TestCase):
             self.call("code", "Bash", command="cat skills/*/SKILL.md"),
         ):
             with self.subTest(call=call):
-                self.assertEqual("FAIL", self.check_loading(call, self.result("code", self.CODE))[0])
+                self.assertEqual(
+                    "FAIL", self.check_loading(call, self.result("code", self.CODE))[0]
+                )
 
     def test_unwanted_frontend_loading_or_preload_fails(self):
-        self.assertEqual("FAIL", self.check_loading(answer=f"{self.CODE} {self.BACKEND} {self.FRONTEND}")[2])
+        self.assertEqual(
+            "FAIL",
+            self.check_loading(answer=f"{self.CODE} {self.BACKEND} {self.FRONTEND}")[2],
+        )
         for call in (
             self.call("front", "Read", file_path="/plugin/skills/frontend-craft/SKILL.md"),
             self.call("front", "Skill", skill="sde-agents:frontend-craft"),
             self.call("front", "Bash", command="cat skills/*/SKILL.md"),
         ):
             with self.subTest(call=call):
-                self.assertEqual("FAIL", self.check_loading(call, self.result("front", self.FRONTEND))[2])
+                self.assertEqual(
+                    "FAIL", self.check_loading(call, self.result("front", self.FRONTEND))[2]
+                )
 
     def test_partial_shell_and_search_reads_cannot_prove_unloaded_skills(self):
         """A short read can omit the canary while still fetching forbidden guidance."""

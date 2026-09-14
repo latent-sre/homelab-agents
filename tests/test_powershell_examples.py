@@ -28,7 +28,10 @@ class NativeFailureExampleTest(unittest.TestCase):
         marker = "Write-Output 'DEPENDENT_RAN'"
         # Stop alone does not catch a native failure; the explicit exit check must make the
         # difference. Disable the newer optional behavior so this also exercises the 5.1 path.
-        setup = "$ErrorActionPreference = 'Stop'\n$PSNativeCommandUseErrorActionPreference = $false\n"
+        setup = (
+            "$ErrorActionPreference = 'Stop'\n"
+            "$PSNativeCommandUseErrorActionPreference = $false\n"
+        )
         with tempfile.TemporaryDirectory() as temporary:
             script = Path(temporary) / 'native-failure.ps1'
             for body, guarded in ((command, False), (recipe, True)):

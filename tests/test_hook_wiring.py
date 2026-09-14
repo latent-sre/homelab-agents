@@ -290,12 +290,16 @@ def gate_hook_command() -> str:
     for entry in config["hooks"]["PreToolUse"]:
         if entry.get("matcher") == "Bash":
             for hook in entry["hooks"]:
-                if hook.get("type") == "command" and "live-effect-gate.py" in hook.get("command", ""):
+                if hook.get("type") == "command" and "live-effect-gate.py" in hook.get(
+                    "command", ""
+                ):
                     return hook["command"]
     raise RuntimeError("hooks/hooks.json: no PreToolUse/Bash hook runs scripts/live-effect-gate.py")
 
 
-def gate_payload(command: str, agent_type: str | None = HOMELAB, mode: str | None = "default") -> str:
+def gate_payload(
+    command: str, agent_type: str | None = HOMELAB, mode: str | None = "default"
+) -> str:
     data: dict = {
         "hook_event_name": "PreToolUse",
         "session_id": "s-1",
@@ -367,7 +371,9 @@ class LiveEffectGateWiringTests(unittest.TestCase):
     def test_main_loop_command_that_merely_names_the_agent_is_ignored(self) -> None:
         # The raw prefilter matches any payload mentioning homelab-engineer; the interpreter then
         # reads agent_type properly. A user editing agents/homelab-engineer.md must never be gated.
-        pl = gate_payload("sed -n 1,5p agents/homelab-engineer.md && docker compose up -d", agent_type=None)
+        pl = gate_payload(
+            "sed -n 1,5p agents/homelab-engineer.md && docker compose up -d", agent_type=None
+        )
         self.assertIsNone(decision(self._run(pl)))
 
     def test_suppressed_mode_denies_with_the_gate_voice(self) -> None:
@@ -380,7 +386,11 @@ class LiveEffectGateWiringTests(unittest.TestCase):
             out = self._run(gate_payload(GATE_LIVE), plugin_root=empty)
             self.assertEqual("ask", decision(out))
             self.assertIn("gate unavailable", out)
-            self.assertIsNone(decision(self._run(gate_payload(GATE_LIVE, agent_type=None), plugin_root=empty)))
+            self.assertIsNone(
+                decision(
+                    self._run(gate_payload(GATE_LIVE, agent_type=None), plugin_root=empty)
+                )
+            )
 
     def test_gate_missing_denies_under_a_suppressed_mode(self) -> None:
         with tempfile.TemporaryDirectory() as empty:

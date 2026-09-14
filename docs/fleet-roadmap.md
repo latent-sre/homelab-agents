@@ -82,9 +82,10 @@ restarted from `main`. Phase 4 (routing evals handed to `claude plugin eval`, th
 fleet-side, provenance moved onto the kernel) merged as PR #191. Phase 5 (`hooks/hooks.json`
 rendered from the guard and gate rosters by `fleet/hooks.py` and byte-checked by the adapter
 generator) is implemented on the same branch, restarted from `main`. All five phases are then
-implemented; MACH-001 still closes on the lint ratchet, which holds 27 file entries and 147
-suppressed findings (counted 2026-09-14 by removing the table and re-running `ruff check .`). An
-earlier figure of "12 file entries" in this item was wrong.
+implemented. The lint ratchet held 27 file entries suppressing 147 findings (counted 2026-09-14
+by removing the table and re-running `ruff check .`; an earlier figure of "12 file entries" in
+this item was wrong). It is now **three entries, all `E501`, and none of them a backlog** — the
+reason for each is beside it in `pyproject.toml`.
 
 **Outcome:** Every maintainer instrument under `scripts/` runs on the `fleet/` kernel with one
 implementation per primitive, policy held as data, structured findings, and the routing runner
@@ -165,6 +166,22 @@ with its reason recorded:
 
 **Acceptance:** Per phase, the oracle named in the record's phase table, plus green tiers.
 Closes when phase 5 merges and the lint ratchet table in `pyproject.toml` is empty.
+
+**The empty-table criterion now needs an operator ruling, and MACH-001 stays open until it comes.**
+Three entries remain and neither is a cleanup anyone has skipped:
+
+- `scripts/probe_plugin.py` — its long lines live inside the triple-quoted prompt and workflow
+  source the probe sends to a live model. A physical line inside a triple-quoted string cannot
+  carry a `noqa`, and rewrapping it changes the stimulus, so the recorded probe evidence would no
+  longer describe the same measurement. The recommendation is to keep this exemption permanently
+  and treat the entry as documentation, not debt.
+- `scripts/readonly-guard.py` and `scripts/live-effect-gate.py` — 11 long lines between them, all
+  comments and code rather than emitted bytes, so all reflowable with no behavior change. But
+  editing either is a hook change under `AGENTS.md`'s hook playbook and owes a
+  `scripts/probe_plugin.py` run. Spending that run to rewrap comments in the fleet's security
+  boundary is the operator's call. Either answer closes the item: run the probe and clear them,
+  or record the exemption as permanent for the same reason `[tool.ruff.format]` already excludes
+  the hook scripts.
 
 **Evidence disposition:** The specifier claim was re-probed on 2.1.270 on 2026-09-13 (three
 runs; the specifier restricts nothing, the validator's rule stands) and the CI pin moved to

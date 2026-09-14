@@ -639,7 +639,11 @@ class PlatformAdapterTests(unittest.TestCase):
         for host, root, render in (
             ("copilot", ".github/skills", lambda: generate_platform_adapters.render_copilot_agent(
                 source, guarded_names=set())),
-            ("codex", "plugins/sde-agents/skills", lambda: generate_platform_adapters.render_codex_agent(source)),
+            (
+                "codex",
+                "plugins/sde-agents/skills",
+                lambda: generate_platform_adapters.render_codex_agent(source),
+            ),
         ):
             with self.subTest(host=host):
                 text = render()

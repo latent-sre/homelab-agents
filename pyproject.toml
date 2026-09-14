@@ -47,26 +47,21 @@ select = ["E", "F", "W", "I", "B", "UP"]
 # enforces the full rule set on every new module; a legacy module leaves this table when it is
 # migrated onto the kernel and cleaned in the same change. Never widen an entry to keep a new
 # finding quiet -- fix the finding or move the module here with the code it actually violates.
+#
+# What is left is no longer a backlog. Each of the three is exempted for a stated reason:
+#
+# * probe_plugin holds the probe's live-model stimulus -- a prompt and a workflow source -- in
+#   triple-quoted constants whose long physical lines cannot carry a `noqa`, and cannot be
+#   rewrapped without changing what the probe measures and breaking comparability with the
+#   recorded probe evidence. Reflowing a measurement to satisfy a formatter is the wrong trade.
+# * The two hook scripts' long lines ARE reflowable -- they are comments and code, not output
+#   bytes -- but editing either is a hook change under AGENTS.md's hook playbook and owes a
+#   `probe_plugin.py` run. That run is an operator call, not a lint decision, so the exemption
+#   stands until it is made (MACH-001).
 [tool.ruff.lint.per-file-ignores]
-"scripts/eval_clean_room.py" = ["E501"]
-"scripts/fleet_doctor.py" = ["E501"]
 "scripts/live-effect-gate.py" = ["E501"]
 "scripts/probe_plugin.py" = ["E501"]
 "scripts/readonly-guard.py" = ["E501"]
-"tests/test_cli_skeleton.py" = ["E501"]
-"tests/test_eval_clean_room.py" = ["E501"]
-"tests/test_fleet_doctor.py" = ["E501"]
-"tests/test_hook_wiring.py" = ["E501"]
-"tests/test_live_effect_gate.py" = ["E501"]
-"tests/test_platform_adapters.py" = ["E501"]
-"tests/test_powershell_examples.py" = ["E501"]
-"tests/test_probe_canaries.py" = ["E501"]
-"tests/test_readonly_guard.py" = ["E501"]
-"tests/test_validate_claude_plugin.py" = ["E501"]
-"tests/test_validate_fleet.py" = ["E501"]
-"tests/test_validate_routing.py" = ["E501"]
-"tests/test_validate_wiring_guard.py" = ["E501"]
-"tests/validate_fleet_wiring_support.py" = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["fleet", "scripts", "tests"]

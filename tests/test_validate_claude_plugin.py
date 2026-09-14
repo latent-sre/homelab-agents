@@ -86,7 +86,9 @@ class ClaudePluginValidationTests(unittest.TestCase):
 
     def test_failed_invocation_or_copy_is_not_a_pass(self) -> None:
         with mock.patch.object(validate_claude_plugin.shutil, "which", return_value="claude"):
-            with mock.patch.object(validate_claude_plugin, "validate", side_effect=OSError("missing")):
+            with mock.patch.object(
+                validate_claude_plugin, "validate", side_effect=OSError("missing")
+            ):
                 self.assertEqual(2, validate_claude_plugin.main(["--root", str(self.root)]))
             with mock.patch.object(
                 validate_claude_plugin, "validate",

@@ -90,7 +90,10 @@ class OperatorPolicyTests(unittest.TestCase):
 
     def test_prompt_policy_preserves_interposition(self) -> None:
         self.assertEqual("ask", decision(run_gate(bash_call("systemctl restart example"))))
-        self.assertEqual("deny", decision(run_gate(bash_call("systemctl restart example", mode="dontAsk"))))
+        self.assertEqual(
+            "deny",
+            decision(run_gate(bash_call("systemctl restart example", mode="dontAsk"))),
+        )
 
     def test_invalid_policy_cannot_silently_disable_requested_control(self) -> None:
         for policy in ("", "promtp", "HOST"):
@@ -112,7 +115,10 @@ class ConstantsPinnedToTheGuard(unittest.TestCase):
         self.assertEqual(guard.EXIT_DENY, gate.EXIT_DENY)
         self.assertEqual(guard.EXIT_INDETERMINATE, gate.EXIT_INDETERMINATE)
         self.assertEqual(45, gate.EXIT_ASK)
-        self.assertNotIn(gate.EXIT_ASK, {guard.EXIT_ALLOW, guard.EXIT_DENY, guard.EXIT_INDETERMINATE})
+        self.assertNotIn(
+            gate.EXIT_ASK,
+            {guard.EXIT_ALLOW, guard.EXIT_DENY, guard.EXIT_INDETERMINATE},
+        )
         self.assertEqual(guard.PLUGIN_NAME, gate.PLUGIN_NAME)
 
     def test_gated_and_guarded_rosters_are_disjoint(self) -> None:
@@ -307,13 +313,19 @@ class Roster(unittest.TestCase):
         for prefix, live in sorted(gate.LIVE_SUBCOMMANDS.items()):
             with self.subTest(prefix=prefix):
                 head = " ".join(prefix)
-                self.assertEqual("ask", decision(run_gate(bash_call(f"{head} {sorted(live)[0]} x"))))
+                self.assertEqual(
+                    "ask", decision(run_gate(bash_call(f"{head} {sorted(live)[0]} x")))
+                )
                 self.assertEqual("none", decision(run_gate(bash_call(f"{head} zzz-not-live x"))))
         for exe, reads in sorted(gate.READ_UNLESS.items()):
             with self.subTest(read_unless=exe):
                 self.assertEqual("ask", decision(run_gate(bash_call(f"{exe} zzz-live"))))
                 self.assertEqual("none", decision(run_gate(bash_call(f"{exe} {sorted(reads)[0]}"))))
-        self.assertEqual(set(flag_probe), set(gate.FLAG_LIVE), "every FLAG_LIVE executable needs a probe here")
+        self.assertEqual(
+            set(flag_probe),
+            set(gate.FLAG_LIVE),
+            "every FLAG_LIVE executable needs a probe here",
+        )
         for exe, command in sorted(flag_probe.items()):
             with self.subTest(flag=exe):
                 self.assertEqual("ask", decision(run_gate(bash_call(command))))
@@ -503,8 +515,14 @@ class GateBypassShapesFromReview(unittest.TestCase):
 
     def test_global_options_before_a_compound_subcommand(self) -> None:
         # A global option's VALUE became the first word, so the exact prefix comparison failed.
-        for command, rule in (("docker --context production compose up -d web", "docker compose up"),
-                              ("podman --connection production compose down", "podman compose down"),
+        for command, rule in ((
+                                  "docker --context production compose up -d web",
+                                  "docker compose up",
+                              ),
+                              (
+                                  "podman --connection production compose down",
+                                  "podman compose down",
+                              ),
                               ("ip -n lab link set eth0 down", "ip link set")):
             with self.subTest(command=command):
                 out = run_gate(bash_call(command))
@@ -528,7 +546,8 @@ class GateShapesFromReviewRoundsTwoAndThree(unittest.TestCase):
     """The second and third review rounds, including two regressions round one introduced.
 
     Risk hypothesis is unchanged from `GateBypassShapesFromReview`: an under-matching parser is
-    indistinguishable from a reader at the hook boundary. What is new here is the OTHER direction —
+    indistinguishable from a reader at the hook boundary. What is new here is the OTHER
+    direction —
     round one's newline split turned heredoc BODIES into commands, so a Tier 1 runbook write
     acquired a live-effect decision. Both directions are held below, because a gate that cries wolf
     on ordinary writes teaches the operator to click through the prompts that matter.

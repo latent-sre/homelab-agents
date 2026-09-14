@@ -94,8 +94,12 @@ class FleetValidatorTests(unittest.TestCase):
             FIXTURES / "unadopted-mcp-tool", check_inventory=False
         )
         feedback_issues = [issue for issue in issues if "feedback" in issue]
-        self.assertTrue(any("not adopted by this fleet" in issue for issue in feedback_issues), issues)
-        self.assertFalse(any("not a Claude Code tool" in issue for issue in feedback_issues), issues)
+        self.assertTrue(
+            any("not adopted by this fleet" in issue for issue in feedback_issues), issues
+        )
+        self.assertFalse(
+            any("not a Claude Code tool" in issue for issue in feedback_issues), issues
+        )
 
     def test_bare_skill_reference_without_preload_is_reported(self) -> None:
         # The fixture's agent says "work the `tuning` skill" with no skills: preload — an
@@ -104,7 +108,10 @@ class FleetValidatorTests(unittest.TestCase):
         issues, _, _ = validate_fleet.validate_repo(
             FIXTURES / "unreachable-bare-skill", check_inventory=False
         )
-        self.assertTrue(any("unreachable authority" in issue and "tuning" in issue for issue in issues), issues)
+        self.assertTrue(
+            any("unreachable authority" in issue and "tuning" in issue for issue in issues),
+            issues,
+        )
 
     def test_perishable_token_outside_owner_is_reported(self) -> None:
         # The fixture's agent restates the complete upstream issue identifier while its skill uses
@@ -467,7 +474,8 @@ class FleetValidatorTests(unittest.TestCase):
         # TOP_LEVEL_KEY_RE is anchored at column zero, so `  - item` lines under `skills:` never
         # matched it and `fields["skills"]` silently came back "" -- the root cause of P1-a.
         fields = self._parse(
-            "---\nname: builder\nskills:\n  - backend-craft\n  - frontend-craft\nmodel: inherit\n---\n"
+            "---\nname: builder\nskills:\n  - backend-craft\n  - frontend-craft\n"
+            "model: inherit\n---\n"
         )
         self.assertEqual("backend-craft, frontend-craft", fields["skills"])
         self.assertEqual("inherit", fields["model"])  # the key after the list is still parsed
@@ -477,7 +485,8 @@ class FleetValidatorTests(unittest.TestCase):
         # list items stranded in the outer loop, which then returned None because `- item` lines
         # don't match TOP_LEVEL_KEY_RE.
         fields = self._parse(
-            "---\nname: builder\nskills:\n  # note\n\n  - backend-craft\n  - frontend-craft\nmodel: inherit\n---\n"
+            "---\nname: builder\nskills:\n  # note\n\n  - backend-craft\n"
+            "  - frontend-craft\nmodel: inherit\n---\n"
         )
         self.assertIsNotNone(fields)
         self.assertEqual("backend-craft, frontend-craft", fields["skills"])
@@ -532,7 +541,9 @@ class FleetValidatorTests(unittest.TestCase):
 
     def test_agent_name_must_match_filename(self) -> None:
         body = VALID_AGENT.replace("name: builder", "name: other")
-        self.assertTrue(any("must match filename" in i for i in self._agent_issues(("builder.md", body))))
+        self.assertTrue(
+            any("must match filename" in i for i in self._agent_issues(("builder.md", body)))
+        )
 
     def test_unknown_model_is_reported(self) -> None:
         body = VALID_AGENT.replace("model: inherit", "model: gpt-4")
@@ -545,7 +556,8 @@ class FleetValidatorTests(unittest.TestCase):
         self.assertEqual([], [i for i in self._agent_issues(("builder.md", body)) if "model" in i])
 
     def test_pinned_full_model_id_is_a_policy_error_not_a_schema_error(self) -> None:
-        # Valid at runtime, banned by fleet policy — the message must say so, not claim it's unknown.
+        # Valid at runtime, banned by fleet policy — the message must say so, not claim it is
+        # unknown.
         body = VALID_AGENT.replace("model: inherit", "model: claude-opus-4-8")
         issues = [i for i in self._agent_issues(("builder.md", body)) if "model" in i]
         self.assertTrue(any("pinned" in i for i in issues), issues)
@@ -568,7 +580,8 @@ class FleetValidatorTests(unittest.TestCase):
         self.assertTrue(any("SILENTLY IGNORES" in i for i in issues), issues)
 
     def test_scoped_grant_survives_the_comma_split(self) -> None:
-        # A naive split(",") shreds `Agent(worker, researcher)` into `Agent(worker` and `researcher)`,
+        # A naive split(",") shreds `Agent(worker, researcher)` into `Agent(worker` and
+        # `researcher)`,
         # which would surface as two bogus "unknown tool" errors instead of the real problem.
         self.assertEqual(
             ["Read", "Agent(worker, researcher)", "Bash"],
@@ -590,7 +603,9 @@ class FleetValidatorTests(unittest.TestCase):
             "tools: Read, ToolSearch, mcp__plugin_githits_githits__pkg_info",
         )
         issues = self._agent_issues(("builder.md", body))
-        self.assertFalse(any("tool" in i.lower() and "authority" in i.lower() for i in issues), issues)
+        self.assertFalse(
+            any("tool" in i.lower() and "authority" in i.lower() for i in issues), issues
+        )
 
     def test_server_wide_mcp_grant_is_rejected_as_drifting_authority(self) -> None:
         # A server wildcard silently acquires every tool added in a future MCP release. GitHits
@@ -601,7 +616,9 @@ class FleetValidatorTests(unittest.TestCase):
             "tools: Read, mcp__plugin_githits_githits__*",
         )
         issues = self._agent_issues(("builder.md", body))
-        self.assertTrue(any("server-wide MCP grant" in i and "future tools" in i for i in issues), issues)
+        self.assertTrue(
+            any("server-wide MCP grant" in i and "future tools" in i for i in issues), issues
+        )
 
     def test_tool_unavailable_to_subagents_is_reported(self) -> None:
         body = VALID_AGENT.replace("tools: Read", "tools: Read, AskUserQuestion")
@@ -613,21 +630,28 @@ class FleetValidatorTests(unittest.TestCase):
         for retired in ("BashOutput", "KillShell", "SlashCommand"):
             body = VALID_AGENT.replace("tools: Read", f"tools: Read, {retired}")
             issues = self._agent_issues(("builder.md", body))
-            self.assertTrue(any("is not a Claude Code tool" in i for i in issues), (retired, issues))
+            self.assertTrue(
+                any("is not a Claude Code tool" in i for i in issues), (retired, issues)
+            )
 
     def test_unknown_frontmatter_key_is_reported(self) -> None:
         # An unrecognized key is not guaranteed to fail loudly, so a typo silently drops whatever
         # it configured. The key namespace itself is the tripwire.
         body = VALID_AGENT.replace("model: inherit", "hook: PreToolUse\nmodel: inherit")
         issues = self._agent_issues(("builder.md", body))
-        self.assertTrue(any("unknown frontmatter key" in i and "'hook'" in i for i in issues), issues)
+        self.assertTrue(
+            any("unknown frontmatter key" in i and "'hook'" in i for i in issues), issues
+        )
 
     def test_known_optional_frontmatter_keys_are_accepted(self) -> None:
         # The documented fields must pass, or the allowlist becomes a false tripwire. `hooks`,
         # `mcpServers`, and `permissionMode` are deliberately NOT here — see the test below.
         extra = "skills: runbook\neffort: high\nisolation: worktree\nmaxTurns: 5\n"
         body = VALID_AGENT.replace("model: inherit", extra + "model: inherit")
-        self.assertEqual([], [i for i in self._agent_issues(("builder.md", body)) if "frontmatter key" in i])
+        self.assertEqual(
+            [],
+            [i for i in self._agent_issues(("builder.md", body)) if "frontmatter key" in i],
+        )
 
     def test_fields_that_a_plugin_silently_ignores_are_rejected(self) -> None:
         # THE bug this whole layout exists to prevent. Claude Code silently ignores `hooks`,
@@ -643,9 +667,12 @@ class FleetValidatorTests(unittest.TestCase):
                 )
 
     def test_invalid_agent_name_is_reported(self) -> None:
-        # uppercase fails NAME_RE; filename Builder.md keeps name==stem so only the regex branch fires
+        # uppercase fails NAME_RE; filename Builder.md keeps name==stem so only the regex
+        # branch fires
         body = VALID_AGENT.replace("name: builder", "name: Builder")
-        self.assertTrue(any("invalid agent name" in i for i in self._agent_issues(("Builder.md", body))))
+        self.assertTrue(
+            any("invalid agent name" in i for i in self._agent_issues(("Builder.md", body)))
+        )
 
     def test_duplicate_agent_names_are_reported(self) -> None:
         second = VALID_AGENT  # both files declare name: builder
@@ -694,7 +721,8 @@ class FleetValidatorTests(unittest.TestCase):
 
     def test_skills_entry_naming_a_model_invocation_disabled_skill_is_reported(self) -> None:
         # A skill with `disable-model-invocation: true` cannot be preloaded ("preloading draws from
-        # the same set of skills Claude can invoke") -- listing one under `skills:` is a silent no-op.
+        # the same set of skills Claude can invoke") -- listing one under `skills:` is a
+        # silent no-op.
         body = VALID_AGENT.replace("model: inherit", "skills:\n  - disabled\nmodel: inherit")
         issues = self._agent_issues_with_skills(
             ("builder.md", body), {"disabled": self.DISABLED_SKILL_BODY.format(name="disabled")}
