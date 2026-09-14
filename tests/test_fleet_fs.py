@@ -67,18 +67,22 @@ class ReadTests(TempDirTestCase):
 
 
 class AtomicWriteTests(TempDirTestCase):
+    # Windows maps only the read-only bit onto a POSIX mode, so no mode survives a round trip
+    # there and every assertion below would be about the emulation rather than the helper.
+    @unittest.skipIf(os.name == "nt", "Windows does not round-trip POSIX file modes")
     def test_atomic_write_keeps_the_existing_file_mode(self) -> None:
         # `mkstemp` creates 0600 and `os.replace` installs that inode, so without carrying the
-        # mode over every rewrite would silently narrow a world-readable file to owner-only --
-        # invisible to any content check, and enough to stop another reader in a shared checkout
-        # from loading it (Copilot, PR #193). Every caller of this helper rewrites files that
-        # already exist, so the fix belongs here rather than in one of them.
+        # mode over every rewrite would silently RESET the file's mode -- invisible to any content
+        # check, and enough to stop another reader in a shared checkout from loading it (Copilot,
+        # PR #193). Every caller of this helper rewrites files that already exist, so the fix
+        # belongs here rather than in one of them.
         with tempfile.TemporaryDirectory() as directory:
             existing = Path(directory) / "kept.json"
             existing.write_bytes(b"first")
-            # Group-readable, not world-readable: it only has to differ from the 0600 `mkstemp`
-            # hands out, and a world-readable literal here is a CodeQL finding of its own.
-            preserved = 0o640
+            # Owner-read-only. It only has to differ from the 0600 `mkstemp` hands out, and any
+            # group- or world-readable literal is a CodeQL finding of its own -- rightly, since a
+            # test that must set a mode should set the least permissive one that proves the point.
+            preserved = 0o400
             os.chmod(existing, preserved)
             fs.atomic_write_bytes(existing, b"second")
             self.assertEqual(b"second", existing.read_bytes())
