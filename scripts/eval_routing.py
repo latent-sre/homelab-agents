@@ -1,983 +1,117 @@
 #!/usr/bin/env python3
-"""Routing eval runner — measure whether the fleet routes a prompt to the right component.
+"""Routing evals: `claude plugin eval` runs them, the fleet grades them.
 
-WHY THIS EXISTS. `agents/prompt-engineer.md` mandates eval-first prompt changes (baseline,
-repetitions, fresh contexts), but the fleet shipped none — it preached a practice it did not
-follow. This is the practice: given a realistic prompt, does the intended agent/skill fire, and do
-near-miss prompts that merely share vocabulary (write / fix / optimize / rewrite) route ELSEWHERE?
+This replaces a 1,450-line runner that also drove the sessions. The platform now owns isolation,
+per-case runs, concurrency, cost ceilings, timeouts, the JSON result document and the HTML report,
+and it owns them better than a fleet-local copy could. What stays here is everything the platform
+does not do:
 
-WHY A LOCAL RUNNER AND NOT `claude plugin eval`. The native harness is the right long-term home —
-it does ablation baselines, repetitions, and LLM grading — but it is currently EARLY ACCESS and
-does not run in every environment. The case files here follow the Agent Skills eval shape
-(agentskills.io/skill-creation/evaluating-skills) so they migrate cleanly when it opens; this
-runner exercises them TODAY, and retires when `claude plugin eval` is generally available.
+**The verdict.** Measured, not assumed
+(`docs/archive/2026-09/native-grader-errored-spawn-2026-09-14.md`): a native `tool_used` grader
+counts a call whose input matches its regex whether or not the spawn SUCCEEDED, so on a positive
+case a routing regression can hide behind a dispatch that never landed. And a positive passes when
+ANY of its expected destinations fires -- a disjunction that spans the Agent and Skill tools in
+every multi-target positive this repository has, which no combination of `tool_used` graders can
+state. So `fleet.routing` reads the harness's own traces and applies the retiring runner's
+semantics, proved equal to it by differential on 12,400 transcripts and 8,004 grading combinations.
 
-HOW IT GRADES. Routing is a fact you can read straight off the transcript — which Skill was
-invoked, which subagent was spawned — so grading needs no judge model and is deterministic and
-free. A positive case passes when an expected cluster member fires; a negative passes only when
-none of its FORBIDDEN set fires, and that set is the whole cluster unless the case narrows it with
-`expect_not_fires` (a disambiguation case: "X must not fire here, but its sibling Y is the correct
-destination"). Routing is probabilistic (a skill/agent fires perhaps half the time in practice), so
-results are RATES over --runs, not booleans. The load-bearing signals are a positive whose rate
-collapses after a description edit (regression) and a negative that fires at all (over-trigger) —
-both visible in the delta between runs of this suite.
+**The routing competition, observed rather than requested.** A first reading of an eval child
+session's `init` event concluded that personal components reach the session; a controlled
+comparison the same day refuted it. The surface is byte-identical with and without
+`--clean-room` -- the harness sets its own config directory and overrides the variable that flag
+moves -- and the operator's own config-dir components appear in neither. What the child does see
+is sixteen of the CLI's BUNDLED skills (`code-review`, `debug`, `verify`, ...), which no config
+relocation removes. So every benchmark records `components_observed`, read off each session's own
+`init` event, and the flag is recorded as `clean_room_requested`, which is all it is.
 
-Pure standard library. Spawns headless `claude -p ... --plugin-dir <repo>` sessions, one per run,
-each with a fresh cwd and conversation. A fresh session is NOT configuration isolation: it still
-inherits everything under the user's CLAUDE_CONFIG_DIR (personal agents, skills, plugins, global
-CLAUDE.md), and a junction deployment makes the fleet register twice — bare and namespaced — in
-every run. `--clean-room` (scripts/eval_clean_room.py) is the isolation switch, and it is recorded
-in `conditions` because two artifacts that differ on it are not comparable.
+**Provenance and conditions.** `fleet.provenance` identifies the plugin bytes, the case selection
+and the evaluator; the conditions block records what the rates are comparable to. Nothing in the
+native result document says either.
 
-Every written artifact also carries `provenance`: hashes of the exact cluster bytes, canonical
-selected cases, evaluator/grader sources, and runtime-relevant plugin content. Sessions execute a
-private copy of the identified plugin bytes, closing source-checkout A -> B -> A drift and detecting
-a private-snapshot mutation that remains at the endpoint. Same-user session code can transiently
-mutate and restore that copy unless the host sandbox denies writes; endpoint hashing is not an
-immutability boundary.
+The native graders are kept as a cheap tripwire and deliberately cannot cry wolf: see
+`fleet/nativecases.py`. Their score is not read here.
 """
+
 from __future__ import annotations
 
 import argparse
-import concurrent.futures
 import contextlib
 import fnmatch
-import hashlib
-import importlib.util
 import json
 import os
-import platform
-import re
 import shutil
-import stat
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+_REPO_ROOT = str(Path(__file__).resolve().parents[1])
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)  # `import fleet` when run as `python3 scripts/<name>.py`
+
+from fleet import fs, nativecases, provenance, routing, stream  # noqa: E402
+
+try:  # the auth/clean-room classifier, imported at module level so main() and _run_batch() share it
+    from scripts import eval_clean_room  # noqa: E402
+except ImportError:  # running as a bare script rather than a package
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import eval_clean_room  # type: ignore[no-redef]  # noqa: E402
+
+REPO = Path(_REPO_ROOT)
 CLAUDE = shutil.which("claude")
 
-# The fleet roster, derived from the repo so this never drifts from what actually ships.
-FLEET_AGENTS = frozenset(p.stem for p in (REPO / "agents").glob("*.md"))
-FLEET_SKILLS = frozenset(p.name for p in (REPO / "skills").iterdir() if p.is_dir()) if (REPO / "skills").is_dir() else frozenset()
-FLEET = FLEET_AGENTS | FLEET_SKILLS
-NAMESPACED_FLEET_AGENTS = frozenset(f"sde-agents:{name}" for name in FLEET_AGENTS)
+DEFAULT_PLUGIN_NAMESPACE = "sde-agents"
 
-# v4 (2026-08-17): the identity narrowed to what the scorer reads. `selection.definitions` now
-# hashes only the graded case fields (GRADED_CASE_FIELDS) instead of whole case dicts, and the
-# reusability check no longer compares `eval_sources`, which hashed each cluster file whole and so
-# invalidated captures on comment-only edits. Both changes remove invalidations that protected
-# nothing. The version moves because a v3 selection hash was computed over different bytes and
-# cannot be compared with a v4 one — reporting that as "selection diverged" would misattribute a
-# schema change to a routing change.
-#
-# Two later hashing changes in the same PR deliberately did NOT take a v5, and the reason is the
-# rule for the next one: the version exists so a STORED capture computed under older rules is
-# reported as a schema difference rather than a routing one. Every stored capture is v3 (8) or
-# unversioned (17) — no v4 capture has ever been written — and `provenance_divergences` returns on a
-# schema mismatch before it compares `selection`, so those captures can never reach the changed
-# hashing at all. A v5 would therefore rename something no reader can observe. Bump when a capture
-# exists that the change would misreport; not merely because the hash moved.
-PROVENANCE_SCHEMA = "sde-agents/eval-provenance/v4"
 
-# `claude --plugin-dir` discovers these authored/runtime surfaces. The allowlist is deliberate:
-# test fixtures, eval outputs, repository docs, generated host adapters, and operator scratch state
-# are not inputs to the Claude plugin being measured, so hashing the whole checkout would make a
-# benchmark identity move for irrelevant reasons. Runtime text may name additional files through
-# ${CLAUDE_PLUGIN_ROOT} or a safe backticked repository-relative path; those exact references are
-# discovered and included below (the fleet's read-only guard and learning ledger are examples).
-PLUGIN_RUNTIME_DIRS = (".claude-plugin", "agents", "commands", "hooks", "skills", "workflows")
-PLUGIN_RUNTIME_FILES = (".mcp.json",)
-PLUGIN_HASH_EXCLUSIONS = (
-    ".git/**",
-    "evals/**",
-    "unreferenced docs/**",
-    "tests/**",
-    ".agents/**",
-    ".claude/**",
-    ".codex/**",
-    ".codex-plugin/**",
-    ".github/**",
-    ".probe-tmp/**",
-    ".superpowers/**",
-    "platforms/**",
-    "plugins/**",
-    "unreferenced repository-only root documents",
-    "all other top-level entries outside the runtime allowlist",
-    "**/__pycache__/**, **/*.pyc, editor and OS transient files",
+def plugin_roster(plugin_dir: Path) -> tuple[frozenset[str], frozenset[str], str]:
+    """The agents, skills and namespace of the plugin BEING EVALUATED.
+
+    Read from `plugin_dir`, never from this checkout. `--plugin-dir` can name another revision or
+    another plugin entirely, and a roster fixed at import graded those runs against the wrong
+    component list and the wrong namespace -- producing a confident verdict about a plugin that
+    was never measured. Falls back to this repository's own namespace when the target has no
+    readable manifest name, because a missing name is not evidence of a different one.
+    """
+    agents = frozenset(p.stem for p in (plugin_dir / "agents").glob("*.md"))
+    skills_dir = plugin_dir / "skills"
+    skills = frozenset(
+        p.name for p in skills_dir.iterdir() if p.is_dir()
+    ) if skills_dir.is_dir() else frozenset()
+    try:
+        manifest = json.loads(
+            (plugin_dir / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
+        # A manifest that parses but is not an object (`[]`, `"x"`, `null`) reached `.get` and
+        # raised AttributeError past every handler -- a traceback before any session launched,
+        # on the one path this helper documents as falling back rather than failing.
+        name = manifest.get("name") if isinstance(manifest, dict) else None
+        namespace = str(name or "").strip() or DEFAULT_PLUGIN_NAMESPACE
+    except (OSError, json.JSONDecodeError):
+        namespace = DEFAULT_PLUGIN_NAMESPACE
+    return agents, skills, namespace
+
+# The code whose bytes decide a verdict, named for `evaluator_identity`. Two benchmarks produced by
+# different grading code are not comparable even when every other condition matches, and this is
+# the only place that says which files those are.
+EVALUATOR_PATHS = (
+    REPO / "scripts" / "eval_routing.py",
+    REPO / "fleet" / "routing.py",
+    REPO / "fleet" / "nativecases.py",
+    REPO / "fleet" / "stream.py",
+    # The emitters `nativecases` generates prompts and grader regexes with. A change here alters
+    # the tool permissions a session runs under or the pattern a grader matches, so leaving it out
+    # made two runs measuring different generated inputs carry the same evaluator hash.
+    REPO / "fleet" / "frontmatter.py",
+    # Decides the recorded auth conditions AND whether a batch is accepted at all, so a change
+    # here changes which runs become a benchmark. The retiring runner hashed it for that reason.
+    REPO / "scripts" / "eval_clean_room.py",
+    # The identity machinery itself, and the path primitives it and the generator validate with.
+    # A change to either moves selection or plugin identity, or what paths are accepted, while
+    # every other listed byte stays the same -- captures from different logic would look reusable.
+    REPO / "fleet" / "provenance.py",
+    REPO / "fleet" / "fs.py",
 )
-_HARD_EXCLUDED_REFERENCE_ROOTS = frozenset({
-    ".git", "evals", "tests", ".agents", ".claude", ".codex", ".codex-plugin",
-    ".github", ".probe-tmp", ".superpowers", "platforms", "plugins",
-})
-_TRANSIENT_DIR_NAMES = frozenset({"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".cache"})
-_TRANSIENT_FILE_NAMES = frozenset({".DS_Store", "Thumbs.db", ".coverage"})
-_PLUGIN_ROOT_REFERENCE = re.compile(
-    rb"\$\{CLAUDE_PLUGIN_ROOT\}[\\/]+([A-Za-z0-9_.\\/\-]+)"
-)
-_BACKTICK_CONTENT = re.compile(rb"(?<!`)`([^`\r\n]+)`(?!`)")
-_SAFE_RELATIVE_PART = re.compile(r"(?=.*[A-Za-z0-9_-])[A-Za-z0-9_.-]+\Z")
-
-
-class ProvenanceError(RuntimeError):
-    """The eval input cannot be identified without following an unsafe filesystem entry."""
-
-
-class EvalAuthUnavailable(RuntimeError):
-    """A model session could not authenticate, so the batch produced no valid benchmark."""
-
-
-class EvalRegistrationUnavailable(RuntimeError):
-    """The session did not prove that the namespaced fleet under test was registered."""
-
-
-_CLEAN_ROOM_MODULE = None
-_LOADED_EVALUATOR_SOURCES: dict[str, bytes] = {}
-_EXECUTING_EVALUATOR_SOURCE = globals().get("_SDE_EVAL_EXECUTING_SOURCE")
-
-# macOS mounts /var, /tmp, and /etc as symlinks to /private/* by OS design, so every
-# tempfile-derived path fails the ancestor link-walk below on that platform alone — ten
-# provenance tests red on the macOS CI job from the day the walk shipped, green everywhere
-# else. Canonicalizing the temp ROOT once at import fixes every present and future
-# tempfile call site in one place; the walk stays fully strict below the base, so a link
-# planted inside the harness's own scratch tree still refuses. Process-global on purpose:
-# any process that loads this provenance layer needs canonical scratch paths or its own
-# temp dirs are unreadable to it.
-tempfile.tempdir = os.path.realpath(tempfile.gettempdir())
-
-
-def _is_link_or_reparse(file_stat) -> bool:
-    """True for POSIX symlinks and every Windows reparse-point kind, including junctions."""
-    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
-    return stat.S_ISLNK(file_stat.st_mode) or bool(
-        getattr(file_stat, "st_file_attributes", 0) & reparse_flag
-    )
-
-
-def _absolute_without_resolving(path: Path) -> Path:
-    """Return an absolute lexical path; `resolve()` is forbidden because it follows links."""
-    return Path(os.path.abspath(os.fspath(path.expanduser())))
-
-
-def _checked_stat(path: Path):
-    try:
-        file_stat = path.lstat()
-    except OSError as exc:
-        raise ProvenanceError(f"cannot inspect provenance path {path}: {exc}") from exc
-    if _is_link_or_reparse(file_stat):
-        raise ProvenanceError(
-            f"unsafe provenance path {path}: symlinks, junctions, and reparse points are refused"
-        )
-    return file_stat
-
-
-def _check_existing_ancestors(path: Path) -> None:
-    """Reject a link in any existing path component before opening the target."""
-    absolute = _absolute_without_resolving(path)
-    current = Path(absolute.anchor)
-    parts = absolute.parts[1:] if absolute.anchor else absolute.parts
-    for part in parts:
-        current /= part
-        _checked_stat(current)
-
-
-def _read_regular_file(path: Path, *, max_bytes: int | None = None) -> bytes:
-    """Read bytes without links, special files, unbounded input, or mid-read changes."""
-    path = _absolute_without_resolving(path)
-    _check_existing_ancestors(path)
-    before = _checked_stat(path)
-    if not stat.S_ISREG(before.st_mode):
-        raise ProvenanceError(f"provenance input is not a regular file: {path}")
-    if max_bytes is not None and before.st_size > max_bytes:
-        raise ProvenanceError(f"provenance input exceeds {max_bytes} bytes: {path}")
-    try:
-        if max_bytes is None:
-            content = path.read_bytes()
-        else:
-            with path.open("rb") as stream:
-                content = stream.read(max_bytes + 1)
-    except OSError as exc:
-        raise ProvenanceError(f"cannot read provenance input {path}: {exc}") from exc
-    if max_bytes is not None and len(content) > max_bytes:
-        raise ProvenanceError(f"provenance input exceeds {max_bytes} bytes: {path}")
-    after = _checked_stat(path)
-    before_identity = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
-    after_identity = (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
-    if before_identity != after_identity:
-        raise ProvenanceError(f"provenance input changed while it was being read: {path}")
-    return content
-
-
-def _portable_path_label(path: Path) -> str:
-    absolute = _absolute_without_resolving(path)
-    try:
-        return absolute.relative_to(_absolute_without_resolving(REPO)).as_posix() or "."
-    except ValueError:
-        return absolute.as_posix()
-
-
-def _sha256(content: bytes) -> str:
-    return hashlib.sha256(content).hexdigest()
-
-
-def source_identity(paths: list[Path]) -> list[dict]:
-    """SHA-256 records for exact eval-source bytes, sorted by portable path label."""
-    records = [
-        {"path": _portable_path_label(path), "sha256": _sha256(_read_regular_file(path))}
-        for path in paths
-    ]
-    return sorted(records, key=lambda record: record["path"])
-
-
-def _evaluator_source_key(path: Path) -> str:
-    """Registry key for one evaluator path. normcase is load-bearing on Windows: the filesystem
-    treats c:\\repo and C:\\repo as one file, but a case-preserving dict does not — a process whose
-    cwd was spelled lowercase then registers and looks up different keys for the same bytes, and
-    the provenance read silently falls back to re-reading the file it promised not to (#69)."""
-    return os.path.normcase(os.fspath(_absolute_without_resolving(path)))
-
-
-def register_loaded_evaluator_source(path: Path, content: bytes) -> None:
-    """Bind one evaluator path to the exact source bytes compiled in this process."""
-    absolute = _absolute_without_resolving(path)
-    key = _evaluator_source_key(path)
-    prior = _LOADED_EVALUATOR_SOURCES.get(key)
-    if prior is not None and prior != content:
-        raise ProvenanceError(
-            f"evaluator source {absolute} was loaded from two different byte sequences"
-        )
-    _LOADED_EVALUATOR_SOURCES[key] = bytes(content)
-
-
-def load_evaluator_module(name: str, path: Path):
-    """Compile one evaluator module from the exact checked bytes registered for provenance.
-
-    Import machinery compiles a source buffer before module code starts. Re-reading ``__file__``
-    from inside that module can therefore observe disk B even though the process is executing A.
-    Evaluator modules use this loader so compilation and provenance consume one byte buffer.
-    """
-    absolute = _absolute_without_resolving(path)
-    source = _read_regular_file(absolute)
-    spec = importlib.util.spec_from_file_location(name, absolute)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"cannot load evaluator module {name!r} from {absolute}")
-    module = importlib.util.module_from_spec(spec)
-    module.__dict__["_SDE_EVAL_EXECUTING_SOURCE"] = source
-    exec(compile(source, str(absolute), "exec"), module.__dict__)
-    register_loaded_evaluator_source(absolute, source)
-    return module
-
-
-def load_current_evaluator():
-    """Return this runner compiled from and bound to one checked source buffer.
-
-    The public helper is also the script's self-bootstrap. It lets tests and imported callers run
-    the same exact-source path as ``python scripts/eval_routing.py`` instead of relying on a later
-    disk read to guess which bytes Python originally compiled.
-    """
-    return load_evaluator_module("_sde_eval_routing_bound", Path(__file__))
-
-
-if _EXECUTING_EVALUATOR_SOURCE is not None:
-    register_loaded_evaluator_source(Path(__file__), _EXECUTING_EVALUATOR_SOURCE)
-
-
-def routing_evaluator_paths() -> list[Path]:
-    """Exact executable and imported classifier/grader sources for this runner."""
-    runner = Path(__file__)
-    return [runner, runner.with_name("eval_clean_room.py")]
-
-
-def evaluator_identity(paths: list[Path]) -> dict:
-    """Content identity for the code that turns transcripts into benchmark verdicts."""
-    if not paths:
-        raise ProvenanceError("evaluator provenance requires at least one source file")
-    clean_room_path = _absolute_without_resolving(Path(__file__).with_name("eval_clean_room.py"))
-    records: list[dict[str, str]] = []
-    for path in paths:
-        absolute = _absolute_without_resolving(path)
-        # This module used to load lazily after the endpoint hash. Loading it here from one checked
-        # byte buffer and hashing that same buffer closes the pre-first-load A -> B -> A race.
-        if absolute == clean_room_path:
-            _load_clean_room()
-        content = _LOADED_EVALUATOR_SOURCES.get(_evaluator_source_key(absolute))
-        if content is None:
-            content = _read_regular_file(absolute)
-        records.append({
-            "path": _portable_path_label(absolute),
-            "sha256": _sha256(content),
-        })
-    records.sort(key=lambda record: record["path"])
-    labels = [record["path"] for record in records]
-    if len(labels) != len(set(labels)):
-        raise ProvenanceError("evaluator provenance contains the same source file more than once")
-    canonical = json.dumps(
-        records, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
-    ).encode("utf-8")
-    return {
-        "sha256": _sha256(canonical),
-        "files": records,
-        "runtime": {
-            "implementation": platform.python_implementation(),
-            "python_version": platform.python_version(),
-        },
-    }
-
-
-GRADED_CASE_FIELDS = ("id", "polarity", "prompt", "expect_fires", "expect_not_fires")
-# Graded as SETS by `_scoring_targets`, so their array order and any duplicate are invisible
-# to every verdict and must be invisible to the identity too.
-_UNORDERED_TARGET_FIELDS = frozenset({"expect_fires", "expect_not_fires"})
-
-
-def _graded_definition(case: dict) -> dict:
-    """The fields of a case the scorer actually reads.
-
-    `expected_output` and `tags` are documentation of intent: `score_case` never reads either, so
-    hashing them made a comment edit invalidate a stored baseline that measured byte-identical
-    routing. Narrowing the identity to the graded fields removes invalidations that protect
-    nothing — it does not weaken the identity, because a field the grader cannot see cannot change
-    a rate. Add a field here in the same change that makes the scorer read it.
-
-    A case-level `threshold` was listed here and is not: `score_case` takes the threshold as an
-    ARGUMENT and `main` passes `args.threshold`, so nothing reads `case["threshold"]` and a
-    per-case value grades identically to its absence. Listing it meant an inert field could stale
-    every stored baseline for a cluster whose grading had not moved — the exact re-buy this
-    narrowing exists to stop, reintroduced by the narrowing itself. If per-case thresholds are ever
-    implemented, this entry returns in that same change (PR #145 review).
-    """
-    return {
-        # `expect_fires` / `expect_not_fires` are hashed as sorted unique values because
-        # `_scoring_targets` returns `set(raw_targets)` — order and duplicates are both discarded
-        # before anything is graded, so preserving array order here made a pure reorder read as a
-        # routing change and demanded a fresh paid capture. Same reason `members` is sorted above
-        # (PR #145 review). Every other graded field keeps its literal value: `prompt` and `id` are
-        # compared as written, and `polarity` is a scalar.
-        field: sorted(set(case[field])) if field in _UNORDERED_TARGET_FIELDS else case[field]
-        for field in GRADED_CASE_FIELDS
-        if field in case
-    }
-
-
-def validated_members(raw: object) -> list[str]:
-    """The ONE place the `members` rule lives, because three paths hash that value.
-
-    A cluster's members reach `sorted(set(...))` in `selection_identity`, so a malformed list
-    (`["prompt-craft", 1]`) raises an uncaught TypeError wherever it is hashed. The rule was stated
-    inline in `main()`, restated in a second validator this repo has since retired, and absent from
-    the post-session reread — so the reread crashed on a cluster edited mid-run while the other two
-    refused it cleanly. Three copies of a rule is how a path ends up without it (PR #145 review).
-    """
-    if (
-        not isinstance(raw, list)
-        or not raw
-        or any(not isinstance(member, str) or not member.strip() for member in raw)
-    ):
-        raise ProvenanceError("cluster error: 'members' must be a non-empty list of component names")
-    return list(raw)
-
-
-def selection_identity(
-    expression: str, cases: list[dict], limit: int | None = None,
-    *, members: list[str] | None = None,
-) -> dict:
-    """Hash selected definitions, the cluster's members, and the exact selection operation.
-
-    `members` is a grading input, not context: a negative with no `expect_not_fires` is graded
-    against the WHOLE member list (`_scoring_targets`), and `required_agents` is derived from it, so
-    a membership change moves what the same case bytes assert. It is hashed here because narrowing
-    the identity to graded case fields would otherwise let a membership change pass unnoticed —
-    `eval_sources` used to catch it only as a side effect of hashing the whole cluster file.
-    """
-    case_ids = [case["id"] for case in cases]
-    selected = {
-        "expression": expression,
-        "limit": limit,
-        "case_ids": case_ids,
-        # sorted UNIQUE, for the same reason the target lists are: routing does `set(raw_members)`
-        # before grading, required-agent calculation, and serialization, so a repeated member
-        # changes no measurement — and preserving the duplicate here staled a capture for an edit
-        # no verdict could see. `members` was sorted one round before the target lists and did not
-        # get the dedupe half of the same fact (PR #145 review).
-        "members": sorted(set(members)) if members is not None else None,
-        "definitions": [_graded_definition(case) for case in cases],
-    }
-    canonical = json.dumps(
-        selected, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
-    ).encode("utf-8")
-    return {
-        "expression": expression,
-        "limit": limit,
-        "case_ids": case_ids,
-        "members": sorted(set(members)) if members is not None else None,
-        "canonicalization": "JSON UTF-8, sorted object keys, compact separators, array order preserved",
-        "sha256": _sha256(canonical),
-    }
-
-
-def _is_transient(path: Path) -> bool:
-    return (
-        path.name in _TRANSIENT_DIR_NAMES
-        or path.name in _TRANSIENT_FILE_NAMES
-        or path.suffix in {".pyc", ".pyo", ".tmp", ".swp"}
-        or path.name.endswith("~")
-    )
-
-
-def _collect_runtime_path(root: Path, path: Path, files: dict[str, bytes]) -> None:
-    file_stat = _checked_stat(path)
-    if _is_transient(path):
-        return
-    if stat.S_ISREG(file_stat.st_mode):
-        relative = path.relative_to(root).as_posix()
-        files[relative] = _read_regular_file(path)
-        return
-    if not stat.S_ISDIR(file_stat.st_mode):
-        raise ProvenanceError(f"unsafe non-file entry in plugin provenance scope: {path}")
-    try:
-        children = sorted(path.iterdir(), key=lambda child: child.name.replace("\\", "/"))
-    except OSError as exc:
-        raise ProvenanceError(f"cannot traverse plugin provenance path {path}: {exc}") from exc
-    for child in children:
-        _collect_runtime_path(root, child, files)
-
-
-def _reference_parts(raw: bytes, source: str) -> tuple[str, ...]:
-    referenced = raw.decode("ascii").replace("\\", "/").rstrip("/")
-    parts = tuple(part for part in referenced.split("/") if part not in ("", "."))
-    if not parts or ".." in parts:
-        raise ProvenanceError(f"unsafe repository-relative reference in {source}: {referenced!r}")
-    return parts
-
-
-def _backticked_repo_paths(content: bytes, source: str) -> list[tuple[str, ...]]:
-    """Extract bounded, safe relative-path tokens from inline-code spans.
-
-    Runtime instructions conventionally backtick paths. Restricting discovery to those spans and
-    existing regular files lets an explicitly directed dependency affect identity without turning
-    every prose word—or the whole repository—into plugin content.
-    """
-    paths: set[tuple[str, ...]] = set()
-    for span_match in _BACKTICK_CONTENT.finditer(content):
-        for raw_token in re.split(rb"\s+", span_match.group(1)):
-            token = raw_token.strip(b"'\"(),;[]{}")
-            if token.startswith(b"./") or token.startswith(b".\\"):
-                token = token[2:]
-            if not token or token.startswith((b"/", b"\\")):
-                continue
-            try:
-                normalized = token.decode("ascii").replace("\\", "/").rstrip("/")
-            except UnicodeDecodeError:
-                continue
-            # A plain component name is usually an agent, skill, command, or flag rather than a
-            # path. A dotted root file such as README.md remains eligible.
-            if "/" not in normalized:
-                if normalized in (".", "..", "...") or "." not in normalized:
-                    continue
-            parts = tuple(normalized.split("/"))
-            if ".." in parts:
-                raise ProvenanceError(
-                    f"unsafe repository-relative reference in {source}: {normalized!r}"
-                )
-            if any(not _SAFE_RELATIVE_PART.fullmatch(part) for part in parts):
-                continue
-            if parts[0] in _HARD_EXCLUDED_REFERENCE_ROOTS:
-                continue
-            if any(part in _TRANSIENT_DIR_NAMES or part in _TRANSIENT_FILE_NAMES for part in parts):
-                continue
-            paths.add(parts)
-    return sorted(paths)
-
-
-def _git_identity(root: Path) -> tuple[str | None, bool | None]:
-    git = shutil.which("git")
-    if git is None:
-        return None, None
-    quiet_env = dict(os.environ)
-    quiet_env["GIT_OPTIONAL_LOCKS"] = "0"
-    common = {"capture_output": True, "encoding": "utf-8", "errors": "replace",
-              "timeout": 30, "env": quiet_env}
-    try:
-        head = subprocess.run(
-            [git, "-C", str(root), "rev-parse", "--verify", "HEAD"], **common
-        )
-        status_result = subprocess.run(
-            [git, "-C", str(root), "status", "--porcelain=v1", "--untracked-files=all"],
-            **common,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None, None
-    if head.returncode != 0 or status_result.returncode != 0:
-        return None, None
-    return head.stdout.strip() or None, bool(status_result.stdout)
-
-
-def _plugin_runtime_files(plugin_dir: Path) -> tuple[Path, dict[str, bytes], set[str]]:
-    """Read one complete, link-safe snapshot of every runtime-relevant plugin file."""
-    root = _absolute_without_resolving(plugin_dir)
-    _check_existing_ancestors(root)
-    root_stat = _checked_stat(root)
-    if not stat.S_ISDIR(root_stat.st_mode):
-        raise ProvenanceError(f"plugin directory is not a directory: {root}")
-
-    files: dict[str, bytes] = {}
-    included: set[str] = set()
-    for name in (*PLUGIN_RUNTIME_DIRS, *PLUGIN_RUNTIME_FILES):
-        path = root / name
-        try:
-            path.lstat()
-        except FileNotFoundError:
-            continue
-        except OSError as exc:
-            raise ProvenanceError(f"cannot inspect plugin provenance path {path}: {exc}") from exc
-        _collect_runtime_path(root, path, files)
-        included.add(name)
-
-    # Runtime text can name supporting files outside the conventional plugin directories. Include
-    # exact plugin-root references and existing safe paths in inline-code spans recursively, without
-    # interpreting or executing content. A missing backticked path may be a worked example; it is
-    # ignored. `${CLAUDE_PLUGIN_ROOT}` is authoritative, so its missing target fails closed.
-    instruction_files = set(files)
-    scanned: set[str] = set()
-    while pending := sorted(set(files) - scanned):
-        relative = pending[0]
-        scanned.add(relative)
-        for match in _PLUGIN_ROOT_REFERENCE.finditer(files[relative]):
-            parts = _reference_parts(match.group(1), relative)
-            if parts[0] in _HARD_EXCLUDED_REFERENCE_ROOTS:
-                continue
-            target = root.joinpath(*parts)
-            try:
-                target.lstat()
-            except OSError as exc:
-                raise ProvenanceError(
-                    f"runtime dependency named by {relative} cannot be inspected: {target}: {exc}"
-                ) from exc
-            _collect_runtime_path(root, target, files)
-            included.add("/".join(parts))
-        for parts in (
-            _backticked_repo_paths(files[relative], relative)
-            if relative in instruction_files else ()
-        ):
-            target = root.joinpath(*parts)
-            try:
-                target.lstat()
-            except FileNotFoundError:
-                continue
-            except OSError as exc:
-                raise ProvenanceError(
-                    f"repo-relative dependency named by {relative} cannot be inspected: "
-                    f"{target}: {exc}"
-                ) from exc
-            target_stat = _checked_stat(target)
-            if not stat.S_ISREG(target_stat.st_mode):
-                continue
-            files[target.relative_to(root).as_posix()] = _read_regular_file(target)
-            included.add("/".join(parts))
-
-    if not files:
-        raise ProvenanceError(
-            f"no plugin runtime files found under {root}; refusing an identity for an empty scope"
-        )
-    return root, files, included
-
-
-def _plugin_identity_from_files(
-    root: Path, files: dict[str, bytes], included: set[str],
-) -> dict:
-    """Identify the exact in-memory snapshot returned by `_plugin_runtime_files`."""
-    digest = hashlib.sha256()
-    digest.update(b"sde-agents-plugin-content-v1\0")
-    for relative in sorted(files):
-        name_bytes = relative.encode("utf-8")
-        content = files[relative]
-        digest.update(len(name_bytes).to_bytes(8, "big"))
-        digest.update(name_bytes)
-        digest.update(len(content).to_bytes(8, "big"))
-        digest.update(content)
-
-    git_head, git_dirty = _git_identity(root)
-    return {
-        "sha256": digest.hexdigest(),
-        "files_hashed": len(files),
-        "scope": {
-            "strategy": "runtime allowlist plus referenced repository-local dependencies",
-            "included": sorted(included),
-            "excluded": list(PLUGIN_HASH_EXCLUSIONS),
-        },
-        "git_head": git_head,
-        "git_dirty": git_dirty,
-        "git_scope": "containing worktree" if git_head is not None else None,
-    }
-
-
-def plugin_identity(plugin_dir: Path) -> dict:
-    """Content-derived identity for the plugin surfaces a Claude eval can load.
-
-    Paths and bytes are length-framed before hashing, so concatenation cannot make two different
-    trees collide at the serialization layer. Only digests and scope metadata enter benchmark.json;
-    raw repository content never does.
-    """
-    root, files, included = _plugin_runtime_files(plugin_dir)
-    return _plugin_identity_from_files(root, files, included)
-
-
-@contextlib.contextmanager
-def frozen_plugin(plugin_dir: Path):
-    """Yield a private execution copy whose bytes cannot follow edits to the source checkout.
-
-    Endpoint hashing alone cannot detect A -> B -> A edits made while concurrent sessions are
-    loading a source checkout. The eval therefore executes the exact bytes collected for one
-    content identity from an unadvertised temporary directory. A final identity check detects a
-    session-side mutation left in place. It cannot detect a same-user session mutating and restoring
-    the snapshot between checks; preventing that is a host-sandbox boundary, not a hash claim.
-    """
-    source_root, files, included = _plugin_runtime_files(plugin_dir)
-    source_identity = _plugin_identity_from_files(source_root, files, included)
-    with tempfile.TemporaryDirectory(prefix="sde-agents-eval-plugin-") as temp_dir:
-        frozen_root = Path(temp_dir) / "plugin"
-        frozen_root.mkdir()
-        for relative, content in files.items():
-            target = frozen_root / Path(relative)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(content)
-        frozen_identity = plugin_identity(frozen_root)
-        if source_identity["sha256"] != frozen_identity["sha256"]:
-            raise ProvenanceError(
-                "frozen plugin snapshot does not match the source bytes collected for execution"
-            )
-        yield frozen_root, source_identity
-
-
-def verify_frozen_plugin(plugin_dir: Path, expected_identity: dict) -> None:
-    """Fail when a private-snapshot mutation remains observable at the endpoint."""
-    actual = plugin_identity(plugin_dir)
-    if actual["sha256"] != expected_identity["sha256"]:
-        raise ProvenanceError("frozen plugin content changed while the batch was running")
-
-
-def benchmark_provenance(
-    source_paths: list[Path], cases: list[dict], expression: str, plugin_dir: Path,
-    limit: int | None = None, *, evaluator_paths: list[Path],
-    plugin_identity_value: dict | None = None, members: list[str] | None = None,
-) -> dict:
-    return {
-        "schema": PROVENANCE_SCHEMA,
-        "eval_sources": source_identity(source_paths),
-        "selection": selection_identity(expression, cases, limit, members=members),
-        # This is deliberately separate from the plugin under test. A copied or external plugin
-        # directory does not identify the local runner and deterministic graders that interpreted
-        # its transcripts.
-        "evaluator": evaluator_identity(evaluator_paths),
-        # Claude evaluates plugin runtime bytes; another runtime may execute a narrower captured
-        # projection. A precomputed identity binds provenance to those already-captured bytes while
-        # retaining one schema without conflating scopes.
-        "plugin": (
-            plugin_identity(plugin_dir)
-            if plugin_identity_value is None
-            else plugin_identity_value
-        ),
-    }
-
-
-def _content_provenance_matches(before: dict, after: dict) -> bool:
-    """Git dirtiness may move for excluded files; measurement inputs and evaluator may not."""
-    return (
-        before["eval_sources"] == after["eval_sources"]
-        and before["selection"] == after["selection"]
-        and before["evaluator"] == after["evaluator"]
-        and before["plugin"]["sha256"] == after["plugin"]["sha256"]
-    )
-
-
-def strip_ns(name: str) -> str:
-    """`sde-agents:prompt-craft` -> `prompt-craft`; a bare name is returned unchanged."""
-    return name.split(":", 1)[1] if ":" in name else name
-
-
-def _event_message_field(event: object, field: str):
-    """Read `event["message"][field]`, tolerating a stream event that is not shaped that way.
-
-    Not defensive decoration: `(event.get("message") or {}).get(...)` crashes on an event whose
-    `message` is a plain string, and both readers below run on EVERY line of EVERY session. One such
-    event raised AttributeError out of `components_fired`, past the behavioral runner's
-    `EvalAuthUnavailable`-only handler, and took down the whole batch with no benchmark written —
-    observed on a live `verifier-fails-honestly-no-product-edit` session, 2026-08-10. A transcript
-    line the reader cannot interpret must be skipped, never fatal: the sessions are already paid
-    for by the time it is parsed.
-    """
-    if not isinstance(event, dict):
-        return None
-    message = event.get("message")
-    return message.get(field) if isinstance(message, dict) else None
-
-
-def decode_stream(value: object) -> str:
-    """Text for a captured stream, whatever the failure path handed us.
-
-    Not a convenience wrapper: `subprocess.TimeoutExpired.stdout` is **bytes even when the call
-    passed `encoding=`**, so an `isinstance(value, str)` test silently yields "" and throws away
-    the partial transcript of a session that was already paid for. Every timed-out run then
-    reports no tokens, no model, and no duration into a `conditions` block whose whole purpose is
-    stating what was measured. Readers of both Claude-side runners route through here so the
-    bytes/str asymmetry is answered in one place.
-    """
-    if isinstance(value, str):
-        return value
-    if isinstance(value, bytes):
-        return value.decode("utf-8", "replace")
-    return ""
-
-
-def components_fired(transcript: str) -> set[str]:
-    """The set of fleet components (bare names) invoked anywhere in a run's transcript.
-
-    Detects the two invocation paths: the Skill tool (a skill fired) and the Agent/Task tool (a
-    subagent spawned). Rather than guess the exact input field name — which differs across the two
-    and across CLI versions — it scans each relevant tool_use's input values for a known fleet name.
-    A component named only in ASSISTANT PROSE (not a tool call) is intentionally NOT counted: the
-    model mentioning 'prompt-craft' is not the same as prompt-craft firing. A tool_use whose matching
-    tool_result is a GENUINE dispatch failure is likewise NOT counted — counting a truly failed
-    spawn would produce false PASS results (see scripts/probe_plugin.py:174 for the same
-    correlate-by-tool_use_id pattern).
-
-    Crucially, `is_error` is NOT a reliable "the call failed" flag for the Skill tool. A skill that
-    restricts tools (allowed-tools / disallowed-tools) is LAUNCHED via a tool_result the CLI marks
-    `is_error: true` with content "Execute skill: <name>"; a skill WITHOUT restrictions reports
-    "Launching skill: <name>" with is_error unset. Both mean the skill was invoked — the routing fact
-    we grade. Treating the first as an error silently dropped every tool-restricting skill's
-    invocation: `lab-audit` (which sets `disallowed-tools`) scored 0/N despite routing correctly on
-    every run, and — worse — an over-trigger of `lab-audit` on a NEGATIVE case was invisible, a false
-    PASS. So a skill-launch control signal is never treated as a failure; only a genuine hard error
-    (real dispatch failure, different content) excludes the routing decision.
-    """
-    launch_signals = ("execute skill:", "launching skill:")
-    candidates: dict[str, set[str]] = {}  # tool_use_id -> bare names named in this call
-    errored: set[str] = set()  # tool_use_ids whose tool_result was a genuine dispatch failure
-    for line in transcript.splitlines():
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        content = _event_message_field(event, "content")
-        if not isinstance(content, list):
-            continue
-        for block in content:
-            if not isinstance(block, dict):
-                continue
-            btype = block.get("type")
-            if btype == "tool_use" and block.get("name") in ("Skill", "Agent", "Task"):
-                names = {strip_ns(v) for v in _string_values(block.get("input"))} & FLEET
-                if names:
-                    candidates[block.get("id", "")] = names
-            elif btype == "tool_result" and block.get("is_error"):
-                result_text = " ".join(_string_values(block.get("content"))).lower()
-                if any(sig in result_text for sig in launch_signals):
-                    continue  # skill-launch control signal, not a failure — the skill WAS invoked
-                errored.add(block.get("tool_use_id", ""))
-    fired: set[str] = set()
-    for tid, names in candidates.items():
-        if tid not in errored:
-            fired |= names
-    return fired
-
-
-def _string_values(obj) -> list[str]:
-    if isinstance(obj, str):
-        return [obj]
-    if isinstance(obj, dict):
-        return [s for v in obj.values() for s in _string_values(v)]
-    if isinstance(obj, list):
-        return [s for v in obj for s in _string_values(v)]
-    return []
-
-
-def transcript_stats(stdout: str) -> dict:
-    """Measurement conditions read off one stream-json transcript:
-    {input_tokens, output_tokens, duration_ms, model, completed, result_error, init_observed,
-    fleet_registered, registered_agents}.
-
-    Shared by BOTH runners (EVAL-002): an artifact that cannot state what it measured is not a
-    baseline, and two parsers would eventually disagree about one transcript — so this is the one
-    read every benchmark writer uses. Token fields are None when the transcript carries no usage,
-    never zero: a fabricated 0 reads as "this run was free" in any later cost comparison.
-    """
-    input_tokens = output_tokens = duration = model = None
-    completed = False
-    result_error = False
-    init_observed = False
-    registered_agents: set[str] = set()
-    for line in stdout.splitlines():
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(event, dict):
-            continue
-        if event.get("type") == "system" and event.get("subtype") == "init":
-            init_observed = True
-            agents = event.get("agents")
-            if isinstance(agents, list):
-                registered_agents.update(
-                    strip_ns(name)
-                    for name in agents
-                    if isinstance(name, str) and name in NAMESPACED_FLEET_AGENTS
-                )
-        if event.get("type") == "result":
-            usage = event.get("usage") or {}
-            input_tokens = usage.get("input_tokens", input_tokens)
-            output_tokens = usage.get("output_tokens", output_tokens)
-            duration = event.get("duration_ms")
-            # Only a non-error final result makes silence an observation. Reassign on every result
-            # so the final structured result controls the classification.
-            result_error = bool(event.get("is_error"))
-            completed = not result_error
-        # Record the model the session ACTUALLY ran on, read off the transcript rather than
-        # assumed — routing behavior varies by tier, so an artifact that omits it cannot be validly
-        # diffed against another. Deliberately independent of any REQUESTED model: reusing the
-        # request for this once made the read conditional on --model being absent, so
-        # `models_observed` echoed the requested alias for exactly the pinned runs the conditions
-        # block exists to describe.
-        if model is None:
-            candidate = (
-                (event.get("model") if isinstance(event, dict) else None)
-                or _event_message_field(event, "model")
-            )
-            if isinstance(candidate, str) and candidate:
-                model = candidate
-    return {"input_tokens": input_tokens, "output_tokens": output_tokens,
-            "duration_ms": duration, "model": model, "completed": completed,
-            "result_error": result_error, "init_observed": init_observed,
-            "fleet_registered": bool(registered_agents),
-            "registered_agents": sorted(registered_agents)}
-
-
-def run_once(prompt: str, plugin_dir: Path, timeout: int = 180, model: str | None = None,
-             env: dict | None = None,
-             required_agents: set[str] | frozenset[str] | None = None) -> dict:
-    """One headless run in a fresh temp cwd. Returns {fired, tokens, duration_ms, model, error, note}.
-
-    Ordinary runner trouble never raises: this drives a flaky, sometimes long-running subprocess,
-    and a routing eval only needs the FIRST routing decision, not a completed session. Authentication
-    failure and missing namespaced fleet registration are exceptions because either invalidates the
-    whole batch rather than describing routing variance.
-    A timeout is expected rather than exceptional — the transcript captured up to that point almost
-    always already contains the Skill or Agent call we grade on. So: parse whatever stdout exists
-    whether the run exits, times out, or errors, and set `error` only when the transcript cannot
-    support a routing verdict (see the usability comment below). `note` keeps the trouble visible
-    even for runs that were graded anyway, so an artifact can still say a rate came from cut or
-    non-zero sessions.
-    """
-    stdout, stderr, note = "", "", None
-    returncode: int | None = None
-    try:
-        with tempfile.TemporaryDirectory() as cwd:
-            proc = subprocess.run(
-                [
-                    CLAUDE, "-p", prompt,
-                    "--plugin-dir", str(plugin_dir),
-                    "--output-format", "stream-json", "--verbose",
-                    *(("--model", model) if model else ()),
-                ],
-                capture_output=True, encoding="utf-8", errors="replace", cwd=cwd, timeout=timeout,
-                env=env,
-            )
-            stdout, stderr = proc.stdout or "", proc.stderr or ""
-            returncode = proc.returncode
-            if proc.returncode != 0:
-                note = f"exit {proc.returncode}: {stderr[:150]}"
-    except subprocess.TimeoutExpired as exc:
-        stdout = decode_stream(exc.stdout)
-        stderr = decode_stream(exc.stderr)
-        returncode = 1
-        note = f"timed out after {timeout}s (partial transcript graded)"
-    except Exception as exc:  # a broken spawn must not crash the suite
-        note = f"run failed: {exc}"
-
-    if returncode is not None:
-        raise_for_auth_failure(stdout, stderr)
-
-    stats = transcript_stats(stdout)
-    tokens = ((stats["input_tokens"] or 0) + (stats["output_tokens"] or 0)) or None
-    duration, observed_model = stats["duration_ms"], stats["model"]
-    session_completed = stats["completed"]
-
-    if stats["result_error"]:
-        result_note = "structured result reported an error"
-        note = f"{note}; {result_note}" if note else result_note
-
-    fired = sorted(components_fired(stdout))
-    registered_agents = set(stats["registered_agents"])
-    registered = bool(registered_agents)
-    missing_agents = set(required_agents or ()) - registered_agents
-    init_observed = stats["init_observed"]
-    # Usability, not emptiness, decides whether a troubled run is a measurement. A session that
-    # reached its non-error `result` event routed somewhere — possibly off the fleet entirely, which
-    # is a real negative sample and a real positive miss — even if the CLI then exited non-zero;
-    # discarding it
-    # because no FLEET component fired drops exactly the wrong-route evidence, and dropping misses
-    # from a positive's denominator can turn mostly-wrong routing into a PASS. A run cut by the
-    # TIMEOUT is different: its silence is not a decision, only an unfinished one, so it still counts
-    # as a measurement failure unless something already fired. The same narrow partial-evidence
-    # rule applies to an error result: a component call observed before the error is real, but the
-    # error result's silence can never green a negative.
-    usable = bool(fired) or session_completed
-    if (not registered or missing_agents) and (init_observed or usable):
-        if missing_agents:
-            detail = (
-                "system/init omitted selected namespaced agent(s) "
-                f"{sorted(missing_agents)}; --plugin-dir did not register every agent "
-                "measured by this cluster"
-            )
-        else:
-            detail = (
-                "system/init did not register a known namespaced sde-agents agent; "
-                "--plugin-dir did not load the fleet under test"
-            )
-        raise EvalRegistrationUnavailable(detail)
-    # Exit status cannot turn silence into evidence: a clean process with no firing or completed
-    # result is still an unusable sample and must not green a negative case.
-    error = None if usable else (note or "no usable transcript")
-    return {"fired": fired, "tokens": tokens, "duration_ms": duration, "model": observed_model,
-            "error": error, "note": note}
-
-
-def _load_clean_room():
-    """Load scripts/eval_clean_room.py by path. A plain import spells differently in this file's
-    two runtime contexts (script vs `from scripts import eval_routing`); path loading works in both,
-    and it happens lazily so only `--clean-room` runs pay for or depend on it."""
-    global _CLEAN_ROOM_MODULE
-    if _CLEAN_ROOM_MODULE is not None:
-        return _CLEAN_ROOM_MODULE
-    path = Path(__file__).resolve().parent / "eval_clean_room.py"
-    try:
-        module = load_evaluator_module("eval_clean_room", path)
-    except ImportError as exc:
-        raise ImportError(
-            f"cannot load the clean-room module from {path}; without it --clean-room cannot "
-            "isolate the run, so refusing rather than measuring a dirty room"
-        ) from exc
-    # Every worker reuses this already-loaded module. Otherwise an A -> B -> A source edit during
-    # a concurrent batch could make different sessions use different auth classifiers while the
-    # endpoint provenance hashes still match.
-    _CLEAN_ROOM_MODULE = module
-    return _CLEAN_ROOM_MODULE
-
-
-def raise_for_auth_failure(transcript: str, stderr: str = "") -> None:
-    """Translate the shared clean-room classifier into a runner-stable batch exception."""
-    clean_room = _load_clean_room()
-    try:
-        clean_room.raise_if_auth_failed(transcript, stderr)
-    except clean_room.AuthUnavailable as exc:
-        raise EvalAuthUnavailable(str(exc)) from exc
-
-
-def auth_provider_mode(env: dict | None, *, clean_room_enabled: bool) -> dict:
-    """Return non-secret auth/provider measurement metadata from the shared classifier."""
-    clean_room = _load_clean_room()
-    return clean_room.auth_provider_mode(env, clean_room=clean_room_enabled)
 
 
 def cli_version() -> str | None:
@@ -985,8 +119,10 @@ def cli_version() -> str | None:
     if CLAUDE is None:
         return None
     try:
-        proc = subprocess.run([CLAUDE, "--version"], capture_output=True, encoding="utf-8", timeout=30)
-        return (proc.stdout or "").strip() or None
+        result = subprocess.run(
+            [CLAUDE, "--version"], capture_output=True, encoding="utf-8", timeout=30
+        )
+        return (result.stdout or "").strip() or None
     except Exception:
         return None
 
@@ -994,12 +130,9 @@ def cli_version() -> str | None:
 def plugin_dir_label(plugin_dir: Path) -> str:
     """The plugin_dir as recorded in a benchmark's conditions.
 
-    Recorded verbatim, the default (this repo, absolute) bakes the operator's local filesystem
-    layout — a home-directory username on Windows — into a committed artifact, where it is identity
-    noise rather than a measurement condition and makes identical runs from two machines diff. So a
-    plugin_dir inside the repo is recorded repo-relative ("." for the repo itself). An external
-    plugin_dir still changes the measured plugin identity through the separately recorded plugin hash,
-    so the committed conditions use a stable placeholder instead of leaking workstation paths.
+    Recorded verbatim, the default bakes the operator's filesystem layout into a committed
+    artifact, where it is identity noise that makes identical runs from two machines diff. An
+    external plugin_dir still moves the separately recorded plugin hash.
     """
     try:
         return str(plugin_dir.resolve().relative_to(REPO))
@@ -1007,175 +140,582 @@ def plugin_dir_label(plugin_dir: Path) -> str:
         return "<external-plugin-dir>"
 
 
-def _validated_threshold(threshold: float) -> float:
-    """Return a usable positive-case threshold or reject a false-green configuration."""
-    if (
-        isinstance(threshold, bool)
-        or not isinstance(threshold, (int, float))
-        or not 0 < threshold <= 1
-    ):
-        raise ValueError(f"threshold must be > 0 and <= 1 (got {threshold!r})")
-    return float(threshold)
+def write_cases(eval_dir: Path, files: dict[str, str], spec: dict) -> None:
+    """Write the generated case tree, replacing whatever was there.
 
-
-def _scoring_targets(case: dict, members: set[str]) -> tuple[str, set[str]]:
-    """Validate the polarity-specific contract and return the set used by the scorer."""
-    case_id = case.get("id", "<missing id>") if isinstance(case, dict) else "<invalid case>"
-    if not isinstance(case, dict):
-        raise ValueError(f"case {case_id!r} must be an object")
-    if not members or any(
-        not isinstance(member, str) or not member.strip() for member in members
-    ):
-        raise ValueError("cluster members must be a non-empty set of component names")
-
-    polarity = case.get("polarity")
-    if polarity not in ("positive", "negative"):
-        raise ValueError(
-            f"case {case_id!r} polarity must be exactly 'positive' or 'negative' "
-            f"(got {polarity!r})"
-        )
-
-    if polarity == "positive":
-        field = "expect_fires"
-        raw_targets = case.get(field)
-    elif "expect_not_fires" in case:
-        field = "expect_not_fires"
-        raw_targets = case[field]
-    else:
-        # Omission is the documented broad negative: no member of the cluster may fire.
-        return polarity, set(members)
-
-    if not isinstance(raw_targets, list) or not raw_targets:
-        raise ValueError(f"case {case_id!r} {field} must be a non-empty list")
-    invalid = [
-        target
-        for target in raw_targets
-        if not isinstance(target, str) or not target.strip() or target not in members
-    ]
-    if invalid:
-        raise ValueError(
-            f"case {case_id!r} {field} contains invalid cluster member(s): {invalid!r}"
-        )
-    return polarity, set(raw_targets)
-
-
-def score_case(case: dict, runs: list[dict], members: set[str], threshold: float) -> dict:
-    """Aggregate a case's runs into rates and a pass/fail verdict.
-
-    Runs carrying an `error` are EXCLUDED from the rates. `run_once` sets that only when a session
-    produced no usable transcript (a timeout that captured no routing decision, or a failed spawn),
-    and its comment already said why such a run must not count -- "otherwise negatives would pass
-    vacuously on empty transcripts" -- but nothing implemented the exclusion, so an invalid sample
-    was scored as a confident "did not route". That mattered as soon as a slower model was pinned:
-    sessions began timing out BEFORE their first tool call, and the resulting empty transcripts read
-    as routing failures. A measurement failure and a routing failure are different facts.
-
-    If every run of a case is invalid, the case is INCONCLUSIVE and never counts as passed -- an
-    unmeasured case must not be reported as a result in either direction.
+    Replacing rather than merging is the point: a case removed from the cluster must disappear from
+    the measurement, and a leftover directory from a previous cluster would otherwise be run and
+    scored as if the cluster still declared it.
     """
-    threshold = _validated_threshold(threshold)
-    polarity, scoring_targets = _scoring_targets(case, members)
-    valid = [r for r in runs if not r.get("error")]
-    excluded = len(runs) - len(valid)
-    n = len(valid)
-    inconclusive = n == 0
-    member_hits = [bool(set(r["fired"]) & members) for r in valid]
-    fire_rate = sum(member_hits) / n if n else 0.0
-    suffix = f" [{excluded} run(s) excluded: no usable transcript]" if excluded else ""
+    # This REMOVES a directory tree, so the path it was handed is checked before anything is
+    # deleted. A `..` anywhere in it means the caller assembled it from a name that climbed out of
+    # the intended root -- the traversal is already done by the time it arrives here, so refusing
+    # the un-normalised path is the last point at which it can be caught. (Checking `eval_dir`
+    # against its own parent, which a first version did, is vacuous: every path is under its own
+    # parent.) The caller separately validates the cluster name as a single path segment.
+    if ".." in eval_dir.parts:
+        raise ValueError(
+            f"generated eval directory must be a normalised path, not one that climbs out of its "
+            f"root: {eval_dir}"
+        )
+    targets = {
+        relative: fs.contained_path(eval_dir, relative, what="generated case file")
+        for relative in files
+    }
+    if eval_dir.exists():
+        shutil.rmtree(eval_dir)
+    for relative, content in files.items():
+        target = targets[relative]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    (eval_dir / "GENERATED.json").write_text(nativecases.manifest(spec, files), encoding="utf-8")
 
-    if polarity == "positive":
-        expected = scoring_targets
-        correct = [bool(set(r["fired"]) & expected) for r in valid]
-        correct_rate = sum(correct) / n if n else 0.0
-        passed = (not inconclusive) and correct_rate >= threshold
-        detail = f"expected {sorted(expected)} fired in {sum(correct)}/{n} runs{suffix}"
+
+def native_command(
+    plugin_dir: Path, eval_dir_name: str, result_path: Path, args: argparse.Namespace
+) -> list[str]:
+    """The native invocation, with the flags this measurement depends on rather than defaults.
+
+    `--keep-temp` is load-bearing and not a debugging convenience: without it the run's trace is
+    deleted before the result document that names it can be read, and the fleet-side verdict has
+    nothing to grade. `--threshold 0` hands the exit code to this script -- the native score comes
+    from tripwire graders that are not the verdict, so letting it decide the exit would report a
+    routing result this measurement never computed. `--ablation none` keeps the run to the
+    with-plugin arm; a no-plugin baseline cannot route to a fleet component by construction.
+    """
+    return [
+        CLAUDE, "plugin", "eval", str(plugin_dir),
+        "--eval-dir", eval_dir_name,
+        "--runs", str(args.runs),
+        "--concurrency", str(args.concurrency),
+        "--threshold", "0",
+        "--ablation", "none",
+        "--no-publish",
+        "--trust-plugin",
+        "--keep-temp",
+        "--json", str(result_path),
+        *(("--model", args.model) if args.model else ()),
+        # `is not None`, not truthiness: `--max-cost-usd 0` is falsey, and silently dropping it
+        # launched an UNCAPPED paid run for a caller asking for a zero budget.
+        *(
+            ("--max-cost-usd", str(args.max_cost_usd))
+            if args.max_cost_usd is not None
+            else ()
+        ),
+    ]
+
+
+class MalformedNativeResult(Exception):
+    """The harness wrote valid JSON in a shape this cannot read."""
+
+
+class RegistrationIncomplete(RuntimeError):
+    """A session did not register a component the selected cluster is graded against.
+
+    Aborts the batch rather than excluding the run, which is the contract `evals/README.md`
+    records as retained from the retired runner: a partially or intermittently loaded plugin
+    means the whole measurement ran against an incomplete competition, and excluding only the
+    affected runs lets the remaining ones pass every case and write a benchmark that reads clean.
+    """
+
+
+def _run_records(result: object) -> dict[str, list[dict]]:
+    """Per-case run records from the native result document, keyed by case name.
+
+    Every level is type-checked rather than assumed. The document is written by an early-access
+    CLI whose schema can move under a version bump, and a partial failure can emit a structurally
+    incomplete one -- and this runs AFTER the sessions are paid for, so a shape surprise here must
+    become the documented measurement-failure exit rather than an AttributeError traceback.
+    """
+    if not isinstance(result, dict):
+        raise MalformedNativeResult(f"result document is {type(result).__name__}, not an object")
+    cases = result.get("cases")
+    if not isinstance(cases, list):
+        raise MalformedNativeResult(f"'cases' is {type(cases).__name__}, not a list")
+    # `partial` is the ONLY thing that excuses a missing case, so it is validated here rather
+    # than read with `.get()` at the point of use: `"partial": "false"` is a truthy string, and
+    # a malformed schema would then have licensed synthesizing unlaunched runs for a case the
+    # harness never reported -- writing an INCONCLUSIVE benchmark instead of refusing the result.
+    partial = result.get("partial", False)
+    if not isinstance(partial, bool):
+        raise MalformedNativeResult(f"'partial' is {type(partial).__name__}, not a boolean")
+    records: dict[str, list[dict]] = {}
+    for case in cases:
+        if not isinstance(case, dict):
+            raise MalformedNativeResult(f"a case entry is {type(case).__name__}, not an object")
+        arms = case.get("arms")
+        if not isinstance(arms, dict):
+            raise MalformedNativeResult(f"case {case.get('name')!r} 'arms' is not an object")
+        # Default only an ABSENT field. `or []` also swallowed `{}`, `""`, `false` and `null`,
+        # so a malformed schema read as zero launched runs, got padded like an ordinary early
+        # stop, and wrote an INCONCLUSIVE benchmark instead of failing as unreadable.
+        runs = arms.get("with", [])
+        if not isinstance(runs, list) or any(not isinstance(run, dict) for run in runs):
+            raise MalformedNativeResult(
+                f"case {case.get('name')!r} run records are not a list of objects"
+            )
+        # The name is the key every later step joins on, and it comes from the harness. A
+        # missing or non-string one indexed the runs under the literal "None" -- so the expected
+        # case looked like an ordinary early-stop shortfall and could still write an INCONCLUSIVE
+        # benchmark -- and a repeat silently replaced the first entry, discarding its trace paths
+        # so their kept directories were never cleaned.
+        name = case.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise MalformedNativeResult(f"a case name is {name!r}, not a non-empty string")
+        if name in records:
+            raise MalformedNativeResult(f"the result names case {name!r} more than once")
+        records[name] = list(runs)
+    return records
+
+
+def fired_per_run(
+    runs: list[dict],
+    roster: frozenset[str],
+    auth_check: Callable[[str, str], None] = lambda _text, _stderr: None,
+    namespace: str = DEFAULT_PLUGIN_NAMESPACE,
+) -> tuple[list[frozenset[str] | None], list[str], list[str], list[dict]]:
+    """Each run's firing set, or None when the run produced no usable transcript.
+
+    USABILITY, not the harness's `error` field, decides which is which -- and the difference is
+    not academic. The harness reports a run that hit its turn or time limit as an error, but that
+    transcript very often already contains the routing decision; treating every error as an
+    invalid run made a first end-to-end measurement report INCONCLUSIVE on a case whose trace was
+    perfectly readable. The rule the retiring runner arrived at, kept exactly:
+
+    a run counts as a measurement when something fired, or when the session reached a final
+    result that was not an error. Anything else is silence that decided nothing, and scoring it as
+    "did not route" greens negatives vacuously and drops misses out of a positive's denominator.
+
+    A trace that cannot be read at all is an invalid run whatever the harness said about it, since
+    there is nothing left to grade. Reasons are carried back so the artifact can say why a rate
+    rests on fewer runs than were attempted, and `models` reports what actually ran.
+    """
+    fired: list[frozenset[str] | None] = []
+    notes: list[str] = []
+    models: list[str] = []
+    surfaces: list[dict[str, list[str]]] = []
+    for index, run in enumerate(runs):
+        label = f"run {index + 1}"
+        try:
+            text = Path(str(run.get("tracePath"))).read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            # Classified HERE, on the one path that has no transcript to classify from: an
+            # authentication failure can prevent the trace from being written at all, and the
+            # `continue` below would otherwise skip the classifier entirely, letting earlier
+            # successful runs carry the batch to exit 0 during an outage. Running this check
+            # before the read instead made it fire on runs whose trace exists: the classifier
+            # keeps a completed non-error result as a measurement, and it cannot see that
+            # exception in an empty transcript, so one readable, completed run whose harness
+            # error string merely mentions authentication aborted the whole paid batch.
+            auth_check("", str(run.get("error") or ""))
+            fired.append(None)
+            # An empty surface keeps `surfaces` index-aligned with `fired`; the registration check
+            # in `_scored` zips them, and a short list would silently shift every later run.
+            surfaces.append({"agents": [], "skills": []})
+            notes.append(f"{label}: trace unreadable ({exc}); harness said {run.get('error')!r}")
+            continue
+        # An authentication failure part-way through a batch invalidates the WHOLE measurement,
+        # not just the runs it touched: excluding them silently lets the earlier valid runs pass
+        # every case and write a benchmark at exit 0. The retiring runner aborted for this, and
+        # `eval_clean_room` still owns the classifier -- it keys off the run's own stream, and
+        # deliberately keeps a completed non-error result as a measurement.
+        auth_check(text, str(run.get("error") or ""))
+        model = stream.observed_model(text)
+        if not model:
+            # Model identity is a required comparability condition, so a run that cannot say which
+            # model produced it is not a measurement -- recording its rate while leaving
+            # `models_observed` silently short is how two incomparable artifacts look alike.
+            fired.append(None)
+            surfaces.append({"agents": [], "skills": []})
+            notes.append(f"{label}: no model observed in the transcript")
+            continue
+        models.append(model)
+        surfaces.append(stream.registered_components(text))
+        found = frozenset(routing.fired_components(text, roster, namespace))
+        if found or stream.session_completed(text):
+            fired.append(found)
+            if run.get("error"):
+                # Graded anyway, but the trouble stays visible: a rate that came from cut
+                # sessions is not the same measurement as one that came from clean ones.
+                notes.append(f"{label}: graded despite {run['error']!r}")
+            continue
+        fired.append(None)
+        notes.append(f"{label}: no usable transcript ({run.get('error') or 'no final result'})")
+    return fired, notes, models, surfaces
+
+
+def _scored(
+    case: dict,
+    members: list[str],
+    runs: list[dict],
+    roster: frozenset[str],
+    threshold: float,
+    auth_check: Callable[[str, str], None] = lambda _text, _stderr: None,
+    agents: frozenset[str] = frozenset(),
+    namespace: str = DEFAULT_PLUGIN_NAMESPACE,
+) -> dict:
+    fired, notes, models, surfaces = fired_per_run(runs, roster, auth_check, namespace)
+
+    # A run whose session never REGISTERED the components this case is graded against cannot
+    # evidence that they did not fire: they could not have. Without this, a stale or external
+    # `--plugin-dir` that omits a component turned every negative naming it into a vacuous pass --
+    # the retiring runner refused such a batch outright, and dropping that guard was a false-green
+    # generator, not a simplification.
+    _polarity, targets = routing.scoring_targets(case, members)
+    # EVERY member of the selected cluster, not just this case's graded targets -- and read from
+    # the cluster definition, never from the plugin under test. Intersecting with that plugin's
+    # own agent roster dropped precisely the member a stale `--plugin-dir` had deleted, so the
+    # guard could not fire for the one case it exists for: a narrowed negative grading a
+    # still-loaded skill would pass against an incomplete competition. A member is required
+    # whether it is an agent or a skill; the distinction was only ever a way to classify, and
+    # classifying from the tested plugin is what made the check self-defeating. Verified against
+    # the 303-run anchor: requiring all members invalidates zero runs there.
+    required = targets | set(members)
+    for index, surface in enumerate(surfaces):
+        if fired[index] is None:
+            continue
+        # Qualified, not bare: `other-plugin:root-cause` must not satisfy a requirement for this
+        # plugin's `root-cause`.
+        registered = {*surface.get("agents", []), *surface.get("skills", [])}
+        missing = {
+            name for name in required if f"{namespace}:{name}" not in registered
+        }
+        if missing:
+            # Abort, do not exclude. Excluding left the batch able to write a passing benchmark
+            # from the runs that happened to load the whole fleet, and -- when every run was
+            # excluded -- an INCONCLUSIVE artifact at exit 3 rather than no artifact at all.
+            raise RegistrationIncomplete(
+                f"case {case['id']!r} run {index + 1}: graded component(s) {sorted(missing)} "
+                "were not registered in this session, so the batch ran against an incomplete "
+                "routing competition"
+            )
+    verdict = routing.grade_case(case, members, fired)
+    member_set = set(members)
+    valid = [f for f in fired if f is not None]
+    cluster_hits = sum(1 for f in valid if f & member_set)
+    if verdict.inconclusive:
+        detail = (
+            "INCONCLUSIVE — no run produced a usable transcript "
+            f"({verdict.invalid_runs} attempted)"
+        )
+    elif verdict.polarity == "positive":
+        detail = (
+            f"expected {sorted(verdict.targets)} fired in "
+            f"{verdict.hits}/{verdict.valid_runs} runs"
+        )
     else:
-        # HONOR the case's own `expect_not_fires`. Every negative declares it, and this used to grade
-        # against the whole member list regardless — so a DISAMBIGUATION case (X must not fire here,
-        # but its sibling Y legitimately should) failed for its sibling doing the right thing. That
-        # is the code ignoring what the data declares, and it produced a wrong verdict:
-        # neg-resolved-not-incident forbids the mitigation skills on an already-resolved outage while
-        # `postmortem` — a cluster member, and the correct destination — is expected to fire.
-        # Defaults to every member, so a plain near-miss case behaves exactly as before.
-        forbidden = scoring_targets
-        hits = [bool(set(r["fired"]) & forbidden) for r in valid]
-        correct_rate = sum(not h for h in hits) / n if n else 0.0  # rate of NOT firing
-        # A negative fails if a forbidden component fires even once -- but an INCONCLUSIVE negative
-        # must not pass, which is the vacuous pass the excluded-run comment above warns about.
-        passed = (not inconclusive) and not any(hits)
-        scope = "cluster" if forbidden == members else f"{sorted(forbidden)}"
-        detail = f"{scope} fired in {sum(hits)}/{n} runs (want 0){suffix}"
-
-    if inconclusive:
-        detail = f"INCONCLUSIVE — no run produced a usable transcript ({excluded} attempted)"
-
-    # What else fired — diagnostic, e.g. a negative correctly landing on backend-craft/sde-fullstack.
-    other = sorted({c for r in valid for c in r["fired"]} - members)
+        broad = verdict.targets == frozenset(members)
+        scope = "cluster" if broad else f"{sorted(verdict.targets)}"
+        detail = f"{scope} fired in {verdict.hits}/{verdict.valid_runs} runs (want 0)"
+    if verdict.invalid_runs and not verdict.inconclusive:
+        detail += f" [{verdict.invalid_runs} run(s) excluded: no usable transcript]"
+    rate = verdict.rate
     return {
         "id": case["id"],
-        "polarity": polarity,
+        "polarity": verdict.polarity,
         "tags": case.get("tags", []),
-        "passed": passed,
-        "inconclusive": inconclusive,
-        "runs_excluded": excluded,
-        "cluster_fire_rate": round(fire_rate, 3),
-        "correct_rate": round(correct_rate, 3),
+        "passed": verdict.passed(threshold),
+        "inconclusive": verdict.inconclusive,
+        "runs_excluded": verdict.invalid_runs,
+        "cluster_fire_rate": (
+            round(cluster_hits / verdict.valid_runs, 3) if verdict.valid_runs else 0.0
+        ),
+        # For a negative this is the rate of NOT firing, matching the retiring runner's artifact.
+        "correct_rate": round(
+            (rate if verdict.polarity == "positive" else 1 - rate) if rate is not None else 0.0, 3
+        ),
         "detail": detail,
-        "also_fired": other,
+        # What else fired -- diagnostic, e.g. a negative correctly landing outside the cluster.
+        "also_fired": sorted({c for f in valid for c in f} - member_set),
         # Per-run firing sets, so a surprising verdict can be audited from the artifact instead of
-        # re-run to find out what happened. (Needed exactly once already: a negative reported
-        # "fired 1/3" and the stored aggregate could not say which component it was.)
-        "fired_per_run": [r["fired"] for r in runs],
-        "errors": [r["error"] for r in runs if r["error"]],
-        # Trouble on runs that were still GRADED (a non-zero exit whose session completed, a timeout
-        # that captured a firing). Without this the artifact cannot say a rate came from cut or
-        # failed sessions, only that no run was excluded.
-        "notes": [r["note"] for r in runs if r.get("note") and not r["error"]],
+        # re-run to find out what happened.
+        "fired_per_run": [sorted(f) if f is not None else None for f in fired],
+        "notes": notes,
+        "models_observed": sorted(set(models)),
+        # How many runs produced a usable transcript. Recorded because `main` later OVERRIDES
+        # `inconclusive` for a case the harness stopped short of, and the uniformity filter must
+        # not read a flag that has been repurposed: such a case really did observe a surface, and
+        # dropping it from the uniformity check while the batch union still counted it let a
+        # batch whose competitions differed report `components_uniform: true`.
+        "runs_observed": sum(1 for f in fired if f is not None),
+        # Both this union and `components_uniform` below read the SAME valid runs. Including an
+        # excluded run here let a case report union X u Y while flagging itself uniform, and the
+        # batch check then accepted a second case whose valid runs really saw X u Y.
+        "components_observed": {
+            key: sorted({
+                name
+                for s, f in zip(surfaces, fired, strict=True) if f is not None
+                for name in s.get(key, [])
+            })
+            for key in ("agents", "skills")
+        },
+        # Whether every run that produced a surface saw the SAME one. The union above cannot tell
+        # "all runs saw this" from "one run saw an extra component", and only the first supports
+        # the uniform-competition claim the artifact is stored to make.
+        "components_uniform": len({
+            (tuple(s.get("agents", [])), tuple(s.get("skills", [])))
+            for s, f in zip(surfaces, fired, strict=True) if f is not None
+        }) <= 1,
     }
 
 
-def main(argv: list[str] | None = None) -> int:
-    if _EXECUTING_EVALUATOR_SOURCE is None:
-        # The ordinary Python loader does not expose the exact source buffer it compiled. Delegate
-        # before any eval input is read or session is started, so all grading and provenance run
-        # from one checked buffer registered by ``load_current_evaluator``.
-        return load_current_evaluator().main(argv)
+def _batch_components_uniform(scored: list[dict]) -> bool:
+    """Whether every valid run in the WHOLE batch saw the same routing competition.
 
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("cluster", nargs="?", default=str(REPO / "evals" / "routing" / "prompt-tooling.json"),
-                        help="path to a cluster JSON file")
+    A per-case flag is true when every run of case A saw surface X and every run of case B saw a
+    different surface Y, which is precisely the changing competition this is stored to rule out.
+    """
+    # `runs_observed`, NOT `inconclusive`. I declined this finding once on the grounds that
+    # `CaseVerdict.inconclusive` is `valid_runs == 0` and therefore agreed with the surfaces --
+    # true of the verdict, and false of the artifact, because `main` later sets `inconclusive` on
+    # a case the harness stopped short of even though its launched runs observed a real surface.
+    # That case then vanished from this check while the batch-level union still counted it, so a
+    # batch measured against two different competitions could report `components_uniform: true`.
+    # `runs_observed` is written by `_scored` and never repurposed, which is the whole point.
+    surfaces = {
+        (tuple(e["components_observed"]["agents"]), tuple(e["components_observed"]["skills"]))
+        for e in scored
+        # Subscript, not `.get(..., 0)`: a default would silently drop an entry that lacks the
+        # field, and dropping every entry reports a uniform batch over no surfaces at all.
+        if e["runs_observed"] > 0
+    }
+    # An EMPTY set is not uniform, it is unmeasured. With every run excluded both `len <= 1` and
+    # the `all()` over no entries are true, so an INCONCLUSIVE benchmark claimed
+    # `components_uniform: true` having observed no competition at all -- and round 11 made that
+    # field a reuse condition, so the vacuous true became load-bearing.
+    if not surfaces:
+        return False
+    return len(surfaces) == 1 and all(e["components_uniform"] for e in scored)
+
+
+def _recovered_trace_records(document: object) -> dict[str, list[dict]]:
+    """Trace paths salvaged from a result document too malformed to read as records.
+
+    Only for the unreadable-shape exit, where `_run_records` refused before producing anything to
+    clean up. Walks whatever structure survived for `tracePath` strings; what it cannot recognise
+    is simply not recovered. Safe to point at arbitrary strings because the remover deletes only
+    directories the harness itself named (`claude-eval-`), never a path this walk invents.
+    """
+    found: list[dict] = []
+    pending: list[object] = [document]
+    while pending:
+        node = pending.pop()
+        if isinstance(node, dict):
+            trace = node.get("tracePath")
+            if isinstance(trace, str) and trace:
+                found.append({"tracePath": trace})
+            pending.extend(node.values())
+        elif isinstance(node, list):
+            pending.extend(node)
+    return {"<unreadable result>": found}
+
+
+def _read_native_outputs(eval_dir: Path) -> dict[str, bytes]:
+    """The harness's own result and report, read before the frozen plugin is deleted.
+
+    They are written beneath the eval directory, which lives inside the private snapshot, so
+    every run produced the report `evals/README.md` describes and then destroyed it on the way
+    out. Held in memory rather than copied out here: a run that is later REJECTED must not leave
+    its report beside an earlier valid benchmark, presenting two runs as one result.
+    """
+    outputs: dict[str, bytes] = {}
+    for name in ("aggregate-result.json", "report.html"):
+        source = eval_dir / name
+        try:
+            if source.is_file():
+                outputs[name] = source.read_bytes()
+        except OSError as exc:
+            # Never fails a measurement that already happened -- the fleet benchmark is the
+            # artifact that matters, and this is the harness's convenience output.
+            print(f"! could not read the native {name}: {exc}", file=sys.stderr)
+    return outputs
+
+
+def _publish_native_outputs(outputs: dict[str, bytes], output_dir: Path) -> list[str]:
+    """Write the harness's outputs beside an ACCEPTED benchmark. Returns the names written."""
+    written: list[str] = []
+    for name, content in outputs.items():
+        try:
+            fs.atomic_write_bytes(output_dir / name, content)
+            written.append(name)
+        except OSError as exc:
+            print(f"! could not write the native {name}: {exc}", file=sys.stderr)
+    return written
+
+
+def _remove_kept_temp_dirs(runs_by_case: dict[str, list[dict]]) -> None:
+    """`--keep-temp` leaves one directory per run, and the harness warns it could not seal them.
+
+    They hold a copy of the plugin under test and whatever the sessions wrote, so leaving them is
+    both a disk problem and a disclosure. Removal is best effort and never fails a measurement that
+    already happened: the trace has been read by the time this runs.
+    """
+    roots = {
+        Path(str(run.get("tracePath"))).parent.parent
+        for runs in runs_by_case.values()
+        for run in runs
+        if run.get("tracePath")
+    }
+    failures: list[str] = []
+
+    def _record(directory: Path):
+        # Bound per directory rather than closing over the loop variable, which would report
+        # whichever root the loop happened to end on.
+        return lambda *_args: failures.append(str(directory))
+
+    # Every spelling of the trusted temp root, not just this process's canonical one. On macOS
+    # `fleet.provenance` canonicalizes Python's cached root to `/private/var/...` while the
+    # spawned harness inherits the ordinary `TMPDIR=/var/folders/...`, so its `tracePath` keeps
+    # the un-canonical spelling and a single-root comparison matched nothing -- skipping every
+    # cleanup and leaving the plugin copies and transcripts behind after each eval. Recognising
+    # both spellings only decides WHICH root is trusted; the strict link walk below still runs
+    # from whichever one matched, so an arbitrary intermediate symlink is refused either way.
+    candidate_roots = {tempfile.gettempdir(), os.environ.get("TMPDIR") or ""}
+    temp_roots = {
+        fs.absolute_without_resolving(Path(spelling))
+        for raw in list(candidate_roots)
+        if raw
+        for spelling in (raw, os.path.realpath(raw))
+    }
+    for root in roots:
+        # The NAME is not ownership. A `tracePath` is harness output, and on the malformed-result
+        # path it is recovered from a document nothing validated -- so a path like
+        # `/home/user/claude-eval-project/out/trace.jsonl` would have had its project directory
+        # recursively deleted. Containment under the process temp root is what actually says the
+        # harness made it; the name check stays as the second half of the pair.
+        absolute = fs.absolute_without_resolving(root)
+        temp_root = next((t for t in temp_roots if t in absolute.parents), None)
+        if temp_root is None:
+            continue
+        if not root.name.startswith("claude-eval-"):
+            continue
+        # Lexical containment is not physical containment: `/tmp/link/claude-eval-victim` passes
+        # the check above while `/tmp/link` is a symlink out of the temp tree, and `rmtree`
+        # follows intermediate links. Every component between the temp root and the target is
+        # checked with the kernel's own link test -- the same primitive the provenance walk uses
+        # -- before anything is deleted.
+        relative = absolute.relative_to(temp_root)
+        walked = temp_root
+        crossed = False
+        for part in relative.parts:
+            walked = walked / part
+            try:
+                if fs.is_link_or_reparse(walked.lstat()):
+                    crossed = True
+                    break
+            except OSError:
+                # Missing or unreadable: either way there is nothing here we can prove is the
+                # harness's, and a path we cannot inspect is never one we recursively delete.
+                crossed = True
+                break
+        if crossed:
+            continue
+        shutil.rmtree(root, onerror=_record(root))
+    if failures:
+        # Best effort still, but never silent: these hold a copy of the plugin under test and the
+        # sessions' traces, and the operator is the only one who can clear what is left.
+        print(
+            "! could not remove kept eval directories, which hold a plugin copy and session "
+            f"traces: {', '.join(sorted(set(failures)))}",
+            file=sys.stderr,
+        )
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument(
+        "cluster", nargs="?", default=str(REPO / "evals" / "routing" / "prompt-tooling.json"),
+        help="path to a cluster JSON file",
+    )
     parser.add_argument("--runs", type=int, default=3, help="runs per case (default 3)")
-    parser.add_argument("--plugin-dir", type=Path, default=REPO, help="plugin to load (default this repo)")
+    parser.add_argument(
+        "--plugin-dir", type=Path, default=REPO, help="plugin to load (default this repo)"
+    )
     parser.add_argument("--case", default="*", help="glob over case ids (default all)")
-    parser.add_argument("--limit", type=int, default=0, help="cap number of cases (0 = all) — for cheap demo runs")
+    parser.add_argument("--limit", type=int, default=0, help="cap number of cases (0 = all)")
     parser.add_argument("--concurrency", type=int, default=4, help="parallel runs (default 4)")
-    parser.add_argument("--timeout", type=int, default=180,
-                        help="per-run seconds before the session is cut and its partial transcript graded (default 180)")
+    parser.add_argument(
+        "--timeout", type=int, default=180,
+        help="per-run seconds before the session is cut and its partial transcript graded "
+             "(default 180)",
+    )
+    parser.add_argument(
+        "--max-turns", type=int, default=nativecases.DEFAULT_MAX_TURNS,
+        help=f"turns per run before the session is cut (default {nativecases.DEFAULT_MAX_TURNS}). "
+             "A measurement condition, not a convenience: a routing decision missed because the "
+             "session ran out of turns reads as a routing failure",
+    )
     parser.add_argument(
         "--threshold", type=float, default=0.5,
         help="positive passes at this fire rate; must be > 0 and <= 1 (default 0.5)",
     )
     parser.add_argument("--output-dir", type=Path, default=None, help="write benchmark.json here")
-    # Without this the subprocesses take whatever model the CLI defaults to, which is NOT the model
-    # of the session that launched them: a `/model` change in an interactive session does not
-    # propagate to `claude -p` children. That silently invalidated a comparison here — two runs
-    # believed to differ by model tier were both sonnet, which the new conditions block exposed.
-    # Pin it explicitly for any run whose numbers are meant to be compared to another's.
-    parser.add_argument("--model", default=None,
-                        help="model for the eval sessions (alias or id). Default: the CLI's own "
-                             "default, which is NOT inherited from the launching session")
-    parser.add_argument("--clean-room", action="store_true",
-                        help="relocate CLAUDE_CONFIG_DIR to a temp dir holding only credentials for "
-                             "every session, so personal components and a junction-deployed fleet "
-                             "cannot enter the routing surface (see scripts/eval_clean_room.py). "
-                             "Recorded in conditions: artifacts differing on it are not comparable")
-    args = parser.parse_args(argv)
+    parser.add_argument(
+        "--max-cost-usd", type=float, default=None,
+        help="hand the native harness a hard cost ceiling; it stops launching runs when hit, and "
+             "the cases it never reached are reported INCONCLUSIVE rather than failed",
+    )
+    # Without this the sessions take whatever model the CLI defaults to, which is NOT the model of
+    # the session that launched them. That silently invalidated a comparison once: two runs believed
+    # to differ by model tier were both sonnet.
+    parser.add_argument(
+        "--model", default=None,
+        help="model for the eval sessions (alias or id). Default: the CLI's own default, which is "
+             "NOT inherited from the launching session",
+    )
+    parser.add_argument(
+        "--clean-room", action="store_true",
+        help="relocate CLAUDE_CONFIG_DIR to a temp dir holding only credentials. MEASURED "
+             "2026-09-14 "
+             "to change nothing under the native harness, which sets its own config dir: the child "
+             "session's component surface was identical with and without it. Kept for a non-native "
+             "caller and recorded, but read `components_observed` in the conditions -- that is the "
+             "surface the sessions actually saw",
+    )
+    return parser
+
+
+def checked_cluster_shape(spec: object) -> dict:
+    """The cluster document, or a ValueError naming what is wrong with its shape.
+
+    ONE parser for this fact, because the cluster is read twice: once before the sessions and
+    once after, to prove it did not change under them. The post-session read had no shape check
+    at all, so a cluster edited mid-batch into a scalar case ended the paid run in an
+    AttributeError traceback instead of the documented exit -- the same defect the pre-session
+    check exists for, on the path where a session has already been bought.
+    """
+    if (
+        not isinstance(spec, dict)
+        or not isinstance(spec.get("cluster"), str)
+        or not spec["cluster"].strip()
+    ):
+        raise ValueError("needs a top-level object with a non-empty 'cluster'")
+    cases = spec.get("cases")
+    # Checked before any caller calls `.get()` on an entry: `"cases": null` or an entry like `42`
+    # otherwise raised TypeError/AttributeError as a traceback.
+    if not isinstance(cases, list) or not cases or any(
+        not isinstance(case, dict) for case in cases
+    ):
+        raise ValueError("'cases' must be a non-empty list of objects")
+    return spec
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
 
     if args.runs < 1:
-        print(f"--runs must be >= 1 (got {args.runs}); 0 would make every negative pass vacuously", file=sys.stderr)
+        print(f"--runs must be >= 1 (got {args.runs}); 0 would make every negative pass vacuously",
+              file=sys.stderr)
+        return 2
+    if args.limit is not None and args.limit < 0:
+        # A negative reaches Python slicing rather than being refused: `cases[:-1]` silently drops
+        # the LAST selected case and pays for a subset the caller never asked for, producing a
+        # benchmark that looks valid and measures something else.
+        print(f"--limit must be >= 0 (got {args.limit}); a negative silently drops cases from the "
+              "end of the selection", file=sys.stderr)
         return 2
     try:
-        args.threshold = _validated_threshold(args.threshold)
+        args.threshold = routing.validated_threshold(args.threshold)
     except ValueError as exc:
         print(f"--{exc}", file=sys.stderr)
         return 2
@@ -1185,269 +725,408 @@ def main(argv: list[str] | None = None) -> int:
 
     cluster_path = Path(args.cluster)
     try:
-        spec = json.loads(_read_regular_file(cluster_path).decode("utf-8"))
-    except (ProvenanceError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        spec = json.loads(provenance._read_regular_file(cluster_path).decode("utf-8"))
+    except (provenance.ProvenanceError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         print(f"cluster error: {exc}", file=sys.stderr)
         return 2
-    if not isinstance(spec, dict):
-        print("cluster error: top-level JSON value must be an object", file=sys.stderr)
-        return 2
-    if not isinstance(spec.get("cluster"), str) or not spec["cluster"].strip():
-        print("cluster error: 'cluster' must be a non-empty string", file=sys.stderr)
+    try:
+        checked_cluster_shape(spec)
+    except ValueError as exc:
+        print(f"cluster error: {exc}", file=sys.stderr)
         return 2
     try:
-        raw_members = validated_members(spec.get("members"))
-    except ProvenanceError as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
-    raw_cases = spec.get("cases")
-    if not isinstance(raw_cases, list) or not raw_cases:
-        print("cluster error: 'cases' must be a non-empty list", file=sys.stderr)
+        members = provenance.validated_members(spec.get("members"))
+        # Checked HERE, with the rest of the cluster, rather than where it is joined to a path:
+        # the name becomes a directory `write_cases` removes before recreating, so a traversing
+        # name must be refused before anything is computed or any session is paid for.
+        fs.safe_path_segment(spec["cluster"], what="cluster")
+    except (provenance.ProvenanceError, ValueError) as exc:
+        print(f"{exc}", file=sys.stderr)
         return 2
 
-    members = set(raw_members)
-    cases = []
-    for index, case in enumerate(raw_cases, start=1):
-        if not isinstance(case, dict):
-            print(f"cluster error: case #{index} must be an object", file=sys.stderr)
-            return 2
-        case_id = case.get("id")
-        if not isinstance(case_id, str) or not case_id.strip():
-            print(f"cluster error: case #{index} must have a non-empty 'id'", file=sys.stderr)
-            return 2
-        if not isinstance(case.get("prompt"), str) or not case["prompt"].strip():
-            print(f"cluster error: case {case_id!r} must have a non-empty 'prompt'", file=sys.stderr)
-            return 2
-        try:
-            _scoring_targets(case, members)
-        except ValueError as exc:
-            print(f"cluster error: {exc}", file=sys.stderr)
-            return 2
-        if fnmatch.fnmatch(case_id, args.case):
-            cases.append(case)
+    raw_cases = spec["cases"]
+    cases = [c for c in raw_cases if fnmatch.fnmatch(str(c.get("id")), args.case)]
     if args.limit:
         cases = cases[:args.limit]
     if not cases:
-        print("no cases matched", file=sys.stderr)
+        print(f"no cases in {cluster_path} match --case {args.case!r}", file=sys.stderr)
         return 2
-    required_agents = members & FLEET_AGENTS
-
-    provenance = None
-    if args.output_dir:
+    # Every selected case is validated BEFORE any session is paid for. The retiring runner learned
+    # this the expensive way: a malformed target raised only at scoring time, after the whole batch
+    # had run.
+    for case in cases:
         try:
-            provenance = benchmark_provenance(
-                [cluster_path], cases, args.case, args.plugin_dir, args.limit,
-                evaluator_paths=routing_evaluator_paths(), members=raw_members,
-            )
-        except ProvenanceError as exc:
-            print(f"provenance error: {exc}", file=sys.stderr)
+            routing.scoring_targets(case, members)
+            # `scoring_targets` never looks at the prompt, so without this a `None` prompt reached
+            # the generator, became the literal string "None", and bought a paid session and a
+            # recorded routing verdict for input the retiring runner refused outright.
+            prompt = case.get("prompt")
+            if not isinstance(prompt, str) or not prompt.strip():
+                raise ValueError(
+                    f"case {case.get('id')!r} prompt must be a non-empty string (got {prompt!r})"
+                )
+            # The ORIGINAL value, not `str()` of it: coercion accepted a missing id as the string
+            # "None" and a numeric one as "42", and a missing id then raised KeyError inside the
+            # generator rather than exiting 2 here. `safe_path_segment` rejects a non-string and an
+            # empty one itself, so no separate type check is added -- one a mutation could not
+            # make fail is a guard this repository treats as worse than none.
+            fs.safe_path_segment(case.get("id"), what="case id")
+        except ValueError as exc:
+            print(f"cluster error: {exc}", file=sys.stderr)
             return 2
 
-    # Flatten to (case, run_index) work items so all runs across all cases share the pool.
-    work = [(c, i) for c in cases for i in range(args.runs)]
-    print(f"cluster '{spec['cluster']}': {len(cases)} cases x {args.runs} runs = {len(work)} sessions "
-          f"(members: {sorted(members)}, concurrency {args.concurrency})\n")
+    # Classified for EVERY run, not just clean-room ones. Recording `null` on an ordinary run made
+    # two benchmarks taken against different providers -- Anthropic versus Bedrock versus Vertex --
+    # look identical in their conditions, which is exactly the comparison this block exists to stop.
+    try:
+        auth_mode = eval_clean_room.auth_provider_mode(None, clean_room=bool(args.clean_room))
+    except eval_clean_room.AuthUnavailable as exc:
+        print(f"clean room unavailable: {exc}", file=sys.stderr)
+        return 2
 
-    results_by_case: dict[str, list[tuple[int, dict]]] = {c["id"]: [] for c in cases}
-    # One room for the whole batch: the sessions only read the relocated config, and per-session
-    # rooms would copy credentials once per run for no added isolation. The room must outlive the
-    # pool, so the ExitStack closes after the last future resolves.
-    auth_mode = None
+    # Everything from here runs INSIDE the stack. Entering `clean_env()` copies `.credentials.json`
+    # into a temp directory immediately, so any return or raise between that entry and the
+    # `with` that was supposed to hold it -- a provenance failure, a duplicate case id -- left the
+    # credential copy on disk. The stack now wraps the whole post-entry path, and `_run_batch`
+    # holds the part that can fail.
     with contextlib.ExitStack() as stack:
+        env: dict | None = None
+        if args.clean_room:
+            try:
+                # `clean_env()` raises AuthUnavailable when ENTERED, not when constructed, so it
+                # is entered inside the handler that turns that into exit 2.
+                env = stack.enter_context(eval_clean_room.clean_env())
+            except eval_clean_room.AuthUnavailable as exc:
+                print(f"clean room unavailable: {exc}", file=sys.stderr)
+                return 2
+            print("! --clean-room was measured on 2026-09-14 to change nothing under `claude "
+                  "plugin eval`, which sets its own config dir. Read `components_observed` in the "
+                  "written conditions for the surface these sessions actually saw.",
+                  file=sys.stderr)
+        return _run_batch(args, spec, members, cases, env, auth_mode)
+
+
+def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> int:
+    """The measurement itself, split out so the clean room's context wraps every exit path.
+
+    Not a cosmetic split: with the body inline, an early return between entering `clean_env()` and
+    the `with` that held it left a copy of the operator's credentials in a temp directory.
+    """
+    cluster_path = Path(args.cluster)
+    try:
+        before = provenance.benchmark_provenance(
+            [cluster_path], cases, args.case, args.plugin_dir, args.limit or None,
+            evaluator_paths=list(EVALUATOR_PATHS), members=members,
+        )
+    except provenance.ProvenanceError as exc:
+        print(f"provenance error: {exc}", file=sys.stderr)
+        return 2
+
+    # Read from the plugin being evaluated, not this checkout: `--plugin-dir` can name another
+    # revision or another plugin, and grading those runs against this repository's roster produces
+    # a confident verdict about something that was never measured.
+    fleet_agents, fleet_skills, namespace = plugin_roster(args.plugin_dir)
+    fleet_roster = fleet_agents | fleet_skills
+
+    try:
+        # `cluster_files` refuses duplicate ids, and that refusal was outside every handler: the
+        # CLI ended in a traceback instead of the documented configuration-error exit 2.
+        files = nativecases.cluster_files(
+            spec, cases, agents=fleet_agents, namespace=namespace,
+            max_turns=args.max_turns, timeout_seconds=args.timeout,
+        )
+    except ValueError as exc:
+        print(f"cluster error: {exc}", file=sys.stderr)
+        return 2
+
+    with contextlib.ExitStack() as frozen_stack:
         try:
-            execution_plugin_dir, execution_plugin_identity = stack.enter_context(
-                frozen_plugin(args.plugin_dir)
+            # `frozen_plugin()` re-reads the plugin and hashes the private copy when it is
+            # ENTERED, so a plugin that became unreadable or changed since `before` raises
+            # here -- past the handler above, which has already returned. Entering it inside
+            # its own handler keeps an anticipated provenance failure at the documented
+            # exit 2 instead of a traceback.
+            frozen, identity = frozen_stack.enter_context(
+                provenance.frozen_plugin(args.plugin_dir)
             )
-        except ProvenanceError as exc:
+        except provenance.ProvenanceError as exc:
             print(f"provenance error: {exc}", file=sys.stderr)
             return 2
-        if provenance is not None and (
-            provenance["plugin"]["sha256"] != execution_plugin_identity["sha256"]
-        ):
+        # The name is already validated as a single path segment above, and `write_cases` refuses
+        # an un-normalised directory of its own; a third check here would be one no test can make
+        # fire, which is the kind of guard this repository treats as worse than none.
+        # The snapshot is taken AFTER `before` was computed, so the source could have changed in
+        # between: the sessions would run these bytes while the benchmark recorded the earlier
+        # hash, and a source that changed back before the final reread would hide it completely.
+        # The retiring runner compared these two and so does this.
+        if identity["sha256"] != before["plugin"]["sha256"]:
             print(
-                "provenance error: plugin content changed before its execution snapshot was "
-                "created; benchmark.json was not written",
+                "\nprovenance error: the plugin changed between recording its identity and "
+                "freezing the copy to execute; benchmark.json was not written",
                 file=sys.stderr,
             )
             return 2
-        session_env = None
-        if args.clean_room:
-            clean_room = _load_clean_room()
-            try:
-                session_env = stack.enter_context(clean_room.clean_env())
-            except clean_room.AuthUnavailable as exc:
-                # A refusal here is the module doing its job: an unauthenticated batch would
-                # produce 24 vacuously-passing negatives, not 24 measurements.
-                print(f"clean room refused to run: {exc}", file=sys.stderr)
-                return 2
-        auth_mode = auth_provider_mode(
-            session_env, clean_room_enabled=bool(args.clean_room)
-        )
-        pool = concurrent.futures.ThreadPoolExecutor(max_workers=args.concurrency)
-        futures = {
-            pool.submit(run_once, c["prompt"], execution_plugin_dir, args.timeout, args.model,
-                        session_env, required_agents): (c["id"], i)
-            for c, i in work
-        }
-        done = 0
-        fatal_measurement_failure: EvalAuthUnavailable | EvalRegistrationUnavailable | None = None
+        eval_dir_name = f"evals/generated/{spec['cluster']}"
+        write_cases(frozen / eval_dir_name, files, spec)
+        result_path = frozen / "native-result.json"
         try:
-            for future in concurrent.futures.as_completed(futures):
-                case_id, run_index = futures[future]
-                try:
-                    result = future.result()
-                except (EvalAuthUnavailable, EvalRegistrationUnavailable) as exc:
-                    fatal_measurement_failure = exc
-                    for pending in futures:
-                        pending.cancel()
-                    break
-                results_by_case[case_id].append((run_index, result))
-                done += 1
-                print(f"  [{done}/{len(work)}] runs complete", end="\r")
-        finally:
-            # subprocess.run cannot interrupt work already started; pending sessions can still be
-            # cancelled, limiting the outage to at most the configured concurrency.
-            pool.shutdown(wait=True, cancel_futures=fatal_measurement_failure is not None)
-        try:
-            verify_frozen_plugin(execution_plugin_dir, execution_plugin_identity)
-        except ProvenanceError as exc:
-            print(f"provenance error after sessions: {exc}", file=sys.stderr)
-            return 2
-        if fatal_measurement_failure is not None:
-            print(
-                f"\neval aborted: {fatal_measurement_failure}; benchmark.json was not written",
-                file=sys.stderr,
+            completed = subprocess.run(
+                native_command(frozen, eval_dir_name, result_path, args),
+                env=env, encoding="utf-8", errors="replace",
             )
+        except OSError as exc:
+            # The PATH check at startup is not a guarantee at launch: the CLI can be replaced,
+            # lose its execute bit, or vanish in between. The retiring runner caught a broken
+            # spawn; leaving it uncaught turned a measurement failure into a traceback, which
+            # reads as a bug in the runner rather than as "nothing was measured".
+            print(f"\ncould not launch the native harness ({exc}); benchmark.json was not "
+                  "written", file=sys.stderr)
+            return 3
+        try:
+            result = json.loads(result_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"\nnative harness produced no readable result ({exc}); exit "
+                  f"{completed.returncode}. benchmark.json was not written", file=sys.stderr)
+            return 3
+        # The harness writes its own aggregate result and HTML report beneath the eval directory
+        # -- which lives inside the frozen plugin, a TemporaryDirectory removed when this context
+        # exits. `evals/README.md` tells maintainers those exist, so they are read out here while
+        # they still exist, and WRITTEN only where the benchmark is (below). Copying them at this
+        # point published a rejected attempt's report beside whatever valid benchmark the output
+        # directory already held -- two artifacts from different runs, presented as one result.
+        native_outputs = _read_native_outputs(frozen / eval_dir_name) if args.output_dir else {}
+        try:
+            runs_by_case = _run_records(result)
+        except MalformedNativeResult as exc:
+            # The runs are already paid for and `--keep-temp` has already left their directories,
+            # each holding a plugin copy and a session transcript. Rejecting the shape is no
+            # reason to leave them: the structured records are unavailable here, so the trace
+            # paths are recovered from whatever the document does carry.
+            _remove_kept_temp_dirs(_recovered_trace_records(result))
+            print(f"\nnative harness wrote an unreadable result ({exc}); exit "
+                  f"{completed.returncode}. benchmark.json was not written", file=sys.stderr)
+            return 3
+        try:
+            # The copy that actually RAN, not the source checkout. Checking the source cannot
+            # see a mutation a session made inside the private snapshot -- which is the one thing
+            # this check exists to catch, and what the retiring runner passed here.
+            provenance.verify_frozen_plugin(frozen, identity)
+        except provenance.ProvenanceError as exc:
+            # Cleanup before returning: `runs_by_case` already names every preserved trace, and
+            # these directories hold a copy of the plugin under test plus the sessions'
+            # transcripts. An early return here left exactly the disclosure the helper exists for.
+            _remove_kept_temp_dirs(runs_by_case)
+            print(f"\nprovenance error: {exc}; benchmark.json was not written", file=sys.stderr)
             return 2
-    print()
+    # Grade BEFORE cleaning up: the verdict is computed from the traces inside those kept
+    # directories, and reversing these two lines deletes the evidence first and reports every case
+    # INCONCLUSIVE with an unreadable-trace note. It did, on the first end-to-end run.
+    # A case the harness stopped short of -- `--max-cost-usd` aborts before launching a run --
+    # comes back with fewer records than were requested. Grading that array as-is computed a 1/1
+    # rate while the artifact still claimed `runs_per_case: 3`, and a passing first run could exit
+    # 0. Padding to the requested count makes the unreached runs invalid, so they are excluded and
+    # reported rather than silently shrinking the denominator.
+    scored = []
+    try:
+        for case in cases:
+            case_id = str(case["id"])
+            if case_id not in runs_by_case and not result.get("partial"):
+                # The generated tree contains exactly the selected cases, and an intentional early
+                # stop is signalled by `partial`. Without it, an absent case is a schema
+                # regression or a name mismatch -- and defaulting to "the harness stopped early"
+                # synthesized unlaunched runs and could write an INCONCLUSIVE benchmark from a
+                # result nothing had validated.
+                _remove_kept_temp_dirs(runs_by_case)
+                print(f"\nnative harness returned no runs for case {case_id!r} and did not "
+                      "report a partial batch; benchmark.json was not written", file=sys.stderr)
+                return 3
+            records = list(runs_by_case.get(case_id, []))
+            if len(records) > args.runs:
+                # Only a shortfall was handled. An early-access schema returning EXTRA records
+                # graded all of them while the artifact still said `runs_per_case: args.runs`.
+                print(
+                    f"\nnative harness returned {len(records)} runs for case {case['id']!r} but "
+                    f"{args.runs} were requested; benchmark.json was not written", file=sys.stderr,
+                )
+                _remove_kept_temp_dirs(runs_by_case)
+                return 3
+            missing = args.runs - len(records)
+            if missing > 0:
+                records += [
+                    {"tracePath": None, "error": "run never launched (harness stopped early)"}
+                    for _ in range(missing)
+                ]
+            entry = _scored(
+                case, members, records, fleet_roster, args.threshold,
+                eval_clean_room.raise_if_auth_failed, fleet_agents, namespace,
+            )
+            if missing > 0 and not entry["inconclusive"]:
+                # Padding alone only shrinks the denominator: a case whose single launched run
+                # passed was still graded 1/1 and reported as a result, while the artifact claimed
+                # `runs_per_case: 3`. A case the harness never finished was not measured at the
+                # run count this benchmark states, so it is INCONCLUSIVE regardless of how its
+                # launched runs went.
+                entry["inconclusive"] = True
+                entry["passed"] = False
+                entry["detail"] = (
+                    f"INCONCLUSIVE — only {args.runs - missing} of {args.runs} requested runs "
+                    "were launched (harness stopped early)"
+                )
+            scored.append(entry)
+    except RegistrationIncomplete as exc:
+        # Exit 2, not 3: this is a misconfigured plugin under test, not a transient measurement
+        # failure to re-run. `evals/README.md` records the contract.
+        _remove_kept_temp_dirs(runs_by_case)
+        print(f"\neval aborted: {exc}; benchmark.json was not written", file=sys.stderr)
+        return 2
+    except eval_clean_room.AuthUnavailable as exc:
+        # Aborting the batch, not excluding the affected runs: an authentication outage part-way
+        # through invalidates the measurement, and excluding its runs would let the earlier valid
+        # ones pass every case and write a benchmark at exit 0. Exit 2, which `evals/README.md`
+        # assigns to "a usage, authentication, or registration error for which no benchmark was
+        # written" -- 3 is reserved for an INCONCLUSIVE measurement to re-run, and reporting an
+        # expired login as that tells automation to retry a batch that cannot succeed.
+        _remove_kept_temp_dirs(runs_by_case)
+        print(f"\neval aborted: {exc}; benchmark.json was not written", file=sys.stderr)
+        return 2
+    _remove_kept_temp_dirs(runs_by_case)
+    inconclusive = [s for s in scored if s["inconclusive"]]
+    passed = sum(1 for s in scored if s["passed"])
 
-    # Sort back into submission order. Sessions finish in whatever order they finish, and the
-    # per-run arrays in the artifact would otherwise permute between two identical measurements —
-    # the documented baseline workflow diffs the whole `.cases` array, so that noise reads as a
-    # change and can bury a real one.
-    runs_by_case = {cid: [r for _, r in sorted(pairs, key=lambda p: p[0])]
-                    for cid, pairs in results_by_case.items()}
+    for entry in scored:
+        mark = "…" if entry["inconclusive"] else ("✓" if entry["passed"] else "✗")
+        print(f"{mark} {entry['id']:40s} {entry['detail']}")
+        if entry["also_fired"]:
+            print(f"    also fired: {', '.join(entry['also_fired'])}")
+    summary = f"\n{passed}/{len(scored)} passed"
+    if inconclusive:
+        summary += f", {len(inconclusive)} INCONCLUSIVE"
+    print(summary)
+    if result.get("partial"):
+        print("! the native harness stopped early (cost ceiling); unreached cases are INCONCLUSIVE")
 
-    scored = [score_case(c, runs_by_case[c["id"]], members, args.threshold) for c in cases]
-
-    print("\n{:<28} {:<9} {:>6} {:<40}".format("case", "verdict", "rate", "detail"))
-    print("-" * 90)
-    for s in scored:
-        rate = s["correct_rate"]
-        mark = "INCONC" if s.get("inconclusive") else ("PASS" if s["passed"] else "FAIL")
-        also = f"  [also fired: {', '.join(s['also_fired'])}]" if s["also_fired"] else ""
-        print("{:<28} {:<9} {:>6.0%} {}{}".format(s["id"], mark, rate, s["detail"], also))
-        for err in s["errors"]:
-            print(f"    ! run error: {err}")
-        for note in s.get("notes", []):
-            print(f"    ~ graded despite: {note}")
-
-    passed = sum(s["passed"] for s in scored)
-    pos = [s for s in scored if s["polarity"] == "positive"]
-    neg = [s for s in scored if s["polarity"] == "negative"]
-    inconc = [s for s in scored if s.get("inconclusive")]
-    print("-" * 90)
-    print(f"{passed}/{len(scored)} passed  "
-          f"(positives: {sum(s['passed'] for s in pos)}/{len(pos)} routed correctly, "
-          f"negatives: {sum(s['passed'] for s in neg)}/{len(neg)} correctly did NOT fire)")
-    if inconc:
-        # Loud, because an unmeasured case silently counted as a failure is how a measurement
-        # problem gets mistaken for a routing problem — which happened here with a slower model.
-        print(f"! {len(inconc)} case(s) INCONCLUSIVE (no usable transcript): "
-              f"{', '.join(s['id'] for s in inconc)}")
-        print("  Raise --timeout or re-run those; they are not evidence in either direction.")
-    excluded_total = sum(s.get("runs_excluded", 0) for s in scored)
-    if excluded_total:
-        print(f"! {excluded_total} individual run(s) excluded from rates for the same reason.")
-
-    # The conditions the measurement was taken under. A benchmark without them is not a baseline:
-    # routing behavior varies by model tier, so diffing two runs that silently used different models
-    # reads a model difference as a routing regression. `models_observed` is read off the transcripts
-    # (what actually ran), and more than one entry means the run itself was not uniform.
-    models = sorted({r["model"] for runs in runs_by_case.values() for r in runs if r.get("model")})
+    # Read off the transcripts (what actually ran), not from the request. More than one entry
+    # means the batch itself was not uniform and must not be diffed as a single baseline.
+    models = sorted({m for entry in scored for m in entry["models_observed"]})
     conditions = {
         "cli_version": cli_version(),
-        "model_requested": args.model,      # None means "whatever the CLI defaulted to"
-        "models_observed": models,          # what actually ran, per the transcripts
+        "model_requested": args.model,
+        "models_observed": models,
         "plugin_dir": plugin_dir_label(args.plugin_dir),
         "threshold": args.threshold,
-        # The timeout is a measurement decision, not a convenience: a shorter one excludes more runs
-        # and therefore moves every rate in the artifact. Two benchmarks taken at different timeouts
-        # are not comparable, and without this recorded they look identical in their conditions.
+        # A shorter timeout or turn cap excludes more runs and therefore moves every rate here. Two
+        # benchmarks taken at different ones are not comparable and would otherwise look identical.
         "timeout_s": args.timeout,
+        "max_turns": args.max_turns,
         "concurrency": args.concurrency,
         "auth_provider": auth_mode,
-        # Whether the sessions saw only this plugin (clean room) or the operator's whole
-        # configuration surface. Two artifacts differing here measured different competitions
-        # for every routing decision — diffing them reads contamination as a description change.
-        "clean_room": bool(args.clean_room),
+        # What the flag ASKED for. It is not evidence of isolation: measured on 2026-09-14 it
+        # changes nothing under the native harness, which sets its own config dir. The surface the
+        # sessions actually saw is `components_observed` below, read off their own init events --
+        # a condition has to be observed, not asserted by the caller that wanted it.
+        "clean_room_requested": bool(args.clean_room),
+        "harness": "claude plugin eval",
+        # The routing competition, observed. Two artifacts whose non-fleet components differ were
+        # measured against different competitions and must not be diffed as one baseline.
+        "components_observed": {
+            key: sorted({n for entry in scored for n in entry["components_observed"][key]})
+            for key in ("agents", "skills")
+        },
+        # A union alone cannot distinguish "every run saw this surface" from "one run saw an extra
+        # component", and it is the first reading that the artifact is meant to support. False here
+        # means the batch was measured against changing competition and is not one baseline.
+        # Across the WHOLE batch. A per-case flag is true when every run of case A saw surface X
+        # and every run of case B saw a different surface Y, which is exactly the changing
+        # competition this is stored to rule out.
+        "components_uniform": _batch_components_uniform(scored),
+        "native_claude_version": result.get("claudeVersion"),
+        "native_cost_usd": result.get("costUsd"),
     }
+
+    if not conditions["cli_version"]:
+        # The T3 reuse contract requires the CLI version to be EQUAL between captures, and the
+        # harness's behaviour and bundled competition both move with it. An artifact that cannot
+        # state it is missing a required condition -- and two failed probes would compare equal
+        # as `null`, which reads as agreement rather than as two unknowns.
+        _remove_kept_temp_dirs(runs_by_case)
+        print("\ncould not read the Claude CLI version, which the reuse contract requires as a "
+              "condition; benchmark.json was not written", file=sys.stderr)
+        return 3
+
     if len(models) > 1:
-        print(f"\n! WARNING: runs did not use one model ({', '.join(models)}) — this benchmark mixes "
-              f"conditions and should not be diffed as a single baseline")
+        # The retiring runner said this loudly and the first rewrite dropped it. A benchmark whose
+        # runs spanned tiers is not one baseline, and nothing downstream can tell from the rates.
+        print(f"\n! WARNING: runs did not use one model ({', '.join(models)}) — this benchmark "
+              "mixes conditions and must not be diffed as a single baseline", file=sys.stderr)
 
     benchmark = {
         "cluster": spec["cluster"],
         "runs_per_case": args.runs,
         "members": sorted(members),
         "conditions": conditions,
-        "provenance": provenance,
+        "provenance": before,
         "summary": {"passed": passed, "total": len(scored)},
         "cases": scored,
     }
     if args.output_dir:
         try:
-            latest_spec = json.loads(_read_regular_file(cluster_path).decode("utf-8"))
+            latest_spec = checked_cluster_shape(
+                json.loads(provenance._read_regular_file(cluster_path).decode("utf-8"))
+            )
             latest_cases = [
-                case for case in latest_spec["cases"] if fnmatch.fnmatch(case["id"], args.case)
+                c for c in latest_spec["cases"] if fnmatch.fnmatch(str(c.get("id")), args.case)
             ]
             if args.limit:
                 latest_cases = latest_cases[:args.limit]
-            latest_members = validated_members(latest_spec.get("members"))
-            # The targets need the same revalidation as the membership, and for the same reason:
-            # `_graded_definition` canonicalizes them with `set()`, so an unhashable target in a
-            # cluster edited mid-batch raises TypeError straight past the `except ProvenanceError`
-            # below. The membership half of this was fixed one round before the target half, which
-            # is exactly how the resolver's copy of the rule went wrong too (PR #145 review).
+            latest_members = provenance.validated_members(latest_spec.get("members"))
+            # The targets need the same revalidation as the membership: `scoring_targets`
+            # canonicalizes with `set()`, so an unhashable target in a cluster edited mid-batch
+            # would raise past the ProvenanceError handler below.
             for latest_case in latest_cases:
                 try:
-                    _scoring_targets(latest_case, set(latest_members))
+                    routing.scoring_targets(latest_case, latest_members)
                 except ValueError as exc:
-                    raise ProvenanceError(f"cluster error after sessions: {exc}") from exc
-            latest_provenance = benchmark_provenance(
-                [cluster_path], latest_cases, args.case, args.plugin_dir, args.limit,
-                evaluator_paths=routing_evaluator_paths(),
-                members=latest_members,
+                    raise provenance.ProvenanceError(
+                        f"cluster error after sessions: {exc}"
+                    ) from exc
+            after = provenance.benchmark_provenance(
+                [cluster_path], latest_cases, args.case, args.plugin_dir, args.limit or None,
+                evaluator_paths=list(EVALUATOR_PATHS), members=latest_members,
             )
-        except ProvenanceError as exc:
+        except (
+            provenance.ProvenanceError, KeyError, TypeError, ValueError,
+            UnicodeDecodeError, json.JSONDecodeError,
+        ) as exc:
+            # UnicodeDecodeError and JSONDecodeError were absent here while the pre-session read
+            # caught both: a cluster edited mid-batch into invalid UTF-8 or JSON ended the paid
+            # run in a traceback rather than the documented exit 2 with a diagnostic.
             print(f"provenance error after sessions: {exc}", file=sys.stderr)
             return 2
-        if not _content_provenance_matches(provenance, latest_provenance):
-            print(
-                "provenance error: eval source, selected cases, evaluator, or plugin content "
-                "changed while the batch was running; benchmark.json was not written",
-                file=sys.stderr,
-            )
+        if not provenance._content_provenance_matches(before, after):
+            print("provenance error: eval source, selected cases, evaluator, or plugin content "
+                  "changed while the batch was running; benchmark.json was not written",
+                  file=sys.stderr)
             return 2
         args.output_dir.mkdir(parents=True, exist_ok=True)
-        (args.output_dir / "benchmark.json").write_text(json.dumps(benchmark, indent=2), encoding="utf-8")
+        # Atomic, via the kernel's own primitive: an in-place write truncates any existing
+        # benchmark first, so an interruption or a full disk destroyed a valid prior capture and
+        # left a plausible truncated one -- after these sessions were already paid for.
+        fs.atomic_write_bytes(
+            args.output_dir / "benchmark.json",
+            json.dumps(benchmark, indent=2).encode("utf-8"),
+        )
+        # Only now: the benchmark is accepted, so the harness's own outputs describe the same run
+        # the artifact beside them does.
+        _publish_native_outputs(native_outputs, args.output_dir)
         print(f"\nwrote {args.output_dir / 'benchmark.json'}")
 
     # Distinct exits, because the two non-zero outcomes ask for different responses: 1 is a routing
-    # verdict to investigate, 3 is a measurement that did not happen and wants --timeout and a
-    # re-run. Collapsing them sent a caller auditing descriptions over a clock problem. A real
-    # failure outranks an inconclusive: it is the actionable one. (2 stays usage errors.)
-    if passed != len(scored) - len(inconc):
+    # verdict to investigate, 3 is a measurement that did not happen and wants a re-run. A real
+    # failure outranks an inconclusive -- it is the actionable one. (2 stays usage errors.)
+    if passed != len(scored) - len(inconclusive):
         return 1
-    return 3 if inconc else 0
-
-
-def _main_entry() -> int:
-    """Run the command from one captured source buffer, including the main runner itself."""
-    if _EXECUTING_EVALUATOR_SOURCE is None:
-        return load_current_evaluator().main()
-    return main()
+    return 3 if inconclusive else 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(_main_entry())
+    raise SystemExit(main())

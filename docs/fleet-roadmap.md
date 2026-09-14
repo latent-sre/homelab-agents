@@ -78,7 +78,8 @@ Phase 1 (rules, policy, findings, CLI, rosters as data) merged in PR #188; phase
 projections as a counted rewrite table, the verified Codex TOML emitter, `--diff`) is implemented
 on `claude/machinery-rewrite-fresh-ar08n6` and merged as PR #189. Phase 3 (probes and doctor on
 the kernel, `hypothesis` property tests, PROBE-006 closed) is implemented on the same branch,
-restarted from `main`; phases 4–5 remain.
+restarted from `main`. Phase 4 (routing evals handed to `claude plugin eval`, the verdict kept
+fleet-side, provenance moved onto the kernel) is implemented on the same branch; phase 5 remains.
 
 **Outcome:** Every maintainer instrument under `scripts/` runs on the `fleet/` kernel with one
 implementation per primitive, policy held as data, structured findings, and the routing runner
@@ -92,6 +93,70 @@ retired to native `claude plugin eval`; the hooks stay single-file and dependenc
 **Constraints:** No runtime dependency in `fleet/`; hooks never import it; each phase keeps the
 generated adapters byte-identical and every existing verdict unchanged unless its PR records the
 change; the routing runner is not wired onto the kernel before it retires (provenance hole).
+
+**Phase 4 obligation — discharged 2026-09-14, with the disposition stated per test rather than
+in aggregate**. Two counts here were wrong and are corrected: a first draft claimed all were
+re-homed (wrong for four), and the total was given as thirteen while the groups below enumerate
+**fourteen** — the drive-letter test was deferred separately from the original thirteen and
+belongs in the same disposition:
+
+- Re-homed to `FrozenPluginTest` in `tests/test_fleet_provenance.py`, driven directly instead of
+  through a runner: `test_routing_executes_frozen_plugin_when_source_changes_and_restores`,
+  `test_routing_refuses_frozen_plugin_mutated_by_a_session`,
+  `test_transient_private_snapshot_mutation_is_a_host_sandbox_boundary`.
+- Re-homed to `MainIntegrationTest` in `tests/test_eval_routing.py`, which drives `main` with the
+  native harness mocked and mutation-proves both guards:
+  `test_routing_benchmark_writes_complete_provenance`,
+  `test_routing_benchmark_refuses_plugin_content_changed_during_run`,
+  `test_a_cluster_edited_mid_batch_into_a_bad_target_exits_two`.
+- Deleted with the machinery the phase-4 amendment drops (evaluator self-binding):
+  `test_clean_room_classifier_is_loaded_once_per_evaluator_process`,
+  `test_clean_room_identity_hashes_the_exact_compiled_source_buffer`,
+  `test_standalone_runner_is_bound_to_its_actual_compiled_source_buffer`,
+  `test_loaded_a_disk_b_identity_records_the_executing_routing_buffer`,
+  `test_registry_survives_drive_letter_case_drift`.
+- Deleted because the MECHANISM they drove is now the platform's, not because the checks are
+  gone: the three registration and auth-abort tests
+  (`test_routing_batch_aborts_auth_failure_without_writing_benchmark`,
+  `test_routing_batch_requires_every_selected_agent_to_be_registered`,
+  `test_routing_batch_cancels_queued_runs_after_registration_failure`). An earlier draft of this
+  line said the fleet "can no longer observe a failed registration", which is wrong and was
+  caught in review: the shipped runner reconstructs the registered surface from each trace and
+  aborts the batch through `RegistrationIncomplete` at exit 2, and the authentication abort is
+  likewise retained — both are exercised by
+  `CodexTenthRoundTest.test_an_unregistered_component_aborts_the_batch_rather_than_one_run`,
+  `CodexSecondRoundTest.test_an_authentication_failure_aborts_the_batch`, and the
+  missing-registration tests in `CodexReviewFindingsTest`, `CodexSecondRoundTest`,
+  `CodexFourthRoundTest` and `CodexEighthRoundTest`. What genuinely moved is **queue
+  cancellation**: the fleet no longer spawns the sessions, so there is no queue of its own to
+  cancel — the harness owns that, and the fleet's remaining obligation, never writing a benchmark
+  for a measurement that did not happen, is covered by
+  `test_an_unreadable_native_result_is_a_measurement_failure_not_a_verdict`.
+
+The original list is kept below so a reviewer can check that disposition against it.
+
+**Phase 4 original obligation — thirteen runner tests not yet re-homed.** `fleet/provenance.py` took
+the runner's identity machinery and 21 of its tests. Thirteen more drove that machinery through
+the runner's `main` and cannot run until the thin replacement exists, and four of those test the
+evaluator self-binding that phase 4 deliberately drops (see the decision record's phase-4
+amendment). Phase 4 does not merge until each is re-homed against the new entry point or deleted
+with its reason recorded:
+
+`test_routing_benchmark_writes_complete_provenance`,
+`test_routing_benchmark_refuses_plugin_content_changed_during_run`,
+`test_a_cluster_edited_mid_batch_into_a_bad_target_exits_two`,
+`test_routing_batch_aborts_auth_failure_without_writing_benchmark`,
+`test_routing_batch_requires_every_selected_agent_to_be_registered`,
+`test_routing_batch_cancels_queued_runs_after_registration_failure`,
+`test_routing_executes_frozen_plugin_when_source_changes_and_restores` and
+`test_routing_refuses_frozen_plugin_mutated_by_a_session` (both now covered directly by
+`FrozenPluginTest`, so these two are re-homed already),
+`test_transient_private_snapshot_mutation_is_a_host_sandbox_boundary`; and the self-binding five:
+`test_clean_room_classifier_is_loaded_once_per_evaluator_process`,
+`test_clean_room_identity_hashes_the_exact_compiled_source_buffer`,
+`test_standalone_runner_is_bound_to_its_actual_compiled_source_buffer`,
+`test_loaded_a_disk_b_identity_records_the_executing_routing_buffer`,
+`test_registry_survives_drive_letter_case_drift`.
 
 **Acceptance:** Per phase, the oracle named in the record's phase table, plus green tiers.
 Closes when phase 5 merges and the lint ratchet table in `pyproject.toml` is empty.
@@ -397,7 +462,15 @@ ignition.
 
 #### EVAL-003 — capture a comparable full routing anchor
 
-**Status:** `deferred`
+**Status:** `active` — a full capture exists but does **not** close this item. The 2026-09-14
+batch (`evals/baselines/2026-09-14-native-migration/`, 10 clusters, 101 cases, 303 runs, $39.42)
+is labelled **historical and non-reusable in its own README**: every review round on the migration
+PR moved the evaluator bytes, and `AGENTS.md`'s T3 reuse contract requires them unchanged, so no
+run made with the merged runner may use it as a before-side. Calling it the current anchor here
+would be this item's own acceptance clause violated — "no known-invalid artifact is called an
+anchor" — and would let the next description edit skip the fresh baseline it owes. **Two clauses
+remain open:** a capture taken on the shipped evaluator bytes, and the agent-member grading
+decision below.
 
 **Outcome:** Establish one current, condition-complete routing baseline across all routing
 clusters.
@@ -411,9 +484,55 @@ numbers as description evidence.
 **Acceptance:** Every artifact records requested/observed model, timeout, CLI version,
 threshold, and per-run evidence; no known-invalid artifact is called an anchor.
 
-**Next action:** Decide agent-member grading (evidence-backed default: negatives-only in
-routing, agent contracts covered by the behavioral suite), then capture the anchor under
-`--clean-room`.
+**Evidence disposition:** Acceptance is met on the recording clauses and better than specified:
+each artifact also carries `max_turns` and `components_observed` — the routing competition read
+off each session's own `init` event — because the flag that was supposed to control it
+(`--clean-room`) was measured the same day to change nothing under the native harness. Conditions
+are uniform across all ten clusters on the two conditions the artifacts can establish (one
+observed model, one CLI version); the component surface is recorded only as an equal UNION per
+cluster, and per-run uniformity is unknown for this batch because the field that records it was
+added after it ran. That unknown is one of the reasons this capture is **not** a
+condition-complete anchor: an earlier draft ended this sentence with "which is what makes them a
+single anchor rather than ten co-located measurements", a clause left stranded when the caveat was
+inserted in front of it, so the paragraph asserted the opposite of the status above. Zero
+INCONCLUSIVE; 6 of 303 runs excluded.
+
+**Next action:** Two, and the first gates the second's reuse rather than its evidence.
+(1) Decide whether to re-capture on the shipped evaluator bytes (~$40) or to leave the 2026-09-14
+batch historical and pay for a fresh before-side at the next description edit — an operator call,
+recorded here rather than taken.
+(2) Make the agent-member grading decision, now with evidence rather than a default. The capture
+splits cleanly: negatives **60/60**; positives 26/41, where **14 of the 15 failures involve no
+wrong destination** (11 routed nowhere, 3 fired only expected members below the 0.5 threshold) and
+the fifteenth dispatched a member its case does not expect in all three runs — ROUTE-001 below,
+which this record must not round off to under-firing. That is the shape the deferred default
+predicted, so decide whether routing positives for agent members stay graded, move to the
+behavioral suite, or are retired — and record the ruling here. Until then, read this capture's
+positive side as a reachability signal, not as description evidence.
+
+#### ROUTE-001 — settle `pos-diagnose-idle-lab-failure`: `root-cause` or `homelab-engineer`
+
+**Status:** `active` — a case and the fleet disagree about a destination, consistently.
+
+**Outcome:** One recorded ruling on where "monitoring found a stopped container, nobody affected,
+find out why it exited" belongs, and the case or the description changed to match it.
+
+**Source:** `evals/baselines/2026-09-14-native-migration/investigation/benchmark.json` — the case
+fired `homelab-engineer` in 3/3 runs and `root-cause` in 1/3, while asserting `root-cause`. Not
+a silence failure like the other fourteen: the sessions routed somewhere, deliberately and
+repeatably. The archived 2026-08-18 native pilot recorded the same destination 6/6 under that
+agent's previous name (`homelab-platform`), so the behaviour long predates the harness migration.
+
+**Prerequisites:** None.
+
+**Acceptance:** Either the case's `expect_fires` names the destination the fleet actually chooses
+and says why in `expected_output`, or `root-cause`'s description is changed to win this prompt and
+the overlapping cluster is re-run before and after per the description playbook. A rate that moves
+because the case was rewritten to match observed behaviour is not evidence of improved routing,
+and the ruling must say which of the two happened.
+
+**Next action:** Read the prompt against both descriptions and decide which is wrong — the
+assertion or the description. Do not treat this as a rate to improve until that is settled.
 
 #### RELEASE-001 — add repository release discipline
 

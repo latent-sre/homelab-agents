@@ -1,0 +1,347 @@
+"""The routing verdict, and the two readings of `is_error` that a false PASS taught the fleet.
+
+Phase 4 hands the RUNNING of routing cases to `claude plugin eval` but not the VERDICT, because
+the native `tool_used` grader counts a call whose input matches whether or not the spawn succeeded
+(measured 2026-09-14, `docs/archive/2026-09/native-grader-errored-spawn-2026-09-14.md`). These
+tests pin the reading this module keeps instead.
+"""
+
+from __future__ import annotations
+
+import json
+import pathlib
+import unittest
+
+from fleet import routing, stream
+
+ROSTER = frozenset({"root-cause", "lab-audit", "code-reviewer", "researcher"})
+
+
+def transcript(*blocks: dict) -> str:
+    """A stream-json transcript carrying the given content blocks, one event per block group."""
+    lines = []
+    for block in blocks:
+        role = "user" if block.get("type") == "tool_result" else "assistant"
+        lines.append(json.dumps({"type": role, "message": {"content": [block]}}))
+    return "\n".join(lines)
+
+
+def call(tool: str, call_id: str, **inputs: object) -> dict:
+    return {"type": "tool_use", "id": call_id, "name": tool, "input": inputs}
+
+
+def result(call_id: str, content: str, *, is_error: bool = False) -> dict:
+    return {"type": "tool_result", "tool_use_id": call_id, "content": content, "is_error": is_error}
+
+
+class FiredComponentTests(unittest.TestCase):
+    def test_a_successful_dispatch_fires(self) -> None:
+        text = transcript(
+            call("Agent", "a1", subagent_type="sde-agents:root-cause"),
+            result("a1", "done"),
+        )
+        self.assertEqual({"root-cause"}, routing.fired_components(text, ROSTER))
+
+    def test_a_genuinely_errored_dispatch_does_not_fire(self) -> None:
+        """The whole reason this module exists rather than trusting `tool_used`."""
+        text = transcript(
+            call("Agent", "a1", subagent_type="sde-agents:root-cause"),
+            result("a1", "Agent type 'sde-agents:root-cause' not found.", is_error=True),
+        )
+        self.assertEqual(set(), routing.fired_components(text, ROSTER))
+
+    def test_a_skill_launch_signal_is_not_a_failure(self) -> None:
+        """The `lab-audit` trap: a tool-restricting skill LAUNCHES through an is_error result.
+
+        Reading that as a failure once scored lab-audit 0/N despite correct routing on every run,
+        and hid an over-trigger of it on a negative case -- a false PASS. Both spellings the CLI
+        uses are covered, because only one of them is the restricted form.
+        """
+        for content in ("Execute skill: lab-audit", "Launching skill: lab-audit"):
+            with self.subTest(content=content):
+                text = transcript(
+                    call("Skill", "s1", command="sde-agents:lab-audit"),
+                    result("s1", content, is_error=True),
+                )
+                self.assertEqual({"lab-audit"}, routing.fired_components(text, ROSTER))
+
+    def test_a_name_is_matched_as_a_whole_value_not_inside_prose(self) -> None:
+        """The runner matched `strip_ns(value)` against the roster -- the WHOLE string value.
+
+        A fleet name mentioned inside a sentence therefore never counted as a dispatch, and
+        this kernel keeps that: the tool input's own fields carry the routing decision, while
+        prose in a `prompt` is the model talking about a component, not calling one. Widening
+        this to a substring scan would make every case that merely names a sibling in its
+        instructions score as firing it.
+        """
+        for inputs, expected in (
+            ({"subagent_type": "sde-agents:researcher"}, {"researcher"}),
+            ({"command": "researcher"}, {"researcher"}),
+            ({"nested": ["sde-agents:researcher"]}, {"researcher"}),
+            ({"prompt": "delegate to sde-agents:researcher now"}, set()),
+        ):
+            with self.subTest(inputs=inputs):
+                text = transcript(call("Agent", "a1", **inputs), result("a1", "ok"))
+                self.assertEqual(expected, routing.fired_components(text, ROSTER))
+
+    def test_a_component_outside_the_roster_is_ignored(self) -> None:
+        text = transcript(call("Agent", "a1", subagent_type="general-purpose"), result("a1", "ok"))
+        self.assertEqual(set(), routing.fired_components(text, ROSTER))
+
+    def test_an_uncorrelated_call_still_fires(self) -> None:
+        """No result block at all is not an error result; the dispatch was still made.
+
+        `ToolExchange.is_error` defaults False for an unanswered call, so this states the
+        behaviour rather than leaving it to the default's discretion.
+        """
+        text = transcript(call("Skill", "s1", command="root-cause"))
+        self.assertEqual({"root-cause"}, routing.fired_components(text, ROSTER))
+
+
+class GradingTests(unittest.TestCase):
+    MEMBERS = ["root-cause", "lab-audit", "code-reviewer"]
+
+    def _runs(self, *fired: str | None) -> list[frozenset[str] | None]:
+        """Per-run firing sets, built by running real transcripts through `fired_components`.
+
+        Grading takes firing sets, but a test that hand-writes them would only check the
+        arithmetic. Piping a transcript through the reader keeps these end-to-end, so a change
+        that breaks the reading is caught here too. `None` is a run with no usable transcript;
+        `""` is a run that routed somewhere outside the cluster.
+        """
+        roster = frozenset(self.MEMBERS)
+        out: list[frozenset[str] | None] = []
+        for name in fired:
+            if name is None:
+                out.append(None)
+                continue
+            if name == "":
+                text = transcript(call("Agent", "x", subagent_type="general-purpose"))
+            else:
+                text = transcript(call("Agent", "x", subagent_type=name), result("x", "done"))
+            out.append(frozenset(routing.fired_components(text, roster)))
+        return out
+
+    def test_a_positive_passes_when_an_expected_member_fires_often_enough(self) -> None:
+        case = {"id": "pos", "polarity": "positive", "expect_fires": ["root-cause"]}
+        verdict = routing.grade_case(case, self.MEMBERS, self._runs("root-cause", "root-cause", ""))
+        self.assertEqual(2 / 3, verdict.rate)
+        self.assertTrue(verdict.passed(0.5))
+        self.assertFalse(verdict.passed(0.9))
+
+    def test_a_negative_passes_only_when_nothing_forbidden_fires(self) -> None:
+        case = {"id": "neg", "polarity": "negative", "expect_not_fires": ["code-reviewer"]}
+        clean = routing.grade_case(case, self.MEMBERS, self._runs("", "root-cause"))
+        self.assertTrue(clean.passed(0.5), "an unrelated member firing is not an over-trigger")
+        dirty = routing.grade_case(case, self.MEMBERS, self._runs("", "code-reviewer"))
+        self.assertFalse(dirty.passed(0.5), "one over-trigger fails the negative")
+
+    def test_a_negative_without_narrowing_forbids_the_whole_cluster(self) -> None:
+        case = {"id": "broad", "polarity": "negative"}
+        verdict = routing.grade_case(case, self.MEMBERS, self._runs("lab-audit"))
+        self.assertEqual(frozenset(self.MEMBERS), verdict.targets)
+        self.assertFalse(verdict.passed(0.5))
+
+    def test_an_invalid_run_is_excluded_rather_than_scored_as_a_miss(self) -> None:
+        """A measurement failure and a routing failure are different facts."""
+        case = {"id": "pos", "polarity": "positive", "expect_fires": ["root-cause"]}
+        verdict = routing.grade_case(case, self.MEMBERS, self._runs("root-cause", None, None))
+        self.assertEqual(1, verdict.valid_runs)
+        self.assertEqual(2, verdict.invalid_runs)
+        self.assertEqual(1.0, verdict.rate, "the invalid runs must not dilute the rate")
+
+    def test_a_case_with_no_valid_run_is_inconclusive_and_never_passed(self) -> None:
+        for case in (
+            {"id": "pos", "polarity": "positive", "expect_fires": ["root-cause"]},
+            {"id": "neg", "polarity": "negative", "expect_not_fires": ["code-reviewer"]},
+        ):
+            with self.subTest(polarity=case["polarity"]):
+                verdict = routing.grade_case(case, self.MEMBERS, self._runs(None, None))
+                self.assertTrue(verdict.inconclusive)
+                self.assertIsNone(verdict.rate)
+                self.assertFalse(
+                    verdict.passed(0.5),
+                    "an unmeasured case was reported as a result",
+                )
+
+    def test_a_malformed_case_is_refused_rather_than_graded(self) -> None:
+        for case, expected in (
+            ({"id": "x", "polarity": "maybe"}, "polarity must be exactly"),
+            ({"id": "x", "polarity": "positive", "expect_fires": []}, "non-empty list"),
+            (
+                {"id": "x", "polarity": "positive", "expect_fires": ["not-a-member"]},
+                "invalid cluster member",
+            ),
+        ):
+            with self.subTest(case=case):
+                with self.assertRaisesRegex(ValueError, expected):
+                    routing.grade_case(case, self.MEMBERS, [])
+
+
+# --- the retiring runner's transcript helpers, moved with the tests that use them ---
+
+FLEET = frozenset(
+    [p.stem for p in pathlib.Path("agents").glob("*.md")]
+    + [p.name for p in pathlib.Path("skills").iterdir() if p.is_dir()]
+)
+
+
+def skill_use(name: str, tool_id: str = "t1") -> dict:
+    return {"type": "tool_use", "id": tool_id, "name": "Skill", "input": {"command": name}}
+
+
+def agent_use(name: str, tool_id: str = "t1") -> dict:
+    return {
+        "type": "tool_use", "id": tool_id, "name": "Agent",
+        "input": {"subagent_type": name, "prompt": "go"},
+    }
+
+
+def tool_result(tool_id: str, is_error: bool) -> dict:
+    return {"type": "tool_result", "tool_use_id": tool_id, "is_error": is_error}
+
+
+def fired_in(text: str) -> set[str]:
+    """`fired_components` against the real fleet roster, which these cases name members of."""
+    return routing.fired_components(text, FLEET)
+
+
+class ComponentDetectionTest(unittest.TestCase):
+    """The retiring runner's own detection tests, retargeted at the kernel that replaced it.
+
+    Every case here was written for a defect that had already reached a measurement, so they move
+    across rather than being re-derived from the new implementation.
+    """
+
+    def test_detects_namespaced_skill(self) -> None:
+        self.assertEqual(
+            {"prompt-craft"}, fired_in(transcript(skill_use("sde-agents:prompt-craft")))
+        )
+
+    def test_detects_bare_agent_spawn(self) -> None:
+        self.assertEqual(
+            {"prompt-engineer"}, fired_in(transcript(agent_use("prompt-engineer")))
+        )
+
+    def test_detects_multiple_components(self) -> None:
+        found = fired_in(transcript(
+            skill_use("sde-agents:backend-craft", tool_id="a"),
+            agent_use("sde-agents:sde-fullstack", tool_id="b"),
+        ))
+        self.assertEqual({"backend-craft", "sde-fullstack"}, found)
+
+    def test_prose_mention_is_not_a_firing(self) -> None:
+        # The model naming a component in TEXT is not the component firing. Only tool calls count.
+        prose = {
+            "type": "text",
+            "text": "You could use prompt-craft or spawn prompt-engineer for this.",
+        }
+        self.assertEqual(set(), fired_in(transcript(prose)))
+
+    def test_non_fleet_tool_is_ignored(self) -> None:
+        read = {"type": "tool_use", "name": "Read", "input": {"file_path": "prompt-craft.md"}}
+        self.assertEqual(set(), fired_in(transcript(read)))
+
+    def test_unknown_name_in_skill_input_is_ignored(self) -> None:
+        self.assertEqual(set(), fired_in(transcript(skill_use("some-other-skill"))))
+
+    def test_malformed_lines_do_not_crash(self) -> None:
+        self.assertEqual(set(), fired_in("not json\n{bad\n"))
+
+    def test_unexpected_event_shapes_are_skipped_not_fatal(self) -> None:
+        """Both readers run on every line of every session; a raise here loses a paid batch.
+
+        Observed 2026-08-10 on a live `verifier-fails-honestly-no-product-edit` session: an event
+        carrying a string `message` raised AttributeError out of `components_fired`, past the
+        behavioral runner's auth-only handler, aborting the batch with no benchmark written.
+        """
+        odd_events = "\n".join((
+            json.dumps({"type": "system", "message": "session resumed"}),
+            json.dumps({"type": "assistant", "message": None}),
+            json.dumps({"type": "assistant", "message": ["not", "a", "mapping"]}),
+            json.dumps(["a bare list line"]),
+            json.dumps("a bare string line"),
+            json.dumps(7),
+        ))
+        real = transcript(skill_use("sde-agents:prompt-craft"))
+        self.assertEqual(
+            {"prompt-craft"}, fired_in(odd_events + "\n" + real)
+        )
+
+        odd_and_result = odd_events + "\n" + json.dumps({
+            "type": "result", "is_error": False, "duration_ms": 11,
+            "usage": {"input_tokens": 3, "output_tokens": 4},
+            "message": "still a string", "model": "claude-sonnet-5",
+        })
+        self.assertTrue(stream.session_completed(odd_and_result))
+        self.assertEqual("claude-sonnet-5", stream.observed_model(odd_and_result))
+
+    def test_errored_tool_result_does_not_count_as_fired(self) -> None:
+        # A failed skill invocation (is_error: true) is NOT the skill firing — counting it would
+        # produce false PASS results on positives whose spawn failed.
+        line1 = transcript(skill_use("sde-agents:prompt-craft", tool_id="tu_1"))
+        line2 = transcript(tool_result("tu_1", is_error=True))
+        self.assertEqual(set(), fired_in(line1 + "\n" + line2))
+
+    def test_successful_tool_result_counts_as_fired(self) -> None:
+        line1 = transcript(agent_use("prompt-engineer", tool_id="tu_2"))
+        line2 = transcript(tool_result("tu_2", is_error=False))
+        self.assertEqual({"prompt-engineer"}, fired_in(line1 + "\n" + line2))
+
+    def test_missing_tool_result_still_counts_as_fired(self) -> None:
+        # Streams can end before the result comes back (timeout); absence of an error is
+        # not an error.
+        self.assertEqual(
+            {"prompt-craft"},
+            fired_in(transcript(skill_use("sde-agents:prompt-craft", tool_id="tu_3"))),
+        )
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class DestinationFieldTest(unittest.TestCase):
+    """Round 9: a component name in a NON-destination field was graded as a dispatch.
+
+    `_named_components` scans every value it is given, which is right for the value it is given
+    and wrong for a whole tool input: `{"subagent_type": "general-purpose", "prompt": "root-cause"}`
+    scored `root-cause` as fired on a call that went to `general-purpose`. That can pass a
+    positive or fail a negative on a dispatch that never happened, in the file that decides every
+    routing verdict.
+    """
+
+    ROSTER = frozenset({"root-cause", "lab-audit", "prompt-craft"})
+
+    def test_a_component_named_in_a_prompt_is_not_a_dispatch(self) -> None:
+        text = transcript(
+            {"type": "tool_use", "id": "a1", "name": "Agent",
+             "input": {"subagent_type": "general-purpose", "prompt": "root-cause"}},
+            result("a1", "done"),
+        )
+        self.assertEqual(set(), routing.fired_components(text, self.ROSTER))
+
+    def test_the_destination_field_is_still_read_for_both_tools(self) -> None:
+        agent = transcript(
+            {"type": "tool_use", "id": "a1", "name": "Agent",
+             "input": {"subagent_type": "sde-agents:root-cause", "prompt": "lab-audit"}},
+            result("a1", "done"),
+        )
+        self.assertEqual({"root-cause"}, routing.fired_components(agent, self.ROSTER))
+        skill = transcript(
+            {"type": "tool_use", "id": "s1", "name": "Skill",
+             "input": {"command": "sde-agents:lab-audit", "note": "root-cause"}},
+            result("s1", "done"),
+        )
+        self.assertEqual({"lab-audit"}, routing.fired_components(skill, self.ROSTER))
+
+    def test_an_unobserved_payload_shape_degrades_to_the_whole_input(self) -> None:
+        """Narrowing without this fallback would turn a CLI schema change into every case
+        scoring zero -- a silent false green across the suite, worse than the false dispatch."""
+        text = transcript(
+            {"type": "tool_use", "id": "a1", "name": "Agent",
+             "input": {"agent_name": "sde-agents:root-cause"}},
+            result("a1", "done"),
+        )
+        self.assertEqual({"root-cause"}, routing.fired_components(text, self.ROSTER))
+        self.assertIsNone(routing.destination_value("Agent", {"agent_name": "x"}))
+        self.assertEqual("x", routing.destination_value("Agent", {"subagent_type": "x"}))

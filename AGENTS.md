@@ -51,9 +51,13 @@ red check is fixed if trivial, else recorded in `docs/fleet-roadmap.md`.
 - **T0 — edit loop** (seconds): `python3 scripts/validate_fleet.py` (byte-compares every
   generated adapter, so no separate `--check` run; `python3 -m fleet validate --json` is the same
   run with rule ids) + the owning test module
-  (`python3 -m unittest discover -s tests -p test_<area>.py`) + `ruff check .` (the lint gate;
-  `pyproject.toml` owns its rule set and the per-file ratchet for legacy findings). After **any** canonical agent or
-  skill edit, regenerate the host adapters with
+  (`python3 -m unittest discover -s tests -p test_<area>.py`) + `ruff check .` **and**
+  `ruff format --check fleet` (the lint gate; `pyproject.toml` owns its rule set and the per-file
+  ratchet for legacy findings). Run BOTH — CI runs both, and `ruff check` passes on code the
+  formatter would rewrite, so running only the first sends a red commit to CI that was green
+  locally. Use the pinned `ruff` version (`pyproject.toml`'s dev group): the formatter's output
+  moves between releases, so formatting with another version can still fail the pinned check.
+  After **any** canonical agent or skill edit, regenerate the host adapters with
   `python3 scripts/generate_platform_adapters.py --write`; after adding, renaming, or removing a
   component, also refresh the README inventory with
   `python3 scripts/validate_fleet.py --write-inventory`.
@@ -68,8 +72,12 @@ red check is fixed if trivial, else recorded in `docs/fleet-roadmap.md`.
 - **T3 — release/CLI pin bump** (manual, real API): `scripts/probe_plugin.py` + every routing
   cluster — no affected-only subset. Before a paired routing run, check by hand
   that a stored capture's cluster, cases, evaluator, and plugin bytes are unchanged **and** its
-  recorded conditions — requested model, clean-room setting, threshold, timeout — equal the run
-  you are about to make; only then is the before-side reusable. The after-side stays fresh.
+  recorded conditions equal the run you are about to make. The condition list is **the artifact,
+  not a list restated here**: `runs_per_case` plus every key of the capture's own `conditions`
+  block, minus three exceptions, with `models_observed` holding exactly one model and
+  `components_uniform` true on **both** sides — `evals/README.md` owns the exceptions and the
+  reasons, and enumerating the fields anywhere else kept coming up one short as the harness
+  gained levers. Only then is the before-side reusable. The after-side stays fresh.
 
 Limit new broad static reviews to two rounds for prose-behavior changes (agent/skill text), three
 for other fleet prose. These caps bound repeated broad reviews, not focused checks and corrections
@@ -99,9 +107,13 @@ Two checks are manual and on demand, deliberately not CI gates (both drive real 
   binary still honors the guard's payload contract (owner: the `scripts/readonly-guard.py`
   docstring).
 - `python3 scripts/eval_routing.py evals/routing/<cluster>.json --runs 3` — routing evals, owed
-  before **and** after any description edit (the description playbook owns the recipe). Read
-  `evals/README.md` first — it owns the negative-case and narrowing semantics and the headless
-  caveat.
+  before **and** after any description edit (the description playbook owns the recipe).
+  `claude plugin eval` runs the sessions; the fleet computes the verdict from their traces, because
+  a native `tool_used` grader counts a dispatch that errored and cannot express a positive's
+  agent-or-skill disjunction. Read `evals/README.md` first — it owns the negative-case and
+  narrowing semantics, the headless caveat, and why a baseline's routing competition is read from
+  `components_observed` rather than from `--clean-room`, which was measured to change nothing
+  under the native harness.
 
 ## Change playbooks
 
@@ -131,8 +143,8 @@ that needs the same projection, so read each one and raise its `expect` to the n
 **Editing a description** (agent or skill) — descriptions drive routing. Run the overlapping
 cluster in `evals/routing/` before and after, and diff the rates. The 'before' side may be
 satisfied by a stored benchmark whose cluster, cases, evaluator, and plugin bytes are unchanged
-since capture and whose recorded model, clean-room setting, threshold, and timeout equal the
-planned run, checked by hand; the 'after' side is always a fresh run. Cross-references to other
+since capture and whose recorded conditions equal the planned run — the list is the T3 one above,
+and `evals/README.md` owns it; the 'after' side is always a fresh run. Cross-references to other
 fleet members must use the plugin namespace (`sde-agents:code-reviewer`,
 `/sde-agents:backend-craft`); a bare backticked name is only for content already in context, such
 as a preloaded skill.

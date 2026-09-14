@@ -50,4 +50,8 @@ evals/baselines/**/failing-run-evidence.json
 # Native `claude plugin eval` output. Each run writes aggregate-result.json and report.html under
 # <eval dir>/results/<timestamp>/; the distilled verdicts live in the archived pilot note, and the
 # decision record's phase-4 precondition names this ignore explicitly.
+# `--eval-dir` can point at a single case directory, so results land one level deeper than the
+# suite root; both shapes are ignored.
 evals/native-pilot/results/
+evals/native-pilot/*/results/
+evals/generated/

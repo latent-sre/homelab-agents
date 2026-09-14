@@ -1,0 +1,201 @@
+# Does `tool_used` count an errored spawn? 2026-09-14
+
+The MACH-001 phase-4 precondition the operator chose ("option A"): settle empirically what the
+2026-09-13 pilot could only leave open. That pilot established `tool_used` counts CALLS rather
+than successful spawns, but the errored call it happened to observe did not match the case's
+regex, so it could not say whether a *matching* errored call is counted.
+
+## Answer
+
+**Yes. `tool_used` counts a matching call regardless of whether the spawn succeeded.**
+
+| | |
+|---|---|
+| CLI | 2.1.270 (the CI pin) |
+| Case | `evals/native-pilot/errored-spawn-counted/` |
+| Command | `claude plugin eval . --eval-dir evals/native-pilot/errored-spawn-counted --ablation none --runs 3 -j 3 --no-publish --model sonnet --max-cost-usd 3 --keep-temp --trust-plugin` |
+| Cost | $0.22 |
+| Result | experiment grader PASS 3/3, control grader PASS 3/3, score 1.0 in every run |
+
+The case instructs one `Agent` call with `subagent_type: "sde-agents:no-such-agent-probe"`, which
+is not registered. Two graders make the three outcomes distinguishable: the **experiment** matches
+that exact non-existent name, and the **control** matches any `subagent_type` at all, so an
+experiment FAIL cannot be confused with the session never calling `Agent`.
+
+Confirmed in all three preserved traces that the spawn really did fail:
+
+```
+CALL   subagent_type = "sde-agents:no-such-agent-probe"
+RESULT is_error=True :: Agent type 'sde-agents:no-such-agent-probe' not found. Available agents: ...
+```
+
+## Why this matters for phase 4
+
+`scripts/eval_routing.py` — the runner phase 4 retires — deliberately does the opposite. Its
+`_fired_names` collects each `tool_use` naming a fleet member, collects the `tool_use_id`s whose
+`tool_result` came back `is_error`, and then counts only the calls that did **not** error:
+
+```python
+for tid, names in candidates.items():
+    if tid not in errored:
+        fired |= names
+```
+
+So the two oracles disagree, and the direction of the disagreement depends on polarity:
+
+- **Positive case** — the native grader is WEAKER. A run where the model chose the right component
+  but the dispatch failed scores PASS natively and FAIL under the runner. A real routing
+  regression could hide behind a dispatch that never succeeded.
+- **Negative case** (`min: 0, max: 0`) — the native grader is STRICTER. An attempted-but-errored
+  call on a forbidden component fails the negative natively, while the runner ignores it. For
+  over-trigger detection that is arguably the better reading: the model made the wrong choice
+  whether or not the dispatch landed.
+
+This is not hypothetical: the 2026-09-13 pilot observed a naturally-occurring errored dispatch
+(`Agent(sde-agents:root-cause)` — the model tried to spawn a skill as an agent).
+
+One subtlety the runner learned the hard way and any replacement must preserve: **`is_error: true`
+is not a reliable failure flag for `Skill`.** A skill that restricts tools is LAUNCHED through a
+`tool_result` the CLI marks `is_error: true` with content `Execute skill: <name>`. Treating that as
+a failure scored `lab-audit` 0/N despite correct routing on every run, and made an over-trigger of
+it on a negative case invisible — a false PASS. Any fleet-side check that re-applies the runner's
+semantics must keep the launch-signal exemption.
+
+## Not covered
+
+Whether an `llm` grader can see tool results well enough to substitute. Not tested; it is a paid,
+non-deterministic judgment and the routing suite's graders are deliberately free and mechanical.
+
+## Incidental confirmation
+
+The pilot recorded, from docs rather than observation, that an untrusted directory under `--json`
+is refused with exit 1 rather than prompted. Observed here on a fresh checkout: the first run
+failed with exit 1 and `is not a trusted plugin directory`, and `--trust-plugin` was required.
+
+## Follow-up: the seam option B needs, measured the same day
+
+Accepting that `tool_used` is the weaker oracle leaves one question: can the fleet re-apply its
+own reading to the native harness's runs? That needs the per-run transcript, so the shape of
+`claude plugin eval --json` was read off a real run rather than from the help text. A throwaway
+one-turn case (`schema-probe`, no tools, deleted after the measurement) was run against
+`claude 2.1.270`:
+
+- **`--json` carries a per-run `tracePath`.** Under `.cases[].arms.<arm>[].tracePath`, alongside
+  `error`, `turns`, `costUsd`, `durationSeconds` and the per-grader verdicts. `error` is the
+  invalid-run signal the fleet's scorer already needs: a run with no usable transcript is excluded
+  from the rates rather than counted as a miss.
+- **The trace is stream-json in the shape the fleet already parses** — `{"type":"assistant",
+  "message":{"content":[…]}}` lines with `tool_use` and `tool_result` blocks, so
+  `fleet.stream.correlate_tool_results` reads it with nothing new.
+- **The trace does NOT survive the run by default.** `tracePath` pointed into
+  `/tmp/claude-eval-*/out/`, which is removed when the run ends; the path in the result document
+  was already dangling by the time it was read. `--keep-temp` preserves it, verified by reading
+  the file back through the path the result gave.
+- **`--keep-temp` leaves a directory the harness says it could not seal** when running as root,
+  warning that everything outside `out/` may be agent-written. So a recorder must copy `out/` and
+  then remove the temp directory itself; leaving them to accumulate is both a disk and a trust
+  problem.
+
+### The fleet-side reading reproduces the runner exactly
+
+`fleet/routing.py` is that reading. It was not accepted on inspection: both it and
+`scripts/eval_routing.py` were executed against the same generated inputs and their answers
+compared.
+
+| Differential | Inputs | Mismatches |
+|---|---|---|
+| `fired_components` vs `components_fired` | 12,400 transcripts (every tool × input key × value × result-shape combination, plus 4,000 randomized multi-call transcripts) | 0 |
+| `grade_case` vs `score_case` | 8,004 case/threshold/run combinations across both polarities, the broad-negative default, invalid runs, and four malformed cases | 0 |
+
+Agreement is only evidence if the comparison could have disagreed, so each differential was
+mutation-checked: removing the skill-launch exemption (2,212 mismatches), dropping `Task` from the
+routing tools (1,488), ignoring `is_error` (1,468), letting an inconclusive case pass (388),
+grading a negative against the threshold instead of zero (879), emptying the broad-negative target
+set (1,285), and counting an invalid run as a valid miss (869). All seven were caught.
+
+One asserted difference turned out to be mine, not the runner's: a draft test expected a fleet name
+embedded in prose (`"delegate to sde-agents:researcher now"`) to count as a dispatch. The runner
+compares `strip_ns(value)` against the roster — the **whole** string value — so it never did, and
+widening the reading would score every case whose prompt merely names a sibling as having fired it.
+The test was corrected to the runner's semantics, not the reading to the test's.
+
+## Two more findings the converter work forced, both measured
+
+### The native harness is NOT a clean room
+
+`scripts/eval_clean_room.py` exists because a routing rate is only meaningful if the session's
+competition is known: a personal skill or a junction-deployed copy of the fleet changes what the
+model chooses between. The phase-4 plan assumed the native harness's own temp-directory isolation
+made that mode redundant. It does not.
+
+Read off the eval child session's own `system/init` event (CLI 2.1.270, one-turn throwaway case,
+`--keep-temp`), the session's routing surface was:
+
+- **Agents:** the eleven `sde-agents:*` agents, plus `Explore`, `Plan`, `claude`,
+  `claude-code-guide`, `general-purpose`, `statusline-setup`.
+- **Skills:** the twenty `sde-agents:*` skills, plus `batch`, `claude-api`, `code-review`,
+  `dataviz`, `debug`, `deep-research`, `doctor`, `fewer-permission-prompts`, `loop`, `run`,
+  `run-skill-generator`, `schedule`, `simplify`, `update-config`, `verify`, `workflow-authoring`.
+
+Several of those are direct routing competitors for fleet members — `code-review` against
+`deep-review` and `code-reviewer`, `debug` against `root-cause`, `verify` against
+`verification-engineer`. The harness gives the run a fresh cwd and its own config directory, but
+it inherits the operator's component surface.
+
+So `--clean-room` survives the migration rather than retiring with the runner. The lever is the
+same one `eval_clean_room.py` already uses: `CLAUDE_CONFIG_DIR` in the environment of the process
+that launches the sessions. `clean_room` stays a recorded condition, and two artifacts that differ
+on it are still not comparable.
+
+### A grader regex must be a single-quoted YAML scalar
+
+The pilot grader that matched a live dispatch 3/3 wrote its pattern in single quotes. The first
+version of the converter emitted it through `fleet.frontmatter.yaml_scalar`, which produces the
+double-quoted JSON form — correct for prose, wrong for a regex: a double-quoted YAML scalar
+processes escapes, so the pattern only survives if the reader decodes `\\s` back to `\s`.
+
+This is a silent failure by construction. A `max: 0` tripwire whose pattern was mangled matches
+nothing, counts zero calls, and passes forever while enforcing nothing — and no count in the
+report moves. It was caught because the test compiled the emitted pattern with `re` instead of
+reading it, and `re` rejected it outright (`bad escape (end of pattern)`).
+
+`fleet.frontmatter.yaml_single_quoted` is now the emitter for patterns, with the round-trip
+asserted against PyYAML in the existing dialect tripwire. Noted while proving it: the fleet's own
+`parse_text` is a lenient reader that strips outer quotes without decoding escapes, so it cannot
+round-trip either form of pattern — which is why the test checks the emitted bytes directly.
+
+### Incidental: the grader names the tool `Agent`, the runtime names it `Task`
+
+The child session's `init` event lists `Task`, not `Agent`, among its tools. `tool_used` graders
+still name `Agent` and match — proven by the pilot's control grader passing 3/3 against a real
+`Agent` call. `fleet.routing.ROUTING_TOOLS` accepts both spellings, so the fleet-side verdict is
+unaffected either way.
+
+## Correction, same day: `--clean-room` changes nothing, and the earlier reading was wrong
+
+The section above concluded from one session's `init` event that the native harness "inherits the
+operator's component surface". A controlled comparison — the same case run with and without
+`--clean-room`, both on 2026-09-14, CLI 2.1.270 — refutes the part that mattered:
+
+| | non-fleet agents | non-fleet skills |
+|---|---|---|
+| without `--clean-room` | 6 | 16 |
+| with `--clean-room` | 6 | 16 |
+| with `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS=1` | 6 | 1 |
+
+Byte-identical across the flag. And the operator's own config-dir skills on this machine
+(`session-start-hook`, `synced`) appear in **none** of the three: the harness sets its own config
+directory, so it already isolates personal components, and it overrides the variable
+`--clean-room` moves.
+
+What the child actually sees is the CLI's **bundled** skills — `code-review`, `debug`, `verify`,
+`deep-research` and twelve more. Those are real routing competitors, but they are not
+operator-specific: they are identical on every machine for a given CLI version, which
+`cli_version` already records. The third row shows they can be removed, and that lever is
+deliberately not pulled — a baseline without them measures a surface no real user has.
+
+The consequence for the machinery is the rule this repository already applies to guards: a
+condition must be observed, not asserted by the caller that wanted it. `clean_room` as a stored
+boolean was about to be stamped `true` on ten baselines while delivering nothing. Benchmarks now
+record `components_observed`, read off each session's own `init` event, and the flag is recorded
+as `clean_room_requested` — a request, which is all it ever was.

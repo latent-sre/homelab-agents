@@ -151,6 +151,84 @@ SKILL_LAUNCH_SIGNALS: tuple[str, ...] = ("execute skill:", "launching skill:")
 
 
 def is_skill_launch_signal(result_text: str) -> bool:
-    """Whether an `is_error` tool_result is the Skill tool's launch signal, not a failure."""
-    lowered = result_text.lower()
-    return any(signal in lowered for signal in SKILL_LAUNCH_SIGNALS)
+    """Whether an `is_error` tool_result is the Skill tool's launch signal, not a failure.
+
+    Matched at the START of the result, not anywhere inside it. A substring test -- what the
+    retiring runner used, and what this inherited -- also matched a genuine failure that happened
+    to mention the phrase, such as `Permission denied: could not execute skill: x`, turning a
+    failed dispatch into a counted one and letting a positive pass without routing anywhere.
+
+    Deliberately NOT tightened further to require the skill's own name: the exemption exists
+    because a tool-restricting skill LAUNCHES through an `is_error` result, and pinning this to
+    the CLI's exact message wording would resurrect the original defect -- `lab-audit` scoring
+    0/N on correct routing -- the next time that wording changes. Opening-phrase plus the
+    caller's tool check is the tightening that does not trade one silent failure for another.
+    """
+    lowered = result_text.lstrip().lower()
+    return any(lowered.startswith(signal) for signal in SKILL_LAUNCH_SIGNALS)
+
+
+def final_result(text: str) -> dict[str, object] | None:
+    """The session's last `result` event, or None if it never reached one.
+
+    Read as the LAST one rather than the first: a transcript can carry more than one, and it is
+    the final structured result that says how the session ended.
+    """
+    found: dict[str, object] | None = None
+    for event in iter_events(text):
+        if event.get("type") == "result":
+            found = event
+    return found
+
+
+def session_completed(text: str) -> bool:
+    """Whether the session reached a final result that was not an error.
+
+    This is what separates a silence that is an OBSERVATION from one that is only an unfinished
+    run, and getting it wrong is expensive in both directions. A session that completed and routed
+    nowhere is real evidence -- a genuine miss on a positive, a genuine pass on a negative. A
+    session cut off before it finished has decided nothing, and scoring its silence as "did not
+    route" greens negatives vacuously and drops misses out of a positive's denominator.
+
+    Deliberately NOT the same as "the process exited zero": a run cut at its turn or time limit is
+    reported as an error by the harness while its transcript may already contain the routing
+    decision, and a clean exit with no result event is still silence.
+    """
+    result = final_result(text)
+    return result is not None and not result.get("is_error")
+
+
+def observed_model(text: str) -> str | None:
+    """The model the session ACTUALLY ran on, read off the transcript.
+
+    Independent of any requested model on purpose: routing behaviour varies by tier, so an
+    artifact that records the request rather than the observation cannot be validly diffed against
+    another -- and the runs a conditions block exists to describe are exactly the pinned ones,
+    where the two would agree and hide the bug.
+    """
+    for event in iter_events(text):
+        candidate = event.get("model") or event_message_field(event, "model")
+        if isinstance(candidate, str) and candidate:
+            return candidate
+    return None
+
+
+def registered_components(text: str) -> dict[str, list[str]]:
+    """The agents and skills the session's own `init` event says it could route to.
+
+    A measurement condition that must be OBSERVED rather than asserted. A flag claiming isolation
+    records what the runner intended; this records what the session actually saw, and the two came
+    apart: `--clean-room` relocates `CLAUDE_CONFIG_DIR`, but the native eval harness sets its own,
+    so the flag changed nothing while still being stored as a condition. Two artifacts taken
+    against different competition are not comparable no matter what either one's flags claimed.
+    """
+    found: dict[str, list[str]] = {"agents": [], "skills": []}
+    for event in iter_events(text):
+        if event.get("type") != "system" or event.get("subtype") != "init":
+            continue
+        for key in ("agents", "skills"):
+            value = event.get(key)
+            if isinstance(value, list):
+                found[key] = sorted(str(v) for v in value if isinstance(v, str))
+        break  # the first init describes the session; a later one would be a resume
+    return found

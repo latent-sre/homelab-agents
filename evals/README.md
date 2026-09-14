@@ -124,19 +124,25 @@ python3 scripts/eval_routing.py evals/routing/homelab-ops.json --runs 3 --model 
 
 **`--model` is required for any run you intend to diff against another.** Without it each session
 takes whatever the CLI defaults to, and that default is **not** inherited from the session that
-launched the runner — a `/model` change in an interactive session does not reach a `claude -p`
-child. This silently invalidated a comparison here: two runs of `craft-vs-fullstack` believed to
+launched the runner — a `/model` change in an interactive session does not reach the eval's
+child sessions. This silently invalidated a comparison here: two runs of `craft-vs-fullstack` believed to
 differ by model tier were both sonnet, so their near-identical results said nothing about the tier.
 
 Every `benchmark.json` therefore records a `conditions` block — `cli_version`, `model_requested`,
 `models_observed` (read off the transcripts, i.e. what actually ran), `timeout_s`, `threshold`,
 concurrency, Python runtime, and non-secret authentication/provider mode. Its provenance separately
 hashes the exact eval definitions, selected cases, plugin under test, and executing evaluator and
-grader files. Both runners self-bootstrap from one checked source buffer and compile imported
-graders from likewise registered buffers, so those hashes name what executed rather than a later
-read of the same paths. Provenance schema v4 executes a private copy of the identified plugin bytes,
-so an A -> B -> A edit to the source checkout cannot make concurrent sessions load mixed content
-while leaving equal endpoint hashes. Persistent mutation of the private snapshot aborts the artifact. A
+grader files. The evaluator hash names the files on disk at the time of the read, which is a NARROWER claim
+than the retired runner's: that runner re-executed itself from one checked buffer, so its hash
+named the bytes that actually computed the verdict. Phase 4 split running from grading across
+imported kernel modules, and binding only the entry script would have covered a shrinking
+fraction of that code while still reading like the old guarantee — so the claim was reduced
+deliberately rather than kept nominally. The window it leaves open is an evaluator source edited
+between import and the provenance read, by the operator running the measurement; it is narrower
+than the one `frozen_plugin` still closes for the plugin under test, whose bytes are a different
+party's. Provenance schema v5 executes a private copy of the identified plugin bytes — content
+and executable bit — so an A -> B -> A edit to the source checkout cannot make concurrent
+sessions load mixed content while leaving equal endpoint hashes. Persistent mutation of the private snapshot aborts the artifact. A
 same-user session can transiently mutate and restore that snapshot unless the host sandbox denies
 writes; endpoint hashing does not claim to detect that, so host write isolation remains part of the
 trust boundary. The conditions block records `.` for the current plugin and
@@ -169,15 +175,42 @@ longer than that before its first tool call, so **the timeout and the model are 
 pin both together, and both are recorded in `conditions` (`timeout_s`, `model_requested`) because
 a shorter timeout excludes more runs and therefore moves every rate in the artifact.
 
-Each run is a fresh headless `claude -p … --plugin-dir .` session — a fresh *conversation*, which
-is **not** configuration isolation: the session still inherits everything under the user's
-`CLAUDE_CONFIG_DIR` (personal agents, skills, plugins, global CLAUDE.md), and a junction
-deployment makes the fleet register twice, bare and namespaced, in every run (measured in the
-archived 2026-07-29 isolation outcome (retired to Git history)).
-`--clean-room` relocates the configuration to a temporary
-directory holding only credentials (`scripts/eval_clean_room.py`) and is recorded in `conditions`
-— artifacts that differ on it measured different routing competitions and must not be diffed
-against each other. The runner prints per-case pass/fail and rates; pass `--output-dir <path>`
+`claude plugin eval` runs the sessions; the fleet grades them. The cluster JSON is projected into
+native case directories under `evals/generated/` (git-ignored, rewritten every run — edit the
+cluster, never the generated copy), and the harness owns isolation, per-case runs, concurrency,
+cost ceilings and its own JSON result and HTML report.
+
+**The verdict is not the harness's.** Its `tool_used` graders are kept as a tripwire, but the
+score is computed by `fleet/routing.py` from each run's trace, for two measured reasons
+(`docs/archive/2026-09/native-grader-errored-spawn-2026-09-14.md`): `tool_used` counts a call
+whose input matches whether or not the spawn SUCCEEDED, so on a positive a regression can hide
+behind a dispatch that never landed; and a positive passes when ANY expected destination fires, a
+disjunction that spans the Agent and Skill tools in every multi-target positive here and that no
+combination of `tool_used` graders can state.
+
+**The routing competition is recorded as observed, never as requested.** Read off real sessions'
+own `init` events on 2026-09-14: the harness sets its own config directory, so the operator's
+personal components do **not** reach the child — but sixteen of the CLI's own bundled skills do,
+`code-review`, `debug` and `verify` among them, all competing for the same routing decisions.
+
+`--clean-room` relocates `CLAUDE_CONFIG_DIR` (`scripts/eval_clean_room.py`) and was measured to
+change **nothing** here: the child's surface was byte-identical with and without it, because the
+harness overrides the variable. It is kept for a non-native caller and recorded as
+`clean_room_requested`, which is what it is — a request, not evidence. The condition that matters
+is `components_observed`, read off each session's own `init` event. Two artifacts whose non-fleet
+components differ measured different competitions and must not be diffed as one baseline, whatever
+either run's flags claimed.
+
+`CLAUDE_CODE_DISABLE_BUNDLED_SKILLS=1` does shrink that surface (sixteen non-fleet skills to one,
+measured the same day) and is deliberately **not** set: bundled skills are identical on every
+machine for a given CLI version, which `cli_version` already records, so they are part of the
+platform the fleet routes against rather than per-operator contamination. A baseline without them
+would measure a surface no real user has.
+
+**`--max-turns` is a measurement condition, not a convenience.** A routing decision missed because
+the session ran out of turns is not a routing failure, and the runner does not score it as one: a
+run counts as a measurement only when something fired or the session reached a non-error final
+result. Everything else is excluded and reported, so a rate always says how many runs it rests on. The runner prints per-case pass/fail and rates; pass `--output-dir <path>`
 to also write a `benchmark.json` there for before/after diffing. Exit codes separate the two things
 you would do about them — `0` all passed, `1` a case failed (a routing verdict to investigate), `3`
 nothing failed but something was `INCONCLUSIVE` (re-run it; nothing was measured), `2` a usage,
@@ -241,12 +274,39 @@ A capture under `baselines/` has exactly two possible jobs, and they retire on d
 Keeping this straight is the difference between an archive and a graveyard.
 
 1. **Reuse** — serving as the 'before' side of a paired run. This job is **fragile by design** and
-   usually already over: a stored capture is reusable only if its cluster, cases, evaluator, and
-   plugin bytes are all unchanged since capture **and** its recorded conditions — requested
-   model, clean-room setting, threshold, timeout — equal the planned run; checked by hand (the
-   script that once automated this comparison, `eval_baseline.py`, was retired 2026-09-01) — so
-   any of a schema bump, a case edit, an evaluator change, a fleet edit, or a different model or
-   setting ends it permanently.
+   usually already over. A stored capture is reusable only if its cluster, cases, evaluator, and
+   plugin bytes are all unchanged since capture **and** every recorded condition equals the
+   planned run.
+
+   **The condition list is the artifact, not a list kept here.** Compare `runs_per_case` and
+   **every key of the capture's own `conditions` block**, with exactly three exceptions —
+   enumerating the fields instead was tried and kept coming up one short, because each new
+   measurement lever the harness gained was added to the artifact and forgotten here:
+
+   | not compared | why |
+   |---|---|
+   | `clean_room_requested` | measured 2026-09-14 to change nothing under `claude plugin eval` |
+   | `native_cost_usd` | an outcome of the run, not a condition it ran under |
+   | `plugin_dir` | a display label; the plugin's identity is compared through `provenance` |
+
+   Two conditions need **more** than equality, because equal values can still hide unlike
+   measurements:
+
+   - `models_observed` must contain **exactly one** model on both sides. Two captures that each
+     mixed Sonnet and Opus compare equal as unions while their rates were measured under
+     different conditions — and this file already says a batch spanning models is not a single
+     baseline.
+   - `components_uniform` must be **true** on both sides. False says the capture's own runs saw
+     different competitors, which no equal `components_observed` union repairs; such a capture is
+     not a coherent before-side at all.
+
+   `runs_per_case` is on the list for the same reason: this file forbids comparing an `n=1`
+   capture with an `n=3` one, and the field is top-level rather than inside `conditions`, so it
+   is named explicitly.
+
+   The check is by hand (the script that once automated it, `eval_baseline.py`, was retired
+   2026-09-01) — so any of a schema bump, a case edit, an evaluator change, a fleet edit, or a
+   different condition ends reuse permanently.
    **As of 2026-08-17 no stored capture holds this job** — all ten clusters resolve `STALE`, and
    the v3→v4 schema move plus the case retirement made that final rather than incidental. Every
    paired round from here starts with a fresh capture on both sides.
@@ -330,7 +390,13 @@ LADDER-002 had pinned
 (`docs/decisions/2026-09-02-single-operator-audience.md`) — the ten handoff-001, ladder, and
 settling directories those items pinned in full, plus `2026-08-01-self-improve/final-live/` and
 `2026-08-18-ctx-002/disposition/` (the latter's own unconditional trigger, independent of the
-still-open LANE-001) — bringing the total to **11,440 lines across 12 top-level directories**.
+still-open LANE-001) — bringing the total to 11,440 lines across 12 top-level directories. The
+2026-09-14 native-migration anchor then added a thirteenth, and nearly doubled the tree on its own:
+**22,562 lines across 13 top-level directories**. Ten `benchmark.json` files account for 10,965 of
+those lines, because each records `fired_per_run` for every case — the audit trail that lets a
+surprising verdict be explained from the artifact instead of by paying for the batch again. That
+is the trade this directory exists to make, but it is also why a full anchor is captured
+deliberately rather than routinely.
 What remains: 1,369 lines of distilled record
 under `history/`, the raw of the partially-summarized directories, and
 the directories with no summary at all — the set is whatever `git ls-files evals/baselines`
@@ -349,10 +415,27 @@ those: it holds the only Codex CLI run this repository has ever recorded.
 
 ## Relationship to `claude plugin eval`
 
-The native `claude plugin eval` is the right long-term home for this — it does ablation baselines,
-repetitions, and LLM grading natively. It is currently **early access** and does not run in every
-environment, so `scripts/eval_routing.py` is the stopgap that exercises these cases today. The case
-files are kept close to the native shape so they migrate when it opens; the runner retires then.
+The migration happened on 2026-09-14 (MACH-001 phase 4). `claude plugin eval` now runs every
+routing case: isolation, per-case runs, concurrency, cost ceilings, timeouts, the JSON result and
+the HTML report are all the platform's. The size comparison that reads most naturally here — one
+1,450-line runner became a shorter one — is not true and is deliberately not stated: what the
+platform took over is the RUNNING, while the verdict and the provenance moved into `fleet/` rather
+than away, and the review rounds on the migration PR added guards and their tests on top. Read the
+list below for what was handed over and what was kept; a line count answers neither question.
+
+What the fleet kept is what the platform does not do — the verdict, the clean room, and
+measurement provenance. Each was a measured decision rather than a preference; the "Running"
+section above states the first two, and `fleet/provenance.py` holds the third, because nothing in
+the native result document identifies the plugin bytes a result was taken against.
+
+The oracle for the migration is recorded in
+`docs/archive/2026-09/routing-migration-oracle-2026-09-14.md`: one live batch of `prompt-tooling`
+graded by BOTH the retiring runner and the replacement, on identical traces, agreeing on all 12
+case verdicts. It also records what that oracle could not exercise and why.
+
+**A rate from before the migration is not comparable to one from after it.** The sessions now run
+under a declared tool set and a turn cap rather than the old wall clock, so the conditions block
+moved even where the grading did not. Re-baseline rather than diffing across the boundary.
 
 ## Coverage
 
@@ -383,8 +466,9 @@ negatives), so a full sweep at the methodology's `--runs 3` is **303 sessions**.
 suite had 111 cases / 333 sessions; eight automatic retro positives retired when the maintainer
 skill became explicit-only. Before starting a paired round, account for both sides: the 'before'
 and 'after' sides each cost a full sweep unless a
-stored capture is checked by hand — same bytes, same recorded model, clean-room setting,
-threshold, and timeout — and found reusable.
+stored capture is checked by hand against the rule under "Baseline retention" above — same
+bytes, and every key of its `conditions` block plus `runs_per_case` equal, bar the three listed
+exceptions — and found reusable.
 
 ### Measurement caveat: skills fire, agents must be delegated to
 
