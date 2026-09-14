@@ -574,3 +574,25 @@ roster member in both deciding blocks. A wrong renderer satisfies the first and 
 Oracle, as the phase table states it: the committed `hooks/hooks.json` is byte-identical to the
 rendering (3,035 bytes, unchanged), and `tests/test_hook_wiring.py` still extracts the command and
 runs it under `sh`. Nothing in this phase changes a shipped byte of shell.
+
+**The lint ratchet, and what "a module leaves the table in the phase that migrates it" turned out
+to mean.** The table held 27 file entries suppressing 147 findings. Three passes cleared 24 of
+them: the classes that describe defects rather than formatting (`B023`, `B905`, `B007`, `F401`,
+`F841`), the import and modernization classes (`I001`, `UP012`, `UP017`, `UP035`, `UP037`), and
+line length in sixteen modules. What is left is three `E501` entries that no migration can clear,
+and the operator ruled on 2026-09-14 that all three are permanent, amending MACH-001's acceptance
+from "the table is empty" to "every entry states why it is exempt".
+
+`scripts/probe_plugin.py` holds the probe's live-model stimulus (a prompt and a workflow
+source) in triple-quoted constants. A physical line inside a triple-quoted string cannot carry a `noqa`,
+and rewrapping it changes what the probe measures, so the recorded probe evidence would stop
+describing the same measurement; reflowing an instrument's stimulus to satisfy a formatter is the
+wrong trade. The two hook scripts' long lines are comments and code rather than emitted bytes, so
+they are reflowable with no behavior change — but editing either is a hook change under
+`AGENTS.md`'s hook playbook and owes a probe run, and spending a live probe to rewrap comments in
+the fleet's security boundary is the same trade `[tool.ruff.format]` already declined when it
+excluded them.
+
+The distinction that matters for the next maintainer: a suppression dated to when the gate was
+introduced is debt, and a suppression that states a reason is a decision. The table now holds only
+the second kind, and the rule against widening an entry is unchanged.

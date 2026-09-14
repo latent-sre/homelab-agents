@@ -165,23 +165,24 @@ with its reason recorded:
 `test_registry_survives_drive_letter_case_drift`.
 
 **Acceptance:** Per phase, the oracle named in the record's phase table, plus green tiers.
-Closes when phase 5 merges and the lint ratchet table in `pyproject.toml` is empty.
+**Amended by operator ruling on 2026-09-14**: the criterion was "the lint ratchet table in
+`pyproject.toml` is empty"; it is now "every remaining entry states why it is exempt". MACH-001
+therefore closes when the phase-5 PR merges. Adding a fourth entry still owes the same
+justification — this is not a reopened backlog.
 
-**The empty-table criterion now needs an operator ruling, and MACH-001 stays open until it comes.**
-Three entries remain and neither is a cleanup anyone has skipped:
+The three ruled permanent, and why none of them is a cleanup anyone skipped:
 
 - `scripts/probe_plugin.py` — its long lines live inside the triple-quoted prompt and workflow
   source the probe sends to a live model. A physical line inside a triple-quoted string cannot
   carry a `noqa`, and rewrapping it changes the stimulus, so the recorded probe evidence would no
-  longer describe the same measurement. The recommendation is to keep this exemption permanently
-  and treat the entry as documentation, not debt.
+  longer describe the same measurement. The exemption is permanent and the entry is
+  documentation, not debt.
 - `scripts/readonly-guard.py` and `scripts/live-effect-gate.py` — 11 long lines between them, all
   comments and code rather than emitted bytes, so all reflowable with no behavior change. But
   editing either is a hook change under `AGENTS.md`'s hook playbook and owes a
   `scripts/probe_plugin.py` run. Spending that run to rewrap comments in the fleet's security
-  boundary is the operator's call. Either answer closes the item: run the probe and clear them,
-  or record the exemption as permanent for the same reason `[tool.ruff.format]` already excludes
-  the hook scripts.
+  boundary is the wrong trade, for the same reason `[tool.ruff.format]` already excludes the hook
+  scripts — so the exemption is permanent and no probe is owed for it.
 
 **Evidence disposition:** The specifier claim was re-probed on 2.1.270 on 2026-09-13 (three
 runs; the specifier restricts nothing, the validator's rule stands) and the CI pin moved to
