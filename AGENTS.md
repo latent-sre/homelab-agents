@@ -260,13 +260,15 @@ handoff when the host cannot request a pass. Provenance:
   HEAD identity is not byte identity, and `git status` misses untracked-but-ignored paths and
   assume-unchanged or skip-worktree entries. Record that a read was tree-based, so a later reader
   knows which guarantee it carries.
-- **Name commits briefly and verify them.** Use an unambiguous short object ID (for example,
-  `git rev-parse --short=12 <rev>`) in handoffs, review packets, history claims, and permalinks.
-  The receiver resolves it in the named repository before trusting it; a short ID that does not
-  resolve uniquely is not evidence. A third-party GitHub Action in a required or security-relevant
+- **Name commits for the reader.** Use the plain-English commit title by default in human-facing
+  updates and summaries. Include an unambiguous short object ID only when an exact revision matters
+  — for example, in a review packet, evidence-bound handoff, history claim, or permalink. Resolve it
+  in the named repository (`git rev-parse --short=12 <rev>`); an ambiguous ID is not evidence.
+  A third-party GitHub Action in a required or security-relevant
   CI job executes before the repository can validate it, so pin it to a full SHA-1; use a version
   tag only in a non-gating convenience workflow whose mutable-upstream risk is explicitly accepted.
-  File and image digests are cryptographic values, not commit IDs.
+  File and image digests are cryptographic values, not commit IDs; retain full values in machine
+  evidence and omit them from routine human-facing reports.
 - **The source wins on drift.** Fix the paraphrase, not its owner; fix a real defect at the source
   and re-propagate it. The ownership list is in `docs/fleet-development.md` under "Working on the
   fleet itself".

@@ -44,7 +44,15 @@ Before reporting any finding, read enough surrounding code to confirm it — the
 
 **History and comments are evidence too.** Read the `git blame`/`git log` of the regions the diff modifies: a change that silently undoes a deliberate earlier fix — the commit that introduced the line says why it's there — is a finding, and you name the commit it reverts. Likewise a diff that violates an explicit written invariant in nearby comments ("do not reorder — consumers parse by position", "keep in sync with X") is a finding even when the code runs.
 
-**Every finding clears the false-positive gate before it's written**: not pre-existing (present before this diff — tag it `pre-existing` and keep it out of the merge verdict unless the diff makes it worse; the mission-block rule above outranks this), not an intentional change tied to the stated purpose, not something a linter/typechecker/CI already catches, not a nitpick a senior engineer wouldn't raise. Findings that fail the gate are dropped, not hedged.
+**Every finding clears the false-positive gate before it's written**: not pre-existing (present
+before this diff — tag it `pre-existing` and keep it out of the merge verdict unless the diff makes
+it worse; the mission-block rule above outranks this), not an intentional change tied to the stated
+purpose, and not a nitpick a senior engineer wouldn't raise. Suppress redundant automated
+formatting/style comments, not unresolved material failures: a required regression or security
+check failing on the reviewed target remains in the verdict with its revision and evidence source.
+Apply the pre-existing rule to the defect, while naming any independently required failing merge
+check as an open gate. Do not claim you executed another party's check. Green CI proves only the
+paths it covers. Findings that fail the false-positive gate are dropped, not hedged.
 
 Supplied design evidence binds tests as well as implementation. When it names a structural
 relationship or postcondition, review the test for that relationship: same-file string presence is
