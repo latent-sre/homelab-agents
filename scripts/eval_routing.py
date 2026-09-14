@@ -41,6 +41,7 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
@@ -267,13 +268,18 @@ def fired_per_run(
     surfaces: list[dict[str, list[str]]] = []
     for index, run in enumerate(runs):
         label = f"run {index + 1}"
-        # Classified before the read, not after: an authentication failure can prevent the trace
-        # from ever being written, and the `continue` below would then skip the classifier
-        # entirely -- letting earlier successful runs carry the batch to exit 0 during an outage.
-        auth_check("", str(run.get("error") or ""))
         try:
             text = Path(str(run.get("tracePath"))).read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
+            # Classified HERE, on the one path that has no transcript to classify from: an
+            # authentication failure can prevent the trace from being written at all, and the
+            # `continue` below would otherwise skip the classifier entirely, letting earlier
+            # successful runs carry the batch to exit 0 during an outage. Running this check
+            # before the read instead made it fire on runs whose trace exists: the classifier
+            # keeps a completed non-error result as a measurement, and it cannot see that
+            # exception in an empty transcript, so one readable, completed run whose harness
+            # error string merely mentions authentication aborted the whole paid batch.
+            auth_check("", str(run.get("error") or ""))
             fired.append(None)
             # An empty surface keeps `surfaces` index-aligned with `fired`; the registration check
             # in `_scored` zips them, and a short list would silently shift every later run.
@@ -328,11 +334,15 @@ def _scored(
     # the retiring runner refused such a batch outright, and dropping that guard was a false-green
     # generator, not a simplification.
     _polarity, targets = routing.scoring_targets(case, members)
-    # Every AGENT member of the selected cluster, not just this case's graded targets. A narrowed
-    # negative that forbids only a skill would otherwise stay valid while an agent member was
-    # absent from a stale plugin -- a benchmark written against an incomplete competition, which
-    # is what the retiring runner's registration contract covered.
-    required = targets | (set(members) & set(agents))
+    # EVERY member of the selected cluster, not just this case's graded targets -- and read from
+    # the cluster definition, never from the plugin under test. Intersecting with that plugin's
+    # own agent roster dropped precisely the member a stale `--plugin-dir` had deleted, so the
+    # guard could not fire for the one case it exists for: a narrowed negative grading a
+    # still-loaded skill would pass against an incomplete competition. A member is required
+    # whether it is an agent or a skill; the distinction was only ever a way to classify, and
+    # classifying from the tested plugin is what made the check self-defeating. Verified against
+    # the 303-run anchor: requiring all members invalidates zero runs there.
+    required = targets | set(members)
     for index, surface in enumerate(surfaces):
         if fired[index] is None:
             continue
@@ -418,6 +428,14 @@ def _batch_components_uniform(scored: list[dict]) -> bool:
     A per-case flag is true when every run of case A saw surface X and every run of case B saw a
     different surface Y, which is precisely the changing competition this is stored to rule out.
     """
+    # `inconclusive` IS "no valid run" (`CaseVerdict.inconclusive` is `valid_runs == 0`), and
+    # `components_observed` is built from exactly the same runs -- so this admits every case with
+    # an observed surface and excludes only cases that have none. Review read it as a case-level
+    # flag that could disagree with the surfaces; it cannot, and `EquivalentFilterTest` pins that
+    # so a later change to either side cannot quietly make it a uniformity claim over surfaces
+    # nothing observed. Excluding them is also the correct direction: a case with no valid run has
+    # an empty surface, and admitting that empty tuple would break uniformity against every case
+    # that saw a real competition.
     surfaces = {
         (tuple(e["components_observed"]["agents"]), tuple(e["components_observed"]["skills"]))
         for e in scored
@@ -468,7 +486,16 @@ def _remove_kept_temp_dirs(runs_by_case: dict[str, list[dict]]) -> None:
         # whichever root the loop happened to end on.
         return lambda *_args: failures.append(str(directory))
 
+    temp_root = fs.absolute_without_resolving(Path(tempfile.gettempdir()))
     for root in roots:
+        # The NAME is not ownership. A `tracePath` is harness output, and on the malformed-result
+        # path it is recovered from a document nothing validated -- so a path like
+        # `/home/user/claude-eval-project/out/trace.jsonl` would have had its project directory
+        # recursively deleted. Containment under the process temp root is what actually says the
+        # harness made it; the name check stays as the second half of the pair.
+        absolute = fs.absolute_without_resolving(root)
+        if temp_root not in absolute.parents:
+            continue
         if root.name.startswith("claude-eval-"):
             shutil.rmtree(root, onerror=_record(root))
     if failures:
@@ -707,10 +734,19 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
         eval_dir_name = f"evals/generated/{spec['cluster']}"
         write_cases(frozen / eval_dir_name, files, spec)
         result_path = frozen / "native-result.json"
-        completed = subprocess.run(
-            native_command(frozen, eval_dir_name, result_path, args),
-            env=env, encoding="utf-8", errors="replace",
-        )
+        try:
+            completed = subprocess.run(
+                native_command(frozen, eval_dir_name, result_path, args),
+                env=env, encoding="utf-8", errors="replace",
+            )
+        except OSError as exc:
+            # The PATH check at startup is not a guarantee at launch: the CLI can be replaced,
+            # lose its execute bit, or vanish in between. The retiring runner caught a broken
+            # spawn; leaving it uncaught turned a measurement failure into a traceback, which
+            # reads as a bug in the runner rather than as "nothing was measured".
+            print(f"\ncould not launch the native harness ({exc}); benchmark.json was not "
+                  "written", file=sys.stderr)
+            return 3
         try:
             result = json.loads(result_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:

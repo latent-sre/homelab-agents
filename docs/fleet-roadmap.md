@@ -452,9 +452,15 @@ ignition.
 
 #### EVAL-003 — capture a comparable full routing anchor
 
-**Status:** `active` — the anchor was captured 2026-09-14
-(`evals/baselines/2026-09-14-native-migration/`, 10 clusters, 101 cases, 303 runs, $39.42). One
-acceptance clause remains open: the agent-member grading decision below.
+**Status:** `active` — a full capture exists but does **not** close this item. The 2026-09-14
+batch (`evals/baselines/2026-09-14-native-migration/`, 10 clusters, 101 cases, 303 runs, $39.42)
+is labelled **historical and non-reusable in its own README**: every review round on the migration
+PR moved the evaluator bytes, and `AGENTS.md`'s T3 reuse contract requires them unchanged, so no
+run made with the merged runner may use it as a before-side. Calling it the current anchor here
+would be this item's own acceptance clause violated — "no known-invalid artifact is called an
+anchor" — and would let the next description edit skip the fresh baseline it owes. **Two clauses
+remain open:** a capture taken on the shipped evaluator bytes, and the agent-member grading
+decision below.
 
 **Outcome:** Establish one current, condition-complete routing baseline across all routing
 clusters.
@@ -479,12 +485,18 @@ added after it ran,
 which is what makes them a single anchor rather than ten co-located measurements. Zero
 INCONCLUSIVE; 6 of 303 runs excluded.
 
-**Next action:** Make the agent-member grading decision, now with evidence rather than a default.
-The anchor splits cleanly: negatives **60/60**, positives 26/41 with every failure an
-under-fire and none a wrong destination. That is the shape the deferred default predicted, so
-decide whether routing positives for agent members stay graded, move to the behavioral suite, or
-are retired — and record the ruling here. Until then, read this anchor's positive side as a
-reachability signal, not as description evidence.
+**Next action:** Two, and the first gates the second's reuse rather than its evidence.
+(1) Decide whether to re-capture on the shipped evaluator bytes (~$40) or to leave the 2026-09-14
+batch historical and pay for a fresh before-side at the next description edit — an operator call,
+recorded here rather than taken.
+(2) Make the agent-member grading decision, now with evidence rather than a default. The capture
+splits cleanly: negatives **60/60**; positives 26/41, where **14 of the 15 failures involve no
+wrong destination** (11 routed nowhere, 3 fired only expected members below the 0.5 threshold) and
+the fifteenth dispatched a member its case does not expect in all three runs — ROUTE-001 below,
+which this record must not round off to under-firing. That is the shape the deferred default
+predicted, so decide whether routing positives for agent members stay graded, move to the
+behavioral suite, or are retired — and record the ruling here. Until then, read this capture's
+positive side as a reachability signal, not as description evidence.
 
 #### ROUTE-001 — settle `pos-diagnose-idle-lab-failure`: `root-cause` or `homelab-engineer`
 

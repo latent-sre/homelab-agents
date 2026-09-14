@@ -1604,3 +1604,169 @@ class CodexSeventhRoundTest(MainIntegrationTest):
         self.assertNotIn("no positive failure was a wrong destination", summary)
         self.assertIn("14 of the 15 failures involve no wrong destination", summary)
         self.assertIn("The fifteenth is not silence", summary)
+
+
+class CodexEighthRoundTest(MainIntegrationTest):
+    """The seven findings from the Codex review of `1f7e805`. Six real, one declined with a test.
+
+    One is a defect the previous round's own fix introduced: recovering trace paths from an
+    unvalidated document made a prefix-only ownership check into arbitrary directory deletion.
+    """
+
+    def _run_record(self, agents: list[str], skills: list[str], name: str) -> dict:
+        """One native run record whose session registered exactly this surface."""
+        path = self.tmp / f"{name}.jsonl"
+        path.write_text(trace(
+            {"type": "system", "subtype": "init", "agents": agents, "skills": skills},
+            call("Skill", "s1", command="sde-agents:prompt-craft"),
+            result_event(),
+        ), encoding="utf-8")
+        return {"error": None, "tracePath": str(path)}
+
+    def test_a_deleted_cluster_member_invalidates_the_run_whatever_its_kind(self) -> None:
+        """P2: the required set was intersected with the agent roster read from the plugin under
+        test, so a stale `--plugin-dir` that DELETED an agent member dropped exactly that member
+        from the requirement — the guard could not fire for the one case it exists for. A
+        narrowed negative grading a still-loaded skill then passed against an incomplete
+        competition. Requiring every cluster member invalidates zero runs in the 303-run anchor."""
+        run = self._run_record(
+            ["sde-agents:prompt-engineer"], ["sde-agents:prompt-craft"], "narrowed"
+        )
+        scored = eval_routing._scored(
+            {"id": "neg-narrow", "polarity": "negative", "expect_not_fires": ["prompt-craft"]},
+            ["prompt-craft", "prompt-engineer", "absent-member"],
+            [run], frozenset({"prompt-craft", "prompt-engineer"}), 0.5,
+            # The stale plugin's roster: `absent-member` was deleted, so intersecting with it is
+            # what used to drop the requirement. Substituting that intersection back fails here.
+            agents=frozenset({"prompt-engineer"}),
+        )
+        self.assertTrue(scored["inconclusive"], "an incomplete competition is not a measurement")
+        self.assertIn("absent-member", " ".join(scored["notes"]))
+
+    def test_the_uniformity_filter_and_the_observed_surfaces_cannot_disagree(self) -> None:
+        """DECLINED as a defect, pinned as an invariant. Review read the `inconclusive` filter in
+        `_batch_components_uniform` as a case-level flag that could exclude a case whose runs did
+        observe a surface — a partially completed case, say. It cannot: `inconclusive` is
+        `valid_runs == 0` and `components_observed` is built from those same runs, so the two are
+        one partition. This test fails if either side ever drifts apart from the other."""
+        launched = self._run_record(
+            ["sde-agents:prompt-engineer"], ["sde-agents:prompt-craft"], "launched"
+        )
+        never_launched = {"tracePath": None, "error": "run never launched (harness stopped early)"}
+        partial = eval_routing._scored(
+            {"id": "pos-partial", "polarity": "positive", "expect_fires": ["prompt-craft"]},
+            ["prompt-craft", "prompt-engineer"],
+            [launched, never_launched], frozenset({"prompt-craft", "prompt-engineer"}), 0.5,
+        )
+        self.assertFalse(
+            partial["inconclusive"],
+            "a case with one usable run is not inconclusive, so its surface is never filtered out",
+        )
+        self.assertEqual(1, partial["runs_excluded"])
+        self.assertEqual(["sde-agents:prompt-engineer"], partial["components_observed"]["agents"])
+        self.assertTrue(eval_routing._batch_components_uniform([partial]))
+        # And the other direction: a case with NO valid run has no surface, so admitting it would
+        # compare an empty tuple against a real competition -- which is why it is excluded.
+        nothing = eval_routing._scored(
+            {"id": "pos-none", "polarity": "positive", "expect_fires": ["prompt-craft"]},
+            ["prompt-craft", "prompt-engineer"],
+            [never_launched], frozenset({"prompt-craft", "prompt-engineer"}), 0.5,
+        )
+        self.assertTrue(nothing["inconclusive"])
+        self.assertEqual({"agents": [], "skills": []}, nothing["components_observed"])
+        self.assertTrue(eval_routing._batch_components_uniform([partial, nothing]))
+
+    def test_a_completed_run_is_not_an_auth_outage_because_its_error_says_so(self) -> None:
+        """P2: the pre-read check passed an EMPTY transcript, so the classifier's deliberate
+        exception — a completed, non-error result is a measurement — could never apply, and one
+        readable run whose harness error mentions credentials aborted the whole paid batch."""
+        trace_path = self.tmp / "completed.jsonl"
+        trace_path.write_text(self.trace.read_text(encoding="utf-8"), encoding="utf-8")
+        fired, notes, models, _surfaces = eval_routing.fired_per_run(
+            [{"tracePath": str(trace_path),
+              "error": "exit 1: failed to authenticate (stderr from a healthy run's teardown)"}],
+            frozenset({"prompt-craft"}),
+            auth_check=eval_clean_room.raise_if_auth_failed,
+        )
+        self.assertEqual([frozenset({"prompt-craft"})], fired)
+        self.assertEqual(["claude-sonnet-5"], models)
+        # Graded, and the harness error still recorded as the diagnostic it is -- not escalated
+        # into an outage that discards every other run in the batch.
+        self.assertEqual(1, len(notes))
+        self.assertIn("graded despite", notes[0])
+
+    def test_an_unreadable_trace_with_an_auth_error_still_aborts(self) -> None:
+        """The half that must survive the move: with no transcript there is nothing to except."""
+        with self.assertRaises(eval_clean_room.AuthUnavailable):
+            eval_routing.fired_per_run(
+                [{"tracePath": str(self.tmp / "missing.jsonl"),
+                  "error": "failed to authenticate: oauth session expired"}],
+                frozenset({"prompt-craft"}),
+                auth_check=eval_clean_room.raise_if_auth_failed,
+            )
+
+    def test_cleanup_never_leaves_the_temp_root_however_the_directory_is_named(self) -> None:
+        """P2 in label, destructive in effect, and introduced by round 7's own fix: trace paths
+        recovered from an unvalidated document met only a `claude-eval-` NAME check, so a
+        `/home/user/claude-eval-project/out/trace.jsonl` would have been recursively deleted."""
+        # `self.tmp` stands in for the operator's home: a project directory that merely shares the
+        # harness's naming, and is NOT under the temp root the harness writes to.
+        impostor = self.tmp / "claude-eval-project"
+        (impostor / "out").mkdir(parents=True)
+        (impostor / "out" / "trace.jsonl").write_text("{}", encoding="utf-8")
+        (impostor / "important.txt").write_text("not the harness's", encoding="utf-8")
+        temp_root = self.tmp / "harness-temp"
+        temp_root.mkdir()
+        genuine = temp_root / "claude-eval-xyz" / "run-1"
+        genuine.mkdir(parents=True)
+        (genuine / "trace.jsonl").write_text("{}", encoding="utf-8")
+
+        with (
+            mock.patch.object(eval_routing.tempfile, "gettempdir", return_value=str(temp_root)),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            eval_routing._remove_kept_temp_dirs({"c": [
+                {"tracePath": str(impostor / "out" / "trace.jsonl")},
+                {"tracePath": str(genuine / "trace.jsonl")},
+            ]})
+        self.assertTrue(impostor.exists(), "a directory outside the temp root is never ours")
+        self.assertTrue((impostor / "important.txt").exists())
+        self.assertFalse(genuine.parent.exists(), "the harness's own directory is still removed")
+
+    def test_a_harness_that_cannot_be_launched_is_a_measurement_failure(self) -> None:
+        """P2: the PATH check at startup is not a guarantee at launch — the CLI can be replaced or
+        lose its execute bit in between, and an uncaught OSError reads as a bug in the runner
+        rather than as 'nothing was measured'."""
+        real_run = subprocess.run
+
+        def run(argv, **kwargs):
+            if "--json" not in argv:
+                return real_run(argv, **kwargs)
+            raise OSError(13, "Permission denied", "claude")
+
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            mock.patch.object(eval_routing.subprocess, "run", side_effect=run),
+            mock.patch.object(eval_routing, "cli_version", return_value="2.1.270 (Claude Code)"),
+            contextlib.redirect_stderr(stderr),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = eval_routing.main(
+                [str(self.cluster), "--runs", "1", "--output-dir", str(self.out)]
+            )
+        self.assertEqual(3, code)
+        self.assertIn("could not launch the native harness", stderr.getvalue())
+        self.assertFalse((self.out / "benchmark.json").exists())
+
+    def test_the_roadmap_does_not_present_the_historical_capture_as_the_anchor(self) -> None:
+        """P1: the warning was added to the capture README and this PR's body but not to the
+        roadmap — the next-action record, where a maintainer decides whether a fresh baseline is
+        owed. Its own acceptance clause forbids calling a known-invalid artifact an anchor."""
+        text = (REPO / "docs" / "fleet-roadmap.md").read_text(encoding="utf-8")
+        entry = text[text.index("#### EVAL-003"):text.index("#### ROUTE-001")]
+        flat = " ".join(entry.replace("*", "").split())
+        self.assertIn("historical and non-reusable", flat)
+        self.assertIn("Two clauses remain open", flat)
+        self.assertNotIn("none a wrong destination", flat)
+        self.assertIn("14 of the 15 failures involve no wrong destination", flat)
