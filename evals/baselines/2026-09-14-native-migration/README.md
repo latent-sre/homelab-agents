@@ -1,10 +1,80 @@
 # 2026-09-14 — first routing baseline under `claude plugin eval`
 
-> **STATUS: RUN IN PROGRESS — THIS IS NOT YET A BASELINE.**
-> Only the cluster directories present below have been measured. A missing cluster was not
-> measured, has not failed, and must not be read as either. This banner is replaced by the
-> summary when all ten clusters finish; if you are reading it in a merged commit, the run was
-> interrupted and the directory is partial evidence, not a baseline.
+**Complete: all ten clusters, 101 cases, 303 runs, $39.42.** This is the reference point for
+routing-description comparisons taken from 2026-09-14 onward.
+
+| | |
+|---|---|
+| Overall | **86 / 101** |
+| Negatives | **60 / 60** — no over-trigger anywhere in 303 runs |
+| Positives | 26 / 41 — every failure is under-firing, none is a wrong destination |
+| INCONCLUSIVE | 0 |
+| Runs excluded | 6 of 303 (2%) |
+| Model observed | `claude-sonnet-5`, uniform across all ten clusters |
+| CLI | 2.1.270, uniform |
+| Component surface | identical in all ten clusters |
+
+| cluster | overall | positives | negatives | excluded | cost |
+|---|---|---|---|---|---|
+| agent-systems | 3/3 | — | 3/3 | 0 | $1.02 |
+| continuous-improvement | 6/6 | — | 6/6 | 0 | $2.37 |
+| craft-vs-fullstack | 9/17 | 1/9 | 8/8 | 3 | $5.61 |
+| homelab-ops | 31/33 | 16/18 | 15/15 | 0 | $14.62 |
+| investigation | 6/7 | 1/2 | 5/5 | 0 | $2.88 |
+| ladder | 8/9 | 3/4 | 5/5 | 1 | $4.09 |
+| prompt-tooling | 9/12 | 3/6 | 6/6 | 0 | $3.61 |
+| proportionality | 5/5 | — | 5/5 | 0 | $1.17 |
+| retro-boundary | 5/5 | 1/1 | 4/4 | 0 | $2.16 |
+| verification-seam | 4/4 | 1/1 | 3/3 | 2 | $1.89 |
+
+The uniformity row matters as much as the scores: one model, one CLI version and one component
+surface across every cluster means these ten artifacts are a single baseline rather than ten
+measurements that happen to sit in one directory. `models_observed` is read off the transcripts,
+so a batch that had silently mixed tiers would say so here instead of echoing the request.
+
+### The asymmetry is the result
+
+Negatives are perfect and positives are not, and that split is the documented behaviour of these
+evals rather than a surprise: `../../README.md` records that fleet members under-fire in one-shot
+headless mode, which makes a positive a weak absolute signal and a negative a strong one. Eleven of
+the fifteen failures routed **nowhere at all** — the session completed and declined to dispatch.
+None routed to a wrong cluster member. So this baseline says the descriptions are not
+over-claiming; it says much less about whether they are reachable enough.
+
+| cluster | case | rate | what fired |
+|---|---|---|---|
+| `craft-vs-fullstack` | `pos-backend-pagination` | 0.0 | — (routed nowhere) |
+| `craft-vs-fullstack` | `pos-backend-resiliency` | 0.0 | — (routed nowhere) |
+| `craft-vs-fullstack` | `pos-frontend-table` | 0.0 | — (routed nowhere) |
+| `craft-vs-fullstack` | `pos-frontend-form` | 0.0 | — (routed nowhere) |
+| `craft-vs-fullstack` | `pos-code-craft-idioms` | 0.0 | — (routed nowhere) |
+| `craft-vs-fullstack` | `pos-ci-actions-harden` | 0.333 | `ci-actions` |
+| `craft-vs-fullstack` | `pos-powershell-pester` | 0.0 | — (routed nowhere) |
+| `craft-vs-fullstack` | `pos-typescript-branded-ids` | 0.0 | — (routed nowhere) |
+| `homelab-ops` | `pos-host-onboard` | 0.333 | `homelab-engineer` |
+| `homelab-ops` | `pos-discovery-question` | 0.0 | — (routed nowhere) |
+| `investigation` | `pos-diagnose-idle-lab-failure` | 0.333 | `homelab-engineer`, `root-cause` |
+| `ladder` | `pos-embedded-principal-fork-consult-required` | 0.0 | — (routed nowhere) |
+| `prompt-tooling` | `pos-tighten-tool-desc` | 0.0 | — (routed nowhere) |
+| `prompt-tooling` | `pos-fires-too-often` | 0.0 | — (routed nowhere) |
+| `prompt-tooling` | `pos-rewrite-system-prompt` | 0.333 | `prompt-craft` |
+
+One of those is a different animal and is tracked separately (ROUTE-001 in
+`docs/fleet-roadmap.md`): `investigation/pos-diagnose-idle-lab-failure` did not fail by silence.
+It routed to `homelab-engineer` in all three runs, consistently and deliberately, while the case
+asserts `root-cause`. The archived 2026-08-18 pilot recorded the same destination 6/6 under the
+previous name. A case and the fleet disagree about where a prompt belongs; that is a decision to
+make, not a rate to improve.
+
+### Does this measure the same thing the old runner did?
+
+Against the stored pre-migration `craft-vs-fullstack` baseline (2026-08-18, CLI 2.1.235, sonnet):
+old 8/17, new 9/17, and case-for-case the pattern is identical — every positive failing now failed
+then at rate 0.0, every negative passed in both, and the single case that moved
+(`pos-backend-webhook`, 0.0 → 0.667) improved. Corroborating only: the CLI version differs and
+`max_turns` did not exist before. The controlled proof that the migration changed no verdict is
+the paired oracle in `docs/archive/2026-09/routing-migration-oracle-2026-09-14.md`, which grades
+one batch's identical traces with both instruments.
 
 ## Why this baseline exists
 

@@ -450,7 +450,9 @@ ignition.
 
 #### EVAL-003 — capture a comparable full routing anchor
 
-**Status:** `deferred`
+**Status:** `active` — the anchor was captured 2026-09-14
+(`evals/baselines/2026-09-14-native-migration/`, 10 clusters, 101 cases, 303 runs, $39.42). One
+acceptance clause remains open: the agent-member grading decision below.
 
 **Outcome:** Establish one current, condition-complete routing baseline across all routing
 clusters.
@@ -464,9 +466,44 @@ numbers as description evidence.
 **Acceptance:** Every artifact records requested/observed model, timeout, CLI version,
 threshold, and per-run evidence; no known-invalid artifact is called an anchor.
 
-**Next action:** Decide agent-member grading (evidence-backed default: negatives-only in
-routing, agent contracts covered by the behavioral suite), then capture the anchor under
-`--clean-room`.
+**Evidence disposition:** Acceptance is met on the recording clauses and better than specified:
+each artifact also carries `max_turns` and `components_observed` — the routing competition read
+off each session's own `init` event — because the flag that was supposed to control it
+(`--clean-room`) was measured the same day to change nothing under the native harness. Conditions
+are uniform across all ten clusters (one observed model, one CLI version, one component surface),
+which is what makes them a single anchor rather than ten co-located measurements. Zero
+INCONCLUSIVE; 6 of 303 runs excluded.
+
+**Next action:** Make the agent-member grading decision, now with evidence rather than a default.
+The anchor splits cleanly: negatives **60/60**, positives 26/41 with every failure an
+under-fire and none a wrong destination. That is the shape the deferred default predicted, so
+decide whether routing positives for agent members stay graded, move to the behavioral suite, or
+are retired — and record the ruling here. Until then, read this anchor's positive side as a
+reachability signal, not as description evidence.
+
+#### ROUTE-001 — settle `pos-diagnose-idle-lab-failure`: `root-cause` or `homelab-engineer`
+
+**Status:** `active` — a case and the fleet disagree about a destination, consistently.
+
+**Outcome:** One recorded ruling on where "monitoring found a stopped container, nobody affected,
+find out why it exited" belongs, and the case or the description changed to match it.
+
+**Source:** `evals/baselines/2026-09-14-native-migration/investigation/benchmark.json` — the case
+fired `homelab-engineer` in 3/3 runs and `root-cause` in 1/3, while asserting `root-cause`. Not
+a silence failure like the other fourteen: the sessions routed somewhere, deliberately and
+repeatably. The archived 2026-08-18 native pilot recorded the same destination 6/6 under that
+agent's previous name (`homelab-platform`), so the behaviour long predates the harness migration.
+
+**Prerequisites:** None.
+
+**Acceptance:** Either the case's `expect_fires` names the destination the fleet actually chooses
+and says why in `expected_output`, or `root-cause`'s description is changed to win this prompt and
+the overlapping cluster is re-run before and after per the description playbook. A rate that moves
+because the case was rewritten to match observed behaviour is not evidence of improved routing,
+and the ruling must say which of the two happened.
+
+**Next action:** Read the prompt against both descriptions and decide which is wrong — the
+assertion or the description. Do not treat this as a rate to improve until that is settled.
 
 #### RELEASE-001 — add repository release discipline
 
