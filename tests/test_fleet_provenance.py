@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import os
 import shutil
-import stat
 import tempfile
 import unittest
 from pathlib import Path
@@ -241,12 +240,6 @@ class ProvenanceTest(unittest.TestCase):
             self.assertIs(dirty["git_dirty"], True)
             self.assertNotEqual(clean["sha256"], dirty["sha256"])
 
-    def test_reparse_attribute_is_treated_as_unsafe_on_every_platform(self) -> None:
-        class FakeStat:
-            st_mode = stat.S_IFDIR
-            st_file_attributes = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
-
-        self.assertTrue(provenance._is_link_or_reparse(FakeStat()))
 
     def test_symlink_in_runtime_tree_is_rejected_where_supported(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

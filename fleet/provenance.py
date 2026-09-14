@@ -30,6 +30,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from fleet import fs
+
 # The repository this kernel ships in. Only used to shorten a path for display, so that a label in
 # a stored artifact does not carry the operator's home directory into a shared record.
 REPO = Path(__file__).resolve().parents[1]
@@ -123,25 +125,12 @@ class ProvenanceError(RuntimeError):
     """The eval input cannot be identified without following an unsafe filesystem entry."""
 
 
-def _is_link_or_reparse(file_stat) -> bool:
-    """True for POSIX symlinks and every Windows reparse-point kind, including junctions."""
-    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
-    return stat.S_ISLNK(file_stat.st_mode) or bool(
-        getattr(file_stat, "st_file_attributes", 0) & reparse_flag
-    )
-
-
-def _absolute_without_resolving(path: Path) -> Path:
-    """Return an absolute lexical path; `resolve()` is forbidden because it follows links."""
-    return Path(os.path.abspath(os.fspath(path.expanduser())))
-
-
 def _checked_stat(path: Path):
     try:
         file_stat = path.lstat()
     except OSError as exc:
         raise ProvenanceError(f"cannot inspect provenance path {path}: {exc}") from exc
-    if _is_link_or_reparse(file_stat):
+    if fs.is_link_or_reparse(file_stat):
         raise ProvenanceError(
             f"unsafe provenance path {path}: symlinks, junctions, and reparse points are refused"
         )
@@ -150,7 +139,7 @@ def _checked_stat(path: Path):
 
 def _check_existing_ancestors(path: Path) -> None:
     """Reject a link in any existing path component before opening the target."""
-    absolute = _absolute_without_resolving(path)
+    absolute = fs.absolute_without_resolving(path)
     current = Path(absolute.anchor)
     parts = absolute.parts[1:] if absolute.anchor else absolute.parts
     for part in parts:
@@ -160,7 +149,7 @@ def _check_existing_ancestors(path: Path) -> None:
 
 def _read_regular_file(path: Path, *, max_bytes: int | None = None) -> bytes:
     """Read bytes without links, special files, unbounded input, or mid-read changes."""
-    path = _absolute_without_resolving(path)
+    path = fs.absolute_without_resolving(path)
     _check_existing_ancestors(path)
     before = _checked_stat(path)
     if not stat.S_ISREG(before.st_mode):
@@ -186,9 +175,9 @@ def _read_regular_file(path: Path, *, max_bytes: int | None = None) -> bytes:
 
 
 def _portable_path_label(path: Path) -> str:
-    absolute = _absolute_without_resolving(path)
+    absolute = fs.absolute_without_resolving(path)
     try:
-        return absolute.relative_to(_absolute_without_resolving(REPO)).as_posix() or "."
+        return absolute.relative_to(fs.absolute_without_resolving(REPO)).as_posix() or "."
     except ValueError:
         return absolute.as_posix()
 
@@ -212,7 +201,7 @@ def evaluator_identity(paths: list[Path]) -> dict:
         raise ProvenanceError("evaluator provenance requires at least one source file")
     records: list[dict[str, str]] = []
     for path in paths:
-        absolute = _absolute_without_resolving(path)
+        absolute = fs.absolute_without_resolving(path)
         records.append(
             {
                 "path": _portable_path_label(absolute),
@@ -453,7 +442,7 @@ def _git_identity(root: Path) -> tuple[str | None, bool | None]:
 
 def _plugin_runtime_files(plugin_dir: Path) -> tuple[Path, dict[str, bytes], set[str]]:
     """Read one complete, link-safe snapshot of every runtime-relevant plugin file."""
-    root = _absolute_without_resolving(plugin_dir)
+    root = fs.absolute_without_resolving(plugin_dir)
     _check_existing_ancestors(root)
     root_stat = _checked_stat(root)
     if not stat.S_ISDIR(root_stat.st_mode):

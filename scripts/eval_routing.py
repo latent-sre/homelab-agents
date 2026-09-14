@@ -15,10 +15,14 @@ every multi-target positive this repository has, which no combination of `tool_u
 state. So `fleet.routing` reads the harness's own traces and applies the retiring runner's
 semantics, proved equal to it by differential on 12,400 transcripts and 8,004 grading combinations.
 
-**The clean room.** Also measured, and the opposite of what the phase-4 plan assumed: the eval
-child session inherits the operator's component surface. Its `init` event listed `code-review`,
-`debug` and `verify` alongside the fleet -- direct routing competitors. `--clean-room` therefore
-survives, using the same `CLAUDE_CONFIG_DIR` lever as before.
+**The routing competition, observed rather than requested.** A first reading of an eval child
+session's `init` event concluded that personal components reach the session; a controlled
+comparison the same day refuted it. The surface is byte-identical with and without
+`--clean-room` -- the harness sets its own config directory and overrides the variable that flag
+moves -- and the operator's own config-dir components appear in neither. What the child does see
+is sixteen of the CLI's BUNDLED skills (`code-review`, `debug`, `verify`, ...), which no config
+relocation removes. So every benchmark records `components_observed`, read off each session's own
+`init` event, and the flag is recorded as `clean_room_requested`, which is all it is.
 
 **Provenance and conditions.** `fleet.provenance` identifies the plugin bytes, the case selection
 and the evaluator; the conditions block records what the rates are comparable to. Nothing in the
@@ -37,6 +41,7 @@ import json
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 _REPO_ROOT = str(Path(__file__).resolve().parents[1])
@@ -164,7 +169,9 @@ def _run_records(result: dict) -> dict[str, list[dict]]:
 
 
 def fired_per_run(
-    runs: list[dict], roster: frozenset[str]
+    runs: list[dict],
+    roster: frozenset[str],
+    auth_check: Callable[[str, str], None] = lambda _text, _stderr: None,
 ) -> tuple[list[frozenset[str] | None], list[str], list[str], list[dict]]:
     """Each run's firing set, or None when the run produced no usable transcript.
 
@@ -197,6 +204,12 @@ def fired_per_run(
             surfaces.append({"agents": [], "skills": []})
             notes.append(f"{label}: trace unreadable ({exc}); harness said {run.get('error')!r}")
             continue
+        # An authentication failure part-way through a batch invalidates the WHOLE measurement,
+        # not just the runs it touched: excluding them silently lets the earlier valid runs pass
+        # every case and write a benchmark at exit 0. The retiring runner aborted for this, and
+        # `eval_clean_room` still owns the classifier -- it keys off the run's own stream, and
+        # deliberately keeps a completed non-error result as a measurement.
+        auth_check(text, str(run.get("error") or ""))
         model = stream.observed_model(text)
         if model:
             models.append(model)
@@ -215,9 +228,14 @@ def fired_per_run(
 
 
 def _scored(
-    case: dict, members: list[str], runs: list[dict], roster: frozenset[str], threshold: float
+    case: dict,
+    members: list[str],
+    runs: list[dict],
+    roster: frozenset[str],
+    threshold: float,
+    auth_check: Callable[[str, str], None] = lambda _text, _stderr: None,
 ) -> dict:
-    fired, notes, models, surfaces = fired_per_run(runs, roster)
+    fired, notes, models, surfaces = fired_per_run(runs, roster, auth_check)
 
     # A run whose session never REGISTERED the components this case is graded against cannot
     # evidence that they did not fire: they could not have. Without this, a stale or external
@@ -225,13 +243,18 @@ def _scored(
     # the retiring runner refused such a batch outright, and dropping that guard was a false-green
     # generator, not a simplification.
     _polarity, targets = routing.scoring_targets(case, members)
+    # Every AGENT member of the selected cluster, not just this case's graded targets. A narrowed
+    # negative that forbids only a skill would otherwise stay valid while an agent member was
+    # absent from a stale plugin -- a benchmark written against an incomplete competition, which
+    # is what the retiring runner's registration contract covered.
+    required = targets | (set(members) & FLEET_AGENTS)
     for index, surface in enumerate(surfaces):
         if fired[index] is None:
             continue
         registered = routing.bare_names(
             [*surface.get("agents", []), *surface.get("skills", [])]
         )
-        missing = targets - registered
+        missing = required - registered
         if missing:
             fired[index] = None
             notes.append(
@@ -295,6 +318,20 @@ def _scored(
     }
 
 
+def _batch_components_uniform(scored: list[dict]) -> bool:
+    """Whether every valid run in the WHOLE batch saw the same routing competition.
+
+    A per-case flag is true when every run of case A saw surface X and every run of case B saw a
+    different surface Y, which is precisely the changing competition this is stored to rule out.
+    """
+    surfaces = {
+        (tuple(e["components_observed"]["agents"]), tuple(e["components_observed"]["skills"]))
+        for e in scored
+        if not e["inconclusive"]
+    }
+    return len(surfaces) <= 1 and all(e["components_uniform"] for e in scored)
+
+
 def _remove_kept_temp_dirs(runs_by_case: dict[str, list[dict]]) -> None:
     """`--keep-temp` leaves one directory per run, and the harness warns it could not seal them.
 
@@ -308,9 +345,24 @@ def _remove_kept_temp_dirs(runs_by_case: dict[str, list[dict]]) -> None:
         for run in runs
         if run.get("tracePath")
     }
+    failures: list[str] = []
+
+    def _record(directory: Path):
+        # Bound per directory rather than closing over the loop variable, which would report
+        # whichever root the loop happened to end on.
+        return lambda *_args: failures.append(str(directory))
+
     for root in roots:
         if root.name.startswith("claude-eval-"):
-            shutil.rmtree(root, ignore_errors=True)
+            shutil.rmtree(root, onerror=_record(root))
+    if failures:
+        # Best effort still, but never silent: these hold a copy of the plugin under test and the
+        # sessions' traces, and the operator is the only one who can clear what is left.
+        print(
+            "! could not remove kept eval directories, which hold a plugin copy and session "
+            f"traces: {', '.join(sorted(set(failures)))}",
+            file=sys.stderr,
+        )
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -406,7 +458,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{exc}", file=sys.stderr)
         return 2
 
-    cases = [c for c in spec.get("cases", []) if fnmatch.fnmatch(str(c.get("id")), args.case)]
+    # Checked before the comprehension below calls `.get()` on each entry: a cluster with
+    # `"cases": null` or an entry like `42` otherwise raised TypeError/AttributeError as a
+    # traceback, instead of the documented configuration-error exit 2.
+    raw_cases = spec.get("cases")
+    if not isinstance(raw_cases, list) or not raw_cases or any(
+        not isinstance(case, dict) for case in raw_cases
+    ):
+        print("cluster error: 'cases' must be a non-empty list of objects", file=sys.stderr)
+        return 2
+    cases = [c for c in raw_cases if fnmatch.fnmatch(str(c.get("id")), args.case)]
     if args.limit:
         cases = cases[:args.limit]
     if not cases:
@@ -477,6 +538,17 @@ def main(argv: list[str] | None = None) -> int:
         # The name is already validated as a single path segment above, and `write_cases` refuses
         # an un-normalised directory of its own; a third check here would be one no test can make
         # fire, which is the kind of guard this repository treats as worse than none.
+        # The snapshot is taken AFTER `before` was computed, so the source could have changed in
+        # between: the sessions would run these bytes while the benchmark recorded the earlier
+        # hash, and a source that changed back before the final reread would hide it completely.
+        # The retiring runner compared these two and so does this.
+        if identity["sha256"] != before["plugin"]["sha256"]:
+            print(
+                "\nprovenance error: the plugin changed between recording its identity and "
+                "freezing the copy to execute; benchmark.json was not written",
+                file=sys.stderr,
+            )
+            return 2
         eval_dir_name = f"evals/generated/{spec['cluster']}"
         write_cases(frozen / eval_dir_name, files, spec)
         result_path = frozen / "native-result.json"
@@ -508,13 +580,29 @@ def main(argv: list[str] | None = None) -> int:
     # 0. Padding to the requested count makes the unreached runs invalid, so they are excluded and
     # reported rather than silently shrinking the denominator.
     scored = []
-    for case in cases:
-        records = list(runs_by_case.get(str(case["id"]), []))
-        missing = args.runs - len(records)
-        if missing > 0:
-            records += [{"tracePath": None, "error": "run never launched (harness stopped early)"}]
-            records += [dict(records[-1]) for _ in range(missing - 1)]
-        scored.append(_scored(case, members, records, FLEET, args.threshold))
+    try:
+        for case in cases:
+            records = list(runs_by_case.get(str(case["id"]), []))
+            missing = args.runs - len(records)
+            if missing > 0:
+                records += [
+                    {"tracePath": None, "error": "run never launched (harness stopped early)"}
+                ]
+                records += [dict(records[-1]) for _ in range(missing - 1)]
+            scored.append(
+                _scored(
+                    case, members, records, FLEET, args.threshold,
+                    eval_clean_room.raise_if_auth_failed,
+                )
+            )
+    except eval_clean_room.AuthUnavailable as exc:
+        # Aborting the batch, not excluding the affected runs: an authentication outage part-way
+        # through invalidates the measurement, and excluding its runs would let the earlier valid
+        # ones pass every case and write a benchmark at exit 0. Exit 3 says "no measurement
+        # happened, re-run", which is the actionable answer here.
+        _remove_kept_temp_dirs(runs_by_case)
+        print(f"\neval aborted: {exc}; benchmark.json was not written", file=sys.stderr)
+        return 3
     _remove_kept_temp_dirs(runs_by_case)
     inconclusive = [s for s in scored if s["inconclusive"]]
     passed = sum(1 for s in scored if s["passed"])
@@ -561,7 +649,10 @@ def main(argv: list[str] | None = None) -> int:
         # A union alone cannot distinguish "every run saw this surface" from "one run saw an extra
         # component", and it is the first reading that the artifact is meant to support. False here
         # means the batch was measured against changing competition and is not one baseline.
-        "components_uniform": all(entry["components_uniform"] for entry in scored),
+        # Across the WHOLE batch. A per-case flag is true when every run of case A saw surface X
+        # and every run of case B saw a different surface Y, which is exactly the changing
+        # competition this is stored to rule out.
+        "components_uniform": _batch_components_uniform(scored),
         "native_claude_version": result.get("claudeVersion"),
         "native_cost_usd": result.get("costUsd"),
     }

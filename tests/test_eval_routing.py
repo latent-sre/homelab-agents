@@ -19,6 +19,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from fleet import fs as fs_module
 from scripts import eval_routing
 from tests.support import REPO
 
@@ -915,3 +916,132 @@ class RestoredConditionGuardsTest(MainIntegrationTest):
             code, stderr = self._main(argv_extra=("--clean-room",))
         self.assertEqual(2, code)
         self.assertIn("clean room unavailable", stderr)
+
+
+class CodexSecondRoundTest(MainIntegrationTest):
+    """The eight findings from the Codex review of `142674b`. All eight were real too.
+
+    Three were guards the first round restored too narrowly, which is its own lesson: fixing a
+    finding is not the same as covering the invariant behind it.
+    """
+
+    def test_a_plugin_that_changed_before_the_freeze_is_refused(self) -> None:
+        """P1: the snapshot is taken after the identity is recorded, so the sessions could run
+        bytes the benchmark never names -- invisible if the source changed back afterwards."""
+        real_frozen = eval_routing.provenance.frozen_plugin
+
+        @contextlib.contextmanager
+        def drifted(plugin_dir):
+            with real_frozen(plugin_dir) as (frozen, identity):
+                yield frozen, {**identity, "sha256": "0" * 64}
+
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            mock.patch.object(
+                eval_routing.subprocess, "run", side_effect=self._fake_native()
+            ),
+            mock.patch.object(eval_routing.provenance, "frozen_plugin", drifted),
+            contextlib.redirect_stderr(stderr),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = eval_routing.main(
+                [str(self.cluster), "--runs", "1", "--output-dir", str(self.out)]
+            )
+        self.assertEqual(2, code)
+        self.assertIn("changed between recording its identity and freezing", stderr.getvalue())
+        self.assertFalse((self.out / "benchmark.json").exists())
+
+    def test_an_authentication_failure_aborts_the_batch(self) -> None:
+        """P1: excluding only the affected runs let the earlier valid ones pass every case and
+        write a benchmark at exit 0, which is a measurement outage reported as a result."""
+        self.trace.write_text(trace(
+            {"type": "system", "subtype": "init", "agents": [],
+             "skills": ["sde-agents:prompt-craft"]},
+            {"type": "result", "is_error": True,
+             "result": "Failed to authenticate: OAuth session expired"},
+        ), encoding="utf-8")
+        code, stderr = self._main()
+        self.assertEqual(3, code, "a measurement that did not happen is exit 3, not a verdict")
+        self.assertIn("eval aborted", stderr)
+        self.assertFalse((self.out / "benchmark.json").exists())
+
+    def test_a_malformed_cases_array_exits_two_rather_than_raising(self) -> None:
+        """P2: the filter called `.get()` on each entry before anything validated the array."""
+        for cases in (None, 42, [42], [], ["a"]):
+            with self.subTest(cases=cases):
+                spec = json.loads(self.cluster.read_text(encoding="utf-8"))
+                spec["cases"] = cases
+                self.cluster.write_text(json.dumps(spec), encoding="utf-8")
+                code, stderr = self._main()
+                self.assertEqual(2, code)
+                self.assertIn("non-empty list of objects", stderr)
+
+    def test_an_absent_agent_member_invalidates_a_run_even_when_not_graded(self) -> None:
+        """P2: the first fix checked only the graded targets, so a narrowed negative forbidding a
+        skill stayed valid while an agent member of the cluster was missing entirely."""
+        handle = tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False, encoding="utf-8")
+        handle.write(trace(
+            {"type": "system", "subtype": "init", "agents": [],
+             "skills": ["sde-agents:prompt-craft"]},
+            result_event(),
+        ))
+        handle.close()
+        self.addCleanup(Path(handle.name).unlink, missing_ok=True)
+        # `prompt-engineer` is a real fleet AGENT and a cluster member here, but unregistered.
+        entry = eval_routing._scored(
+            {"id": "n", "polarity": "negative", "expect_not_fires": ["prompt-craft"]},
+            ["prompt-craft", "prompt-engineer"],
+            [{"tracePath": handle.name, "error": None}],
+            eval_routing.FLEET, 0.5,
+        )
+        self.assertTrue(entry["inconclusive"])
+        self.assertIn("prompt-engineer", entry["notes"][0])
+
+    def test_uniformity_is_judged_across_the_batch_not_within_each_case(self) -> None:
+        """P2: every run of case A seeing X and every run of case B seeing Y left each case-level
+        flag true, which is exactly the changing competition the field rules out."""
+        def entry(skills: list[str]) -> dict:
+            return {"components_observed": {"agents": [], "skills": skills},
+                    "components_uniform": True, "inconclusive": False}
+        same = [entry(["a"]), entry(["a"])]
+        differing = [entry(["a"]), entry(["a", "b"])]
+        self.assertTrue(eval_routing._batch_components_uniform(same))
+        self.assertFalse(eval_routing._batch_components_uniform(differing))
+
+    def test_a_failed_cleanup_of_a_kept_directory_is_reported(self) -> None:
+        """P2: `ignore_errors=True` hid a leftover plugin copy and session traces."""
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(
+                eval_routing.shutil, "rmtree",
+                side_effect=lambda root, onerror=None: onerror(None, str(root), None),
+            ),
+            contextlib.redirect_stderr(stderr),
+        ):
+            eval_routing._remove_kept_temp_dirs(
+                {"a": [{"tracePath": "/tmp/claude-eval-abc/out/trace.jsonl"}]}
+            )
+        self.assertIn("could not remove kept eval directories", stderr.getvalue())
+        self.assertIn("claude-eval-abc", stderr.getvalue())
+
+    def test_the_module_docstring_does_not_carry_the_disproven_clean_room_premise(self) -> None:
+        """P2: the correction reached `evals/README.md`, `AGENTS.md` and the decision record, but
+        not the script's own docstring -- the drift I claimed to have fixed."""
+        doc = eval_routing.__doc__ or ""
+        # Asserted as what the docstring must SAY, not as a phrase it must avoid: prose that
+        # quotes a disproven claim in order to refute it is correct, and a bare absence check
+        # fails it. These three are the measured contract.
+        self.assertIn("refuted", doc)
+        self.assertIn("byte-identical with and without", doc)
+        self.assertIn("components_observed", doc)
+        self.assertIn("clean_room_requested", doc)
+        self.assertNotIn("`--clean-room` therefore\nsurvives", doc)
+
+    def test_provenance_uses_the_kernel_filesystem_primitives(self) -> None:
+        """P1: it reimplemented `is_link_or_reparse` and `absolute_without_resolving`, which is
+        two kernel answers for one filesystem safety fact -- an explicit AGENTS.md hard rule."""
+        import fleet.provenance as prov
+        self.assertFalse(hasattr(prov, "_is_link_or_reparse"))
+        self.assertFalse(hasattr(prov, "_absolute_without_resolving"))
+        self.assertIs(prov.fs.is_link_or_reparse, fs_module.is_link_or_reparse)
