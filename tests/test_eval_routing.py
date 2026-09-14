@@ -56,7 +56,7 @@ class FiredPerRunTest(unittest.TestCase):
     def test_a_completed_session_that_routed_nowhere_is_a_measurement(self) -> None:
         """Silence from a session that FINISHED is a real observation: a genuine miss on a
         positive, a genuine pass on a negative."""
-        fired, notes, _ = eval_routing.fired_per_run(
+        fired, notes, _, _ = eval_routing.fired_per_run(
             [self._run(trace(result_event()))], self.ROSTER
         )
         self.assertEqual([frozenset()], fired)
@@ -68,7 +68,7 @@ class FiredPerRunTest(unittest.TestCase):
         Treating every harness error as an invalid run made the first end-to-end measurement
         report INCONCLUSIVE on a case whose trace was perfectly readable.
         """
-        fired, notes, _ = eval_routing.fired_per_run(
+        fired, notes, _, _ = eval_routing.fired_per_run(
             [self._run(
                 trace(call("Skill", "s1", command="sde-agents:root-cause")),
                 error="exit 1: Reached maximum number of turns (6)",
@@ -80,7 +80,7 @@ class FiredPerRunTest(unittest.TestCase):
 
     def test_an_unfinished_session_that_routed_nowhere_is_not_a_measurement(self) -> None:
         """Its silence is not a decision, only an unfinished one."""
-        fired, notes, _ = eval_routing.fired_per_run(
+        fired, notes, _, _ = eval_routing.fired_per_run(
             [self._run(trace(call("Read", "r1", file_path="x")), error="timed out")], self.ROSTER
         )
         self.assertEqual([None], fired)
@@ -88,14 +88,14 @@ class FiredPerRunTest(unittest.TestCase):
 
     def test_an_error_result_cannot_green_a_negative(self) -> None:
         """A session that ended in an error decided nothing, whatever its exit status."""
-        fired, _notes, _ = eval_routing.fired_per_run(
+        fired, _notes, _, _ = eval_routing.fired_per_run(
             [self._run(trace(result_event(is_error=True)))], self.ROSTER
         )
         self.assertEqual([None], fired)
 
     def test_a_firing_before_an_error_result_is_still_evidence(self) -> None:
         """The component call was observed; only the silence afterwards is uninterpretable."""
-        fired, _notes, _ = eval_routing.fired_per_run(
+        fired, _notes, _, _ = eval_routing.fired_per_run(
             [self._run(trace(
                 call("Agent", "a1", subagent_type="sde-agents:code-reviewer"),
                 result_event(is_error=True),
@@ -106,7 +106,7 @@ class FiredPerRunTest(unittest.TestCase):
 
     def test_an_unreadable_trace_is_an_invalid_run_whatever_the_harness_said(self) -> None:
         """There is nothing left to grade, so it cannot be scored in either direction."""
-        fired, notes, _ = eval_routing.fired_per_run(
+        fired, notes, _, _ = eval_routing.fired_per_run(
             [{"tracePath": "/nonexistent/trace.jsonl", "error": None}], self.ROSTER
         )
         self.assertEqual([None], fired)
@@ -115,7 +115,7 @@ class FiredPerRunTest(unittest.TestCase):
     def test_the_model_is_read_off_the_transcript_not_the_request(self) -> None:
         """An artifact that records what was ASKED for cannot be validly diffed against another:
         the runs a conditions block exists to describe are the pinned ones, where the two agree."""
-        _fired, _notes, models = eval_routing.fired_per_run(
+        _fired, _notes, models, _surfaces = eval_routing.fired_per_run(
             [self._run(trace({"type": "assistant", "message": {"model": "claude-opus-5",
                                                                "content": []}}, result_event()))],
             self.ROSTER,
@@ -547,7 +547,13 @@ class MainIntegrationTest(unittest.TestCase):
         self.cluster = self.tmp / "demo.json"
         self._write_cluster(["prompt-craft"])
         self.trace = self.tmp / "trace.jsonl"
+        # The init event is part of the fixture because the conditions block reads the routing
+        # competition off it; without one the components_observed assertion below would pass on
+        # an empty dict and prove nothing.
         self.trace.write_text(trace(
+            {"type": "system", "subtype": "init",
+             "agents": ["sde-agents:prompt-engineer", "general-purpose"],
+             "skills": ["sde-agents:prompt-craft", "code-review"]},
             call("Skill", "s1", command="sde-agents:prompt-craft"),
             result_event(),
         ), encoding="utf-8")
@@ -614,7 +620,15 @@ class MainIntegrationTest(unittest.TestCase):
         # validly diffed, because on the pinned runs it exists to describe the two agree.
         self.assertEqual(["claude-sonnet-5"], conditions["models_observed"])
         self.assertEqual("claude plugin eval", conditions["harness"])
-        self.assertFalse(conditions["clean_room"])
+        self.assertFalse(conditions["clean_room_requested"])
+        # The competition, observed rather than asserted: a flag records what the caller wanted,
+        # and `--clean-room` was measured to deliver none of it under the native harness.
+        self.assertEqual(
+            {"agents": ["general-purpose", "sde-agents:prompt-engineer"],
+             "skills": ["code-review", "sde-agents:prompt-craft"]},
+            conditions["components_observed"],
+            "the competition must be read off the session's own init event",
+        )
 
     def test_a_cluster_edited_mid_batch_into_a_bad_target_exits_two(self) -> None:
         """The sessions are already paid for; the benchmark must not describe a different cluster

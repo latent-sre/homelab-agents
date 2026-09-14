@@ -146,7 +146,7 @@ def _run_records(result: dict) -> dict[str, list[dict]]:
 
 def fired_per_run(
     runs: list[dict], roster: frozenset[str]
-) -> tuple[list[frozenset[str] | None], list[str], list[str]]:
+) -> tuple[list[frozenset[str] | None], list[str], list[str], list[dict]]:
     """Each run's firing set, or None when the run produced no usable transcript.
 
     USABILITY, not the harness's `error` field, decides which is which -- and the difference is
@@ -166,6 +166,7 @@ def fired_per_run(
     fired: list[frozenset[str] | None] = []
     notes: list[str] = []
     models: list[str] = []
+    surfaces: list[dict[str, list[str]]] = []
     for index, run in enumerate(runs):
         label = f"run {index + 1}"
         try:
@@ -177,6 +178,7 @@ def fired_per_run(
         model = stream.observed_model(text)
         if model:
             models.append(model)
+        surfaces.append(stream.registered_components(text))
         found = frozenset(routing.fired_components(text, roster))
         if found or stream.session_completed(text):
             fired.append(found)
@@ -187,13 +189,13 @@ def fired_per_run(
             continue
         fired.append(None)
         notes.append(f"{label}: no usable transcript ({run.get('error') or 'no final result'})")
-    return fired, notes, models
+    return fired, notes, models, surfaces
 
 
 def _scored(
     case: dict, members: list[str], runs: list[dict], roster: frozenset[str], threshold: float
 ) -> dict:
-    fired, notes, models = fired_per_run(runs, roster)
+    fired, notes, models, surfaces = fired_per_run(runs, roster)
     verdict = routing.grade_case(case, members, fired)
     member_set = set(members)
     valid = [f for f in fired if f is not None]
@@ -237,6 +239,10 @@ def _scored(
         "fired_per_run": [sorted(f) if f is not None else None for f in fired],
         "notes": notes,
         "models_observed": sorted(set(models)),
+        "components_observed": {
+            key: sorted({name for s in surfaces for name in s.get(key, [])})
+            for key in ("agents", "skills")
+        },
     }
 
 
@@ -302,10 +308,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--clean-room", action="store_true",
-        help="relocate CLAUDE_CONFIG_DIR to a temp dir holding only credentials, so personal "
-             "components cannot enter the routing surface. The native harness does NOT do this on "
-             "its own -- its child session inherits the operator's components. Recorded in "
-             "conditions: artifacts differing on it are not comparable",
+        help="relocate CLAUDE_CONFIG_DIR to a temp dir holding only credentials. MEASURED "
+             "2026-09-14 "
+             "to change nothing under the native harness, which sets its own config dir: the child "
+             "session's component surface was identical with and without it. Kept for a non-native "
+             "caller and recorded, but read `components_observed` in the conditions -- that is the "
+             "surface the sessions actually saw",
     )
     return parser
 
@@ -375,6 +383,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"clean room unavailable: {exc}", file=sys.stderr)
             return 2
         clean_room = eval_clean_room.clean_env()
+        print("! --clean-room was measured on 2026-09-14 to change nothing under `claude plugin "
+              "eval`, which sets its own config dir. Read `components_observed` in the written "
+              "conditions for the surface these sessions actually saw.", file=sys.stderr)
 
     try:
         before = provenance.benchmark_provenance(
@@ -448,10 +459,18 @@ def main(argv: list[str] | None = None) -> int:
         "max_turns": args.max_turns,
         "concurrency": args.concurrency,
         "auth_provider": auth_mode,
-        # Whether the sessions saw only this plugin or the operator's whole component surface. The
-        # native harness does NOT isolate this by itself, so the flag is the whole difference.
-        "clean_room": bool(args.clean_room),
+        # What the flag ASKED for. It is not evidence of isolation: measured on 2026-09-14 it
+        # changes nothing under the native harness, which sets its own config dir. The surface the
+        # sessions actually saw is `components_observed` below, read off their own init events --
+        # a condition has to be observed, not asserted by the caller that wanted it.
+        "clean_room_requested": bool(args.clean_room),
         "harness": "claude plugin eval",
+        # The routing competition, observed. Two artifacts whose non-fleet components differ were
+        # measured against different competitions and must not be diffed as one baseline.
+        "components_observed": {
+            key: sorted({n for entry in scored for n in entry["components_observed"][key]})
+            for key in ("agents", "skills")
+        },
         "native_claude_version": result.get("claudeVersion"),
         "native_cost_usd": result.get("costUsd"),
     }

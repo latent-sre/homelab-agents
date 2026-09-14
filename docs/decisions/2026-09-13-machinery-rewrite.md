@@ -177,11 +177,19 @@ states it. `fleet/routing.py` therefore keeps the runner's reading and applies i
 own traces, which `--keep-temp` preserves. Evidence:
 `docs/archive/2026-09/native-grader-errored-spawn-2026-09-14.md`.
 
-**`scripts/eval_clean_room.py` does NOT retire.** The plan assumed the harness's own isolation
-made it redundant. Read off an eval child session's `init` event, that session inherits the
-operator's whole component surface — `code-review`, `debug` and `verify` among them, direct
-routing competitors for fleet members. `--clean-room` survives, using the same `CLAUDE_CONFIG_DIR`
-lever, and stays a recorded condition.
+**`scripts/eval_clean_room.py` does not retire, but `--clean-room` no longer claims isolation.**
+A first reading of the child session's `init` event concluded it inherits the operator's whole
+component surface, and that was wrong: a controlled comparison the same day showed the surface is
+byte-identical with and without the flag, and that the operator's own config-dir skills appear in
+neither. The harness sets its own config directory and overrides the variable the flag moves.
+What the child does see is sixteen of the CLI's **bundled** skills — `code-review`, `debug`,
+`verify` and others — which no config relocation removes.
+
+So the condition is now observed rather than asserted: every benchmark records
+`components_observed`, read off each session's own `init` event, and the flag is recorded as
+`clean_room_requested`. A flag stored as a condition it does not deliver is the same silent
+failure as an untested guard — it reads as isolation to every later comparison while providing
+none.
 
 **The evaluator self-binding is dropped.** The runner re-executed itself from checked bytes and
 hashed those, which it could do as one file that both ran sessions and graded them. Phase 4 splits

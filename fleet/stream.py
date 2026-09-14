@@ -199,3 +199,24 @@ def observed_model(text: str) -> str | None:
         if isinstance(candidate, str) and candidate:
             return candidate
     return None
+
+
+def registered_components(text: str) -> dict[str, list[str]]:
+    """The agents and skills the session's own `init` event says it could route to.
+
+    A measurement condition that must be OBSERVED rather than asserted. A flag claiming isolation
+    records what the runner intended; this records what the session actually saw, and the two came
+    apart: `--clean-room` relocates `CLAUDE_CONFIG_DIR`, but the native eval harness sets its own,
+    so the flag changed nothing while still being stored as a condition. Two artifacts taken
+    against different competition are not comparable no matter what either one's flags claimed.
+    """
+    found: dict[str, list[str]] = {"agents": [], "skills": []}
+    for event in iter_events(text):
+        if event.get("type") != "system" or event.get("subtype") != "init":
+            continue
+        for key in ("agents", "skills"):
+            value = event.get(key)
+            if isinstance(value, list):
+                found[key] = sorted(str(v) for v in value if isinstance(v, str))
+        break  # the first init describes the session; a later one would be a resume
+    return found

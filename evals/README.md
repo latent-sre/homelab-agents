@@ -182,15 +182,24 @@ behind a dispatch that never landed; and a positive passes when ANY expected des
 disjunction that spans the Agent and Skill tools in every multi-target positive here and that no
 combination of `tool_used` graders can state.
 
-**The harness is not a clean room.** Each run gets a fresh conversation and a fresh working
-directory, which is **not** configuration isolation: the eval child session inherits everything
-under the user's `CLAUDE_CONFIG_DIR`. Read off a real session's own `init` event on 2026-09-14,
-that included `code-review`, `debug`, `verify` and a dozen other components competing for the same
-routing decisions, and a junction deployment makes the fleet register twice, bare and namespaced.
-`--clean-room` relocates the configuration to a temporary
-directory holding only credentials (`scripts/eval_clean_room.py`) and is recorded in `conditions`
-— artifacts that differ on it measured different routing competitions and must not be diffed
-against each other.
+**The routing competition is recorded as observed, never as requested.** Read off real sessions'
+own `init` events on 2026-09-14: the harness sets its own config directory, so the operator's
+personal components do **not** reach the child — but sixteen of the CLI's own bundled skills do,
+`code-review`, `debug` and `verify` among them, all competing for the same routing decisions.
+
+`--clean-room` relocates `CLAUDE_CONFIG_DIR` (`scripts/eval_clean_room.py`) and was measured to
+change **nothing** here: the child's surface was byte-identical with and without it, because the
+harness overrides the variable. It is kept for a non-native caller and recorded as
+`clean_room_requested`, which is what it is — a request, not evidence. The condition that matters
+is `components_observed`, read off each session's own `init` event. Two artifacts whose non-fleet
+components differ measured different competitions and must not be diffed as one baseline, whatever
+either run's flags claimed.
+
+`CLAUDE_CODE_DISABLE_BUNDLED_SKILLS=1` does shrink that surface (sixteen non-fleet skills to one,
+measured the same day) and is deliberately **not** set: bundled skills are identical on every
+machine for a given CLI version, which `cli_version` already records, so they are part of the
+platform the fleet routes against rather than per-operator contamination. A baseline without them
+would measure a surface no real user has.
 
 **`--max-turns` is a measurement condition, not a convenience.** A routing decision missed because
 the session ran out of turns is not a routing failure, and the runner does not score it as one: a

@@ -103,8 +103,9 @@ Two checks are manual and on demand, deliberately not CI gates (both drive real 
   `claude plugin eval` runs the sessions; the fleet computes the verdict from their traces, because
   a native `tool_used` grader counts a dispatch that errored and cannot express a positive's
   agent-or-skill disjunction. Read `evals/README.md` first — it owns the negative-case and
-  narrowing semantics, the headless caveat, and why `--clean-room` is still needed (the harness
-  inherits the operator's components).
+  narrowing semantics, the headless caveat, and why a baseline's routing competition is read from
+  `components_observed` rather than from `--clean-room`, which was measured to change nothing
+  under the native harness.
 
 ## Change playbooks
 

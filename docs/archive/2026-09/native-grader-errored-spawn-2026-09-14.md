@@ -170,3 +170,32 @@ The child session's `init` event lists `Task`, not `Agent`, among its tools. `to
 still name `Agent` and match — proven by the pilot's control grader passing 3/3 against a real
 `Agent` call. `fleet.routing.ROUTING_TOOLS` accepts both spellings, so the fleet-side verdict is
 unaffected either way.
+
+## Correction, same day: `--clean-room` changes nothing, and the earlier reading was wrong
+
+The section above concluded from one session's `init` event that the native harness "inherits the
+operator's component surface". A controlled comparison — the same case run with and without
+`--clean-room`, both on 2026-09-14, CLI 2.1.270 — refutes the part that mattered:
+
+| | non-fleet agents | non-fleet skills |
+|---|---|---|
+| without `--clean-room` | 6 | 16 |
+| with `--clean-room` | 6 | 16 |
+| with `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS=1` | 6 | 1 |
+
+Byte-identical across the flag. And the operator's own config-dir skills on this machine
+(`session-start-hook`, `synced`) appear in **none** of the three: the harness sets its own config
+directory, so it already isolates personal components, and it overrides the variable
+`--clean-room` moves.
+
+What the child actually sees is the CLI's **bundled** skills — `code-review`, `debug`, `verify`,
+`deep-research` and twelve more. Those are real routing competitors, but they are not
+operator-specific: they are identical on every machine for a given CLI version, which
+`cli_version` already records. The third row shows they can be removed, and that lever is
+deliberately not pulled — a baseline without them measures a surface no real user has.
+
+The consequence for the machinery is the rule this repository already applies to guards: a
+condition must be observed, not asserted by the caller that wanted it. `clean_room` as a stored
+boolean was about to be stamped `true` on ten baselines while delivering nothing. Benchmarks now
+record `components_observed`, read off each session's own `init` event, and the flag is recorded
+as `clean_room_requested` — a request, which is all it ever was.
