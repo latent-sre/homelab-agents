@@ -315,6 +315,46 @@ class FrozenPluginTest(unittest.TestCase):
             self.assertFalse(frozen.exists())
 
 
+class ExecutableModeTest(unittest.TestCase):
+    """Round 9: the private copy was written with the process umask, losing the execute bit.
+
+    A plugin that runs one of its own files -- a hook command under `${CLAUDE_PLUGIN_ROOT}` --
+    met `Permission denied` inside the snapshot while the byte-only identity still matched, so
+    the benchmark measured behaviour the supplied plugin does not have. Identity stays
+    byte-derived on purpose; only the execute bits travel.
+    """
+
+    def test_an_executable_plugin_file_stays_executable_in_the_frozen_copy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            plugin = Path(tmp).resolve() / "plugin"
+            (plugin / ".claude-plugin").mkdir(parents=True)
+            (plugin / ".claude-plugin" / "plugin.json").write_bytes(b'{"name":"probe"}\n')
+            (plugin / "agents").mkdir()
+            (plugin / "agents" / "probe.md").write_bytes(b"---\nname: probe\n---\nx\n")
+            # Referenced through ${CLAUDE_PLUGIN_ROOT}, which is what pulls a script into the
+            # runtime file set -- and is exactly the shape that executes it.
+            hook = plugin / "hooks" / "hooks.json"
+            hook.parent.mkdir()
+            hook.write_text("${CLAUDE_PLUGIN_ROOT}/scripts/check.sh", encoding="utf-8")
+            runner = plugin / "scripts" / "check.sh"
+            runner.parent.mkdir()
+            runner.write_bytes(b"#!/bin/sh\nexit 0\n")
+            runner.chmod(0o755)
+            self.assertIn(
+                "scripts/check.sh", provenance.plugin_identity(plugin)["scope"]["included"],
+                "fixture guard: the executable must be in the runtime set to mean anything",
+            )
+            with provenance.frozen_plugin(plugin) as (frozen, _identity):
+                copied = frozen / "scripts" / "check.sh"
+                self.assertTrue(copied.exists())
+                self.assertTrue(
+                    os.access(copied, os.X_OK),
+                    "an executable the plugin runs itself must still be executable when frozen",
+                )
+                # A non-executable neighbour must NOT gain the bit.
+                self.assertFalse(os.access(frozen / "agents" / "probe.md", os.X_OK))
+
+
 class CanonicalTempdirTest(unittest.TestCase):
     """macOS's /var -> /private/var symlink, staged on any platform.
 

@@ -496,8 +496,30 @@ def _remove_kept_temp_dirs(runs_by_case: dict[str, list[dict]]) -> None:
         absolute = fs.absolute_without_resolving(root)
         if temp_root not in absolute.parents:
             continue
-        if root.name.startswith("claude-eval-"):
-            shutil.rmtree(root, onerror=_record(root))
+        if not root.name.startswith("claude-eval-"):
+            continue
+        # Lexical containment is not physical containment: `/tmp/link/claude-eval-victim` passes
+        # the check above while `/tmp/link` is a symlink out of the temp tree, and `rmtree`
+        # follows intermediate links. Every component between the temp root and the target is
+        # checked with the kernel's own link test -- the same primitive the provenance walk uses
+        # -- before anything is deleted.
+        relative = absolute.relative_to(temp_root)
+        walked = temp_root
+        crossed = False
+        for part in relative.parts:
+            walked = walked / part
+            try:
+                if fs.is_link_or_reparse(walked.lstat()):
+                    crossed = True
+                    break
+            except OSError:
+                # Missing or unreadable: either way there is nothing here we can prove is the
+                # harness's, and a path we cannot inspect is never one we recursively delete.
+                crossed = True
+                break
+        if crossed:
+            continue
+        shutil.rmtree(root, onerror=_record(root))
     if failures:
         # Best effort still, but never silent: these hold a copy of the plugin under test and the
         # sessions' traces, and the operator is the only one who can clear what is left.
@@ -562,6 +584,31 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def checked_cluster_shape(spec: object) -> dict:
+    """The cluster document, or a ValueError naming what is wrong with its shape.
+
+    ONE parser for this fact, because the cluster is read twice: once before the sessions and
+    once after, to prove it did not change under them. The post-session read had no shape check
+    at all, so a cluster edited mid-batch into a scalar case ended the paid run in an
+    AttributeError traceback instead of the documented exit -- the same defect the pre-session
+    check exists for, on the path where a session has already been bought.
+    """
+    if (
+        not isinstance(spec, dict)
+        or not isinstance(spec.get("cluster"), str)
+        or not spec["cluster"].strip()
+    ):
+        raise ValueError("needs a top-level object with a non-empty 'cluster'")
+    cases = spec.get("cases")
+    # Checked before any caller calls `.get()` on an entry: `"cases": null` or an entry like `42`
+    # otherwise raised TypeError/AttributeError as a traceback.
+    if not isinstance(cases, list) or not cases or any(
+        not isinstance(case, dict) for case in cases
+    ):
+        raise ValueError("'cases' must be a non-empty list of objects")
+    return spec
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
 
@@ -584,12 +631,10 @@ def main(argv: list[str] | None = None) -> int:
     except (provenance.ProvenanceError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         print(f"cluster error: {exc}", file=sys.stderr)
         return 2
-    if (
-        not isinstance(spec, dict)
-        or not isinstance(spec.get("cluster"), str)
-        or not spec["cluster"].strip()
-    ):
-        print("cluster error: needs a top-level object with a non-empty 'cluster'", file=sys.stderr)
+    try:
+        checked_cluster_shape(spec)
+    except ValueError as exc:
+        print(f"cluster error: {exc}", file=sys.stderr)
         return 2
     try:
         members = provenance.validated_members(spec.get("members"))
@@ -601,15 +646,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{exc}", file=sys.stderr)
         return 2
 
-    # Checked before the comprehension below calls `.get()` on each entry: a cluster with
-    # `"cases": null` or an entry like `42` otherwise raised TypeError/AttributeError as a
-    # traceback, instead of the documented configuration-error exit 2.
-    raw_cases = spec.get("cases")
-    if not isinstance(raw_cases, list) or not raw_cases or any(
-        not isinstance(case, dict) for case in raw_cases
-    ):
-        print("cluster error: 'cases' must be a non-empty list of objects", file=sys.stderr)
-        return 2
+    raw_cases = spec["cases"]
     cases = [c for c in raw_cases if fnmatch.fnmatch(str(c.get("id")), args.case)]
     if args.limit:
         cases = cases[:args.limit]
@@ -899,7 +936,9 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
     }
     if args.output_dir:
         try:
-            latest_spec = json.loads(provenance._read_regular_file(cluster_path).decode("utf-8"))
+            latest_spec = checked_cluster_shape(
+                json.loads(provenance._read_regular_file(cluster_path).decode("utf-8"))
+            )
             latest_cases = [
                 c for c in latest_spec["cases"] if fnmatch.fnmatch(str(c.get("id")), args.case)
             ]
@@ -920,7 +959,13 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
                 [cluster_path], latest_cases, args.case, args.plugin_dir, args.limit or None,
                 evaluator_paths=list(EVALUATOR_PATHS), members=latest_members,
             )
-        except (provenance.ProvenanceError, KeyError, TypeError) as exc:
+        except (
+            provenance.ProvenanceError, KeyError, TypeError, ValueError,
+            UnicodeDecodeError, json.JSONDecodeError,
+        ) as exc:
+            # UnicodeDecodeError and JSONDecodeError were absent here while the pre-session read
+            # caught both: a cluster edited mid-batch into invalid UTF-8 or JSON ended the paid
+            # run in a traceback rather than the documented exit 2 with a diagnostic.
             print(f"provenance error after sessions: {exc}", file=sys.stderr)
             return 2
         if not provenance._content_provenance_matches(before, after):
@@ -929,8 +974,12 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
                   file=sys.stderr)
             return 2
         args.output_dir.mkdir(parents=True, exist_ok=True)
-        (args.output_dir / "benchmark.json").write_text(
-            json.dumps(benchmark, indent=2), encoding="utf-8"
+        # Atomic, via the kernel's own primitive: an in-place write truncates any existing
+        # benchmark first, so an interruption or a full disk destroyed a valid prior capture and
+        # left a plausible truncated one -- after these sessions were already paid for.
+        fs.atomic_write_bytes(
+            args.output_dir / "benchmark.json",
+            json.dumps(benchmark, indent=2).encode("utf-8"),
         )
         print(f"\nwrote {args.output_dir / 'benchmark.json'}")
 

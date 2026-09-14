@@ -37,14 +37,45 @@ ROUTING_TOOLS = ("Skill", "Agent", "Task")
 PLUGIN_NAMESPACE = "sde-agents"
 
 
+# The input key each routing tool carries its DESTINATION in, as observed in real traces
+# (`docs/archive/2026-09/native-grader-errored-spawn-2026-09-14.md` records a live
+# `subagent_type`; the skill form is `command`). Read the destination alone when the call has
+# one: scanning every value also matched a sibling field whose whole value happens to be a
+# component name -- `{"subagent_type": "general-purpose", "prompt": "root-cause"}` scored
+# `root-cause` as dispatched, which can pass a positive or fail a negative on a call that never
+# went there.
+DESTINATION_FIELDS = {
+    "Skill": ("command",),
+    "Agent": ("subagent_type",),
+    "Task": ("subagent_type",),
+}
+
+
+def destination_value(name: str, call_input: object) -> object | None:
+    """The destination field of a routing call, or None when the call carries none of them.
+
+    None is NOT "nothing fired": it means this payload does not match the shapes we have
+    observed, and the caller falls back to scanning the whole input. Narrowing without that
+    fallback would turn an unannounced schema change into every case silently scoring zero --
+    a false green across the whole suite, which is worse than the false dispatch it fixes.
+    """
+    if not isinstance(call_input, dict):
+        return None
+    for field in DESTINATION_FIELDS.get(name, ()):
+        if field in call_input:
+            return call_input[field]
+    return None
+
+
 def _named_components(
     value: object, roster: frozenset[str], namespace: str = PLUGIN_NAMESPACE
 ) -> set[str]:
     """Every roster component named by a tool call's input, namespace stripped.
 
-    Scans all values rather than one field because the name arrives under different keys --
+    Scans all values it is given, because the name arrives under different keys --
     `subagent_type` for an agent, `command` for a skill -- and a routing decision is the same
-    fact whichever field carried it.
+    fact whichever field carried it. `fired_components` narrows WHAT it is given to the
+    destination field first, which is where that generality became a false dispatch.
 
     A value matches only as a WHOLE string (optionally namespaced), never as a substring: the
     retiring runner compared `strip_ns(value)` against the roster, and a name mentioned inside a
@@ -89,7 +120,11 @@ def fired_components(
     """
     fired: set[str] = set()
     for exchange in stream.correlate_tool_results(transcript, tool_names=ROUTING_TOOLS):
-        named = _named_components(exchange.input, roster, namespace)
+        # The destination field alone when this call has one; the whole input only when it does
+        # not, so an unobserved payload shape degrades to the old reading rather than to silence.
+        destination = destination_value(exchange.name, exchange.input)
+        scanned = exchange.input if destination is None else destination
+        named = _named_components(scanned, roster, namespace)
         if not named:
             continue
         launched = exchange.name == "Skill" and stream.is_skill_launch_signal(exchange.result or "")

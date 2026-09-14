@@ -1015,9 +1015,18 @@ class CodexSecondRoundTest(MainIntegrationTest):
         self.assertFalse(eval_routing._batch_components_uniform(differing))
 
     def test_a_failed_cleanup_of_a_kept_directory_is_reported(self) -> None:
-        """P2: `ignore_errors=True` hid a leftover plugin copy and session traces."""
+        """P2: `ignore_errors=True` hid a leftover plugin copy and session traces.
+
+        The fixture is a real directory under a real temp root because the remover now proves
+        containment by walking the path: a made-up one is correctly left alone.
+        """
+        temp_root = self.tmp / "harness-temp"
+        kept = temp_root / "claude-eval-abc" / "out"
+        kept.mkdir(parents=True)
+        (kept / "trace.jsonl").write_text("{}", encoding="utf-8")
         stderr = io.StringIO()
         with (
+            mock.patch.object(eval_routing.tempfile, "gettempdir", return_value=str(temp_root)),
             mock.patch.object(
                 eval_routing.shutil, "rmtree",
                 side_effect=lambda root, onerror=None: onerror(None, str(root), None),
@@ -1025,7 +1034,7 @@ class CodexSecondRoundTest(MainIntegrationTest):
             contextlib.redirect_stderr(stderr),
         ):
             eval_routing._remove_kept_temp_dirs(
-                {"a": [{"tracePath": "/tmp/claude-eval-abc/out/trace.jsonl"}]}
+                {"a": [{"tracePath": str(kept / "trace.jsonl")}]}
             )
         self.assertIn("could not remove kept eval directories", stderr.getvalue())
         self.assertIn("claude-eval-abc", stderr.getvalue())
@@ -1770,3 +1779,119 @@ class CodexEighthRoundTest(MainIntegrationTest):
         self.assertIn("Two clauses remain open", flat)
         self.assertNotIn("none a wrong destination", flat)
         self.assertIn("14 of the 15 failures involve no wrong destination", flat)
+
+
+class CodexNinthRoundTest(MainIntegrationTest):
+    """The six findings from the Codex review of `fed0a99`. All six real.
+
+    The P1 is the same class as the previous round's, one layer down: round 8 proved the cleanup
+    target is under the temp root LEXICALLY, which a symlink makes meaningless. The
+    destination-field finding is covered by `tests.test_fleet_routing.DestinationFieldTest`,
+    since the defect is the kernel's.
+    """
+
+    def test_cleanup_refuses_a_path_that_reaches_its_target_through_a_symlink(self) -> None:
+        """P1: `/tmp/link/claude-eval-victim` satisfies lexical containment while `link` points
+        out of the temp tree, and `rmtree` follows intermediate symlinks."""
+        temp_root = self.tmp / "harness-temp"
+        temp_root.mkdir()
+        outside = self.tmp / "outside"
+        victim = outside / "claude-eval-victim" / "out"
+        victim.mkdir(parents=True)
+        (victim / "trace.jsonl").write_text("{}", encoding="utf-8")
+        (outside / "claude-eval-victim" / "keep.txt").write_text("theirs", encoding="utf-8")
+        (temp_root / "link").symlink_to(outside, target_is_directory=True)
+
+        with contextlib.redirect_stderr(io.StringIO()), mock.patch.object(
+            eval_routing.tempfile, "gettempdir", return_value=str(temp_root)
+        ):
+            through_link = temp_root / "link" / "claude-eval-victim" / "out" / "trace.jsonl"
+            eval_routing._remove_kept_temp_dirs({"c": [{"tracePath": str(through_link)}]})
+        self.assertTrue((outside / "claude-eval-victim").exists())
+        self.assertTrue((outside / "claude-eval-victim" / "keep.txt").exists())
+
+    def test_a_benchmark_write_that_fails_leaves_the_previous_capture_intact(self) -> None:
+        """P2: an in-place write truncates the prior artifact first, so an interruption or a full
+        disk destroys a valid capture and leaves a plausible truncated one -- after the sessions
+        it would have replaced were already paid for."""
+        self.out.mkdir(parents=True)
+        previous = self.out / "benchmark.json"
+        previous.write_text('{"cluster": "previous", "cases": []}', encoding="utf-8")
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            mock.patch.object(eval_routing.subprocess, "run", side_effect=self._fake_native()),
+            mock.patch.object(eval_routing, "cli_version", return_value="2.1.270 (Claude Code)"),
+            mock.patch.object(
+                eval_routing.fs, "atomic_write_bytes", side_effect=OSError(28, "No space left")
+            ),
+            contextlib.redirect_stderr(io.StringIO()),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            with self.assertRaises(OSError):
+                eval_routing.main(
+                    [str(self.cluster), "--runs", "1", "--output-dir", str(self.out)]
+                )
+        self.assertEqual(
+            '{"cluster": "previous", "cases": []}', previous.read_text(encoding="utf-8"),
+            "a failed write must not have destroyed the artifact it was replacing",
+        )
+
+    def test_the_benchmark_is_written_through_the_kernel_atomic_primitive(self) -> None:
+        """One writer per fact: the kernel owns atomic writes, and this is the only place the
+        runner produces a paid artifact."""
+        seen: list[Path] = []
+        real = eval_routing.fs.atomic_write_bytes
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            mock.patch.object(eval_routing.subprocess, "run", side_effect=self._fake_native()),
+            mock.patch.object(eval_routing, "cli_version", return_value="2.1.270 (Claude Code)"),
+            mock.patch.object(
+                eval_routing.fs, "atomic_write_bytes",
+                side_effect=lambda p, c: (seen.append(Path(p)), real(p, c))[1],
+            ),
+            contextlib.redirect_stderr(io.StringIO()),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = eval_routing.main(
+                [str(self.cluster), "--runs", "1", "--output-dir", str(self.out)]
+            )
+        self.assertEqual(0, code)
+        self.assertEqual([self.out / "benchmark.json"], seen)
+
+    def test_a_cluster_made_unreadable_mid_batch_exits_two_rather_than_raising(self) -> None:
+        """P2: the post-session reread had no shape check and caught neither decode error, so a
+        cluster edited during a paid batch ended the run in a traceback instead of the documented
+        exit. The pre-session read has validated all three since round 3."""
+        corruptions = {
+            "invalid utf-8": b"\xff\xfe not text",
+            "invalid json": b"{not json",
+            "a scalar case": json.dumps({"cluster": "demo", "members": ["prompt-craft"],
+                                         "cases": [42]}).encode("utf-8"),
+            "no cases": json.dumps(
+                {"cluster": "demo", "members": ["prompt-craft"]}
+            ).encode("utf-8"),
+        }
+        for label, payload in corruptions.items():
+            with self.subTest(corruption=label):
+                shutil.rmtree(self.out, ignore_errors=True)
+                # Restored each time: the corruption is applied DURING the batch, so a leftover
+                # from the previous subTest would fail at the pre-session read instead and prove
+                # nothing about the path under test.
+                self._write_cluster(["prompt-craft"])
+                code, stderr = self._main(
+                    on_run=lambda payload=payload: self.cluster.write_bytes(payload)
+                )
+                self.assertEqual(2, code)
+                self.assertIn("after sessions", stderr)
+                self.assertFalse((self.out / "benchmark.json").exists())
+
+    def test_one_parser_validates_the_cluster_shape_before_and_after_the_sessions(self) -> None:
+        """The rule the fix is shaped by: a second shape check would re-derive the bugs the first
+        one already fixed, and let the two reads disagree about the same document."""
+        for bad in (None, [], 42, {"cluster": ""}, {"cluster": "c"},
+                    {"cluster": "c", "cases": []}, {"cluster": "c", "cases": [1]}):
+            with self.subTest(spec=bad):
+                with self.assertRaises(ValueError):
+                    eval_routing.checked_cluster_shape(bad)
+        good = {"cluster": "c", "cases": [{"id": "x"}]}
+        self.assertIs(good, eval_routing.checked_cluster_shape(good))

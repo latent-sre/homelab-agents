@@ -591,6 +591,20 @@ def frozen_plugin(plugin_dir: Path):
             target = frozen_root / Path(relative)
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(content)
+            # Carry the EXECUTABLE bit across. `write_bytes` creates with the process umask, so a
+            # plugin that runs one of its own files -- a hook command under
+            # `${CLAUDE_PLUGIN_ROOT}` -- met `Permission denied` inside the snapshot while the
+            # byte-only identity still matched, and the benchmark then measured behaviour the
+            # supplied plugin does not have. Only the execute bits are copied: identity stays
+            # byte-derived on purpose (a mode is not content), so this restores fidelity without
+            # widening what a hash claims.
+            try:
+                source_mode = (source_root / Path(relative)).stat().st_mode
+            except OSError:
+                continue
+            executable = source_mode & 0o111
+            if executable:
+                target.chmod((target.stat().st_mode | executable) & 0o7777)
         frozen_identity = plugin_identity(frozen_root)
         if source_identity["sha256"] != frozen_identity["sha256"]:
             raise ProvenanceError(

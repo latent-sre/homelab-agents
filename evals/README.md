@@ -389,8 +389,11 @@ those: it holds the only Codex CLI run this repository has ever recorded.
 
 The migration happened on 2026-09-14 (MACH-001 phase 4). `claude plugin eval` now runs every
 routing case: isolation, per-case runs, concurrency, cost ceilings, timeouts, the JSON result and
-the HTML report are all the platform's, and `scripts/eval_routing.py` dropped from about 1,450
-lines to 479.
+the HTML report are all the platform's. The size comparison that reads most naturally here — one
+1,450-line runner became a shorter one — is not true and is deliberately not stated: what the
+platform took over is the RUNNING, while the verdict and the provenance moved into `fleet/` rather
+than away, and the review rounds on the migration PR added guards and their tests on top. Read the
+list below for what was handed over and what was kept; a line count answers neither question.
 
 What the fleet kept is what the platform does not do — the verdict, the clean room, and
 measurement provenance. Each was a measured decision rather than a preference; the "Running"

@@ -298,3 +298,50 @@ class ComponentDetectionTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DestinationFieldTest(unittest.TestCase):
+    """Round 9: a component name in a NON-destination field was graded as a dispatch.
+
+    `_named_components` scans every value it is given, which is right for the value it is given
+    and wrong for a whole tool input: `{"subagent_type": "general-purpose", "prompt": "root-cause"}`
+    scored `root-cause` as fired on a call that went to `general-purpose`. That can pass a
+    positive or fail a negative on a dispatch that never happened, in the file that decides every
+    routing verdict.
+    """
+
+    ROSTER = frozenset({"root-cause", "lab-audit", "prompt-craft"})
+
+    def test_a_component_named_in_a_prompt_is_not_a_dispatch(self) -> None:
+        text = transcript(
+            {"type": "tool_use", "id": "a1", "name": "Agent",
+             "input": {"subagent_type": "general-purpose", "prompt": "root-cause"}},
+            result("a1", "done"),
+        )
+        self.assertEqual(set(), routing.fired_components(text, self.ROSTER))
+
+    def test_the_destination_field_is_still_read_for_both_tools(self) -> None:
+        agent = transcript(
+            {"type": "tool_use", "id": "a1", "name": "Agent",
+             "input": {"subagent_type": "sde-agents:root-cause", "prompt": "lab-audit"}},
+            result("a1", "done"),
+        )
+        self.assertEqual({"root-cause"}, routing.fired_components(agent, self.ROSTER))
+        skill = transcript(
+            {"type": "tool_use", "id": "s1", "name": "Skill",
+             "input": {"command": "sde-agents:lab-audit", "note": "root-cause"}},
+            result("s1", "done"),
+        )
+        self.assertEqual({"lab-audit"}, routing.fired_components(skill, self.ROSTER))
+
+    def test_an_unobserved_payload_shape_degrades_to_the_whole_input(self) -> None:
+        """Narrowing without this fallback would turn a CLI schema change into every case
+        scoring zero -- a silent false green across the suite, worse than the false dispatch."""
+        text = transcript(
+            {"type": "tool_use", "id": "a1", "name": "Agent",
+             "input": {"agent_name": "sde-agents:root-cause"}},
+            result("a1", "done"),
+        )
+        self.assertEqual({"root-cause"}, routing.fired_components(text, self.ROSTER))
+        self.assertIsNone(routing.destination_value("Agent", {"agent_name": "x"}))
+        self.assertEqual("x", routing.destination_value("Agent", {"subagent_type": "x"}))
