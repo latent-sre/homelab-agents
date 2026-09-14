@@ -232,6 +232,13 @@ def _run_records(result: object) -> dict[str, list[dict]]:
     cases = result.get("cases")
     if not isinstance(cases, list):
         raise MalformedNativeResult(f"'cases' is {type(cases).__name__}, not a list")
+    # `partial` is the ONLY thing that excuses a missing case, so it is validated here rather
+    # than read with `.get()` at the point of use: `"partial": "false"` is a truthy string, and
+    # a malformed schema would then have licensed synthesizing unlaunched runs for a case the
+    # harness never reported -- writing an INCONCLUSIVE benchmark instead of refusing the result.
+    partial = result.get("partial", False)
+    if not isinstance(partial, bool):
+        raise MalformedNativeResult(f"'partial' is {type(partial).__name__}, not a boolean")
     records: dict[str, list[dict]] = {}
     for case in cases:
         if not isinstance(case, dict):
@@ -503,27 +510,37 @@ def _recovered_trace_records(document: object) -> dict[str, list[dict]]:
     return {"<unreadable result>": found}
 
 
-def _preserve_native_outputs(eval_dir: Path, output_dir: Path) -> list[str]:
-    """Copy the harness's own result and report out of the frozen plugin before it is deleted.
+def _read_native_outputs(eval_dir: Path) -> dict[str, bytes]:
+    """The harness's own result and report, read before the frozen plugin is deleted.
 
     They are written beneath the eval directory, which lives inside the private snapshot, so
     every run produced the report `evals/README.md` describes and then destroyed it on the way
-    out. Returns the names copied, for the caller to print.
+    out. Held in memory rather than copied out here: a run that is later REJECTED must not leave
+    its report beside an earlier valid benchmark, presenting two runs as one result.
     """
-    copied: list[str] = []
+    outputs: dict[str, bytes] = {}
     for name in ("aggregate-result.json", "report.html"):
         source = eval_dir / name
         try:
-            if not source.is_file():
-                continue
-            output_dir.mkdir(parents=True, exist_ok=True)
-            fs.atomic_write_bytes(output_dir / name, source.read_bytes())
-            copied.append(name)
+            if source.is_file():
+                outputs[name] = source.read_bytes()
         except OSError as exc:
             # Never fails a measurement that already happened -- the fleet benchmark is the
             # artifact that matters, and this is the harness's convenience output.
-            print(f"! could not preserve the native {name}: {exc}", file=sys.stderr)
-    return copied
+            print(f"! could not read the native {name}: {exc}", file=sys.stderr)
+    return outputs
+
+
+def _publish_native_outputs(outputs: dict[str, bytes], output_dir: Path) -> list[str]:
+    """Write the harness's outputs beside an ACCEPTED benchmark. Returns the names written."""
+    written: list[str] = []
+    for name, content in outputs.items():
+        try:
+            fs.atomic_write_bytes(output_dir / name, content)
+            written.append(name)
+        except OSError as exc:
+            print(f"! could not write the native {name}: {exc}", file=sys.stderr)
+    return written
 
 
 def _remove_kept_temp_dirs(runs_by_case: dict[str, list[dict]]) -> None:
@@ -873,11 +890,11 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
             return 3
         # The harness writes its own aggregate result and HTML report beneath the eval directory
         # -- which lives inside the frozen plugin, a TemporaryDirectory removed when this context
-        # exits. `evals/README.md` tells maintainers those exist, so they are copied out here
-        # rather than promised and deleted. Best effort: a measurement that happened is not
-        # discarded because its report could not be copied.
-        if args.output_dir:
-            _preserve_native_outputs(frozen / eval_dir_name, args.output_dir)
+        # exits. `evals/README.md` tells maintainers those exist, so they are read out here while
+        # they still exist, and WRITTEN only where the benchmark is (below). Copying them at this
+        # point published a rejected attempt's report beside whatever valid benchmark the output
+        # directory already held -- two artifacts from different runs, presented as one result.
+        native_outputs = _read_native_outputs(frozen / eval_dir_name) if args.output_dir else {}
         try:
             runs_by_case = _run_records(result)
         except MalformedNativeResult as exc:
@@ -1098,6 +1115,9 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
             args.output_dir / "benchmark.json",
             json.dumps(benchmark, indent=2).encode("utf-8"),
         )
+        # Only now: the benchmark is accepted, so the harness's own outputs describe the same run
+        # the artifact beside them does.
+        _publish_native_outputs(native_outputs, args.output_dir)
         print(f"\nwrote {args.output_dir / 'benchmark.json'}")
 
     # Distinct exits, because the two non-zero outcomes ask for different responses: 1 is a routing

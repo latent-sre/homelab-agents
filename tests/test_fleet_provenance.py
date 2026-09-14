@@ -355,6 +355,51 @@ class ExecutableModeTest(unittest.TestCase):
                 self.assertFalse(os.access(frozen / "agents" / "probe.md", os.X_OK))
 
 
+class ExecuteMaskIdentityTest(unittest.TestCase):
+    """Round 14: the identity bound "any execute bit", not the bits themselves.
+
+    `frozen_plugin` carries the exact mask across, so 0450 and 0500 reproduce differently in the
+    snapshot -- the evaluator's own user can run one and not the other -- while a boolean gave
+    both plugins one identity and let them look reusable against each other.
+    """
+
+    def _plugin_with_mode(self, root: Path, mode: int) -> Path:
+        (root / ".claude-plugin").mkdir(parents=True)
+        (root / ".claude-plugin" / "plugin.json").write_bytes(b'{"name":"probe"}\n')
+        (root / "agents").mkdir()
+        (root / "agents" / "probe.md").write_bytes(b"---\nname: probe\n---\nx\n")
+        hook = root / "hooks" / "hooks.json"
+        hook.parent.mkdir()
+        hook.write_text("${CLAUDE_PLUGIN_ROOT}/scripts/check.sh", encoding="utf-8")
+        runner = root / "scripts" / "check.sh"
+        runner.parent.mkdir()
+        runner.write_bytes(b"#!/bin/sh\nexit 0\n")
+        runner.chmod(mode)
+        return runner
+
+    def test_two_execute_masks_do_not_share_one_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve() / "plugin"
+            runner = self._plugin_with_mode(root, 0o450)
+            owner_cannot_run = provenance.plugin_identity(root)["sha256"]
+            runner.chmod(0o500)
+            owner_can_run = provenance.plugin_identity(root)["sha256"]
+            self.assertNotEqual(
+                owner_cannot_run, owner_can_run,
+                "identical bytes the evaluator can and cannot execute are not one identity",
+            )
+
+    def test_the_group_and_other_bits_are_bound_too(self) -> None:
+        """The mask is three bits: `frozen_plugin` carries all of them, so all of them count."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve() / "plugin"
+            runner = self._plugin_with_mode(root, 0o700)
+            owner_only = provenance.plugin_identity(root)["sha256"]
+            runner.chmod(0o711)
+            everyone = provenance.plugin_identity(root)["sha256"]
+            self.assertNotEqual(owner_only, everyone)
+
+
 class CanonicalTempdirTest(unittest.TestCase):
     """macOS's /var -> /private/var symlink, staged on any platform.
 

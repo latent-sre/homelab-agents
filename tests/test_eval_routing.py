@@ -2440,3 +2440,122 @@ class CodexThirteenthRoundTest(MainIntegrationTest):
                     (self.out / "benchmark.json").read_text(encoding="utf-8")
                 )
                 self.assertEqual(1, len(benchmark["cases"]))
+
+
+class CodexFourteenthRoundTest(MainIntegrationTest):
+    """The three findings from the Codex review of `c1c6a2a` — the final review round.
+
+    All three are consequences of the two preceding rounds: an execute mask bound as a boolean
+    while the snapshot carries the bits exactly, native outputs published before the batch that
+    produced them was accepted, and a `partial` flag read for truthiness after it became the one
+    signal that excuses a missing case.
+    """
+
+    def _native_writing_reports(self, *, name: str = "pos-demo", partial=False):
+        real_run = subprocess.run
+
+        def run(argv, **kwargs):
+            if "--json" not in argv:
+                return real_run(argv, **kwargs)
+            eval_dir = Path(argv[3]) / argv[argv.index("--eval-dir") + 1]
+            eval_dir.mkdir(parents=True, exist_ok=True)
+            (eval_dir / "report.html").write_text("<html>rejected</html>", encoding="utf-8")
+            (eval_dir / "aggregate-result.json").write_text(
+                '{"from": "this run"}', encoding="utf-8"
+            )
+            Path(argv[argv.index("--json") + 1]).write_text(json.dumps({
+                "claudeVersion": "2.1.270", "costUsd": 0.5, "partial": partial,
+                "cases": [{"name": name, "arms": {"with": [
+                    {"error": None, "tracePath": str(self.trace)},
+                ]}}],
+            }), encoding="utf-8")
+            return subprocess.CompletedProcess(argv, 0)
+        return run
+
+    def test_a_rejected_batch_does_not_publish_its_native_report(self) -> None:
+        """P2: the reports were copied out as soon as the result was read, so a run later refused
+        by provenance, registration or authentication left ITS report beside whatever valid
+        benchmark the output directory already held — two runs presented as one result."""
+        self.out.mkdir(parents=True)
+        (self.out / "benchmark.json").write_text('{"cluster": "earlier"}', encoding="utf-8")
+        (self.out / "report.html").write_text("<html>earlier</html>", encoding="utf-8")
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            mock.patch.object(
+                eval_routing.subprocess, "run", side_effect=self._native_writing_reports()
+            ),
+            mock.patch.object(eval_routing, "cli_version", return_value="2.1.270 (Claude Code)"),
+            mock.patch.object(
+                eval_routing.provenance, "verify_frozen_plugin",
+                side_effect=eval_routing.provenance.ProvenanceError("changed"),
+            ),
+            contextlib.redirect_stderr(io.StringIO()),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = eval_routing.main(
+                [str(self.cluster), "--runs", "1", "--output-dir", str(self.out)]
+            )
+        self.assertEqual(2, code)
+        self.assertEqual(
+            "<html>earlier</html>", (self.out / "report.html").read_text(encoding="utf-8"),
+            "a refused run must not overwrite the report of the benchmark that is still there",
+        )
+        self.assertEqual(
+            '{"cluster": "earlier"}', (self.out / "benchmark.json").read_text(encoding="utf-8")
+        )
+
+    def test_an_accepted_batch_publishes_its_native_report(self) -> None:
+        """The other half: the report `evals/README.md` promises still arrives on a clean run."""
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            mock.patch.object(
+                eval_routing.subprocess, "run", side_effect=self._native_writing_reports()
+            ),
+            mock.patch.object(eval_routing, "cli_version", return_value="2.1.270 (Claude Code)"),
+            contextlib.redirect_stderr(io.StringIO()),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = eval_routing.main(
+                [str(self.cluster), "--runs", "1", "--output-dir", str(self.out)]
+            )
+        self.assertEqual(0, code)
+        self.assertEqual(
+            "<html>rejected</html>", (self.out / "report.html").read_text(encoding="utf-8")
+        )
+        self.assertTrue((self.out / "aggregate-result.json").is_file())
+
+    def test_a_non_boolean_partial_flag_is_a_malformed_result(self) -> None:
+        """P2: `partial` became the one signal that excuses a missing case, and it was read for
+        truthiness — so `"partial": "false"` would have licensed synthesizing unlaunched runs."""
+        for partial in ("false", "true", 1, {}, [], None):
+            with self.subTest(partial=partial):
+                with self.assertRaisesRegex(
+                    eval_routing.MalformedNativeResult, "'partial' is .*not a boolean"
+                ):
+                    eval_routing._run_records({"partial": partial, "cases": []})
+
+    def test_an_absent_partial_flag_is_still_a_complete_batch(self) -> None:
+        """Absent must keep meaning False, or a harness that reports nothing becomes malformed."""
+        self.assertEqual({}, eval_routing._run_records({"cases": []}))
+        self.assertEqual({}, eval_routing._run_records({"partial": False, "cases": []}))
+
+    def test_a_string_partial_flag_cannot_excuse_a_missing_case(self) -> None:
+        """The wiring, at the entry point: truthiness here would write an INCONCLUSIVE benchmark
+        for a case the harness never reported."""
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            mock.patch.object(
+                eval_routing.subprocess, "run",
+                side_effect=self._native_writing_reports(name="some-other-case", partial="false"),
+            ),
+            mock.patch.object(eval_routing, "cli_version", return_value="2.1.270 (Claude Code)"),
+            contextlib.redirect_stderr(stderr),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = eval_routing.main(
+                [str(self.cluster), "--runs", "1", "--output-dir", str(self.out)]
+            )
+        self.assertEqual(3, code)
+        self.assertIn("not a boolean", stderr.getvalue())
+        self.assertFalse((self.out / "benchmark.json").exists())

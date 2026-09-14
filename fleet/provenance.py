@@ -537,15 +537,19 @@ def _plugin_runtime_files(plugin_dir: Path) -> tuple[Path, dict[str, bytes], set
     return root, files, included
 
 
-def _is_executable(path: Path) -> bool:
-    """Whether this file carries any execute bit, refusing to guess when it cannot be read.
+def _execute_mask(path: Path) -> int:
+    """The file's three execute bits, refusing to guess when the mode cannot be read.
 
-    Bound into the plugin identity (schema v5). The file was just read to build the snapshot, so
-    a stat failure here is genuinely anomalous -- defaulting to "not executable" would silently
-    produce an identity for bytes whose behaviour was never established.
+    Bound into the plugin identity (schema v5) as the MASK rather than a boolean: `frozen_plugin`
+    carries these exact bits across, so two plugins at 0450 and 0500 -- identical bytes, and
+    different in whether the evaluator's own user can run the file -- reproduce differently in
+    the snapshot. Collapsing them to "any execute bit" gave both one identity and let them look
+    reusable against each other. The file was just read to build the snapshot, so a stat failure
+    here is genuinely anomalous; defaulting to "not executable" would silently produce an
+    identity for bytes whose behaviour was never established.
     """
     try:
-        return bool(path.stat().st_mode & 0o111)
+        return path.stat().st_mode & 0o111
     except OSError as exc:
         raise ProvenanceError(f"cannot read the mode of {path}: {exc}") from exc
 
@@ -571,7 +575,7 @@ def _plugin_identity_from_files(
         digest.update(name_bytes)
         digest.update(len(content).to_bytes(8, "big"))
         digest.update(content)
-        digest.update(b"\x01" if _is_executable(root / Path(relative)) else b"\x00")
+        digest.update(_execute_mask(root / Path(relative)).to_bytes(1, "big"))
 
     git_head, git_dirty = _git_identity(root)
     return {
