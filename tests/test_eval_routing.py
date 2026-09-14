@@ -1388,3 +1388,62 @@ class CopilotReviewTest(MainIntegrationTest):
             with self.subTest(condition=condition):
                 self.assertIn(condition, checklist)
         self.assertIn("clean_room_requested` is NOT one of them", checklist)
+
+
+class CodexSixthRoundTest(MainIntegrationTest):
+    """The four findings from the Codex review of `126ddf8`.
+
+    They arrived in the same minute as the Copilot review and were missed for a round — the
+    Copilot comments were worked and these were not. Two are covered elsewhere: the explicit
+    zero cost ceiling by `CopilotReviewTest.test_an_explicit_zero_cost_ceiling_reaches_the_harness`
+    (already fixed when this round landed), and the dropped macOS temp-root canonicalization by
+    `tests.test_fleet_provenance.CanonicalTempdirTest`, since the defect is the kernel's.
+    """
+
+    def test_a_plugin_unreadable_at_the_freeze_exits_two_rather_than_raising(self) -> None:
+        """P2: `frozen_plugin` reads and hashes when ENTERED, and that entry sat outside every
+        handler -- so a plugin that changed or became unreadable after `before` was computed
+        ended the CLI in a traceback instead of the documented configuration exit."""
+
+        @contextlib.contextmanager
+        def unreadable(plugin_dir):
+            raise eval_routing.provenance.ProvenanceError(
+                f"cannot inspect provenance path {plugin_dir}: vanished mid-batch"
+            )
+            yield  # pragma: no cover - unreachable, the raise is the whole point
+
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            mock.patch.object(eval_routing.subprocess, "run", side_effect=self._fake_native()),
+            mock.patch.object(eval_routing.provenance, "frozen_plugin", unreadable),
+            contextlib.redirect_stderr(stderr),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = eval_routing.main(
+                [str(self.cluster), "--runs", "1", "--output-dir", str(self.out)]
+            )
+        self.assertEqual(2, code)
+        self.assertIn("provenance error: cannot inspect provenance path", stderr.getvalue())
+        self.assertFalse((self.out / "benchmark.json").exists())
+
+    def test_the_owning_reuse_checklist_names_max_turns(self) -> None:
+        """P2: `max_turns` decides how many chances a session has to dispatch, so a capture under
+        a different cap is not a before-side. The T3 bullet in AGENTS.md had been updated; the
+        document that OWNS the contract, and the playbook maintainers actually follow, had not."""
+        text = (REPO / "evals" / "README.md").read_text(encoding="utf-8")
+        checklist = text[text.index("## Baseline retention"):][:2000]
+        for condition in ("`max_turns`", "`components_observed`", "**observed** model"):
+            with self.subTest(condition=condition):
+                self.assertIn(condition, checklist)
+        self.assertIn("`clean_room_requested` is deliberately NOT on the list", checklist)
+        self.assertNotIn("clean-room setting", text)
+
+    def test_the_agents_playbook_defers_to_that_owner_rather_than_restating_it(self) -> None:
+        """The same list stated twice drifts: this copy was still naming the flag measured to
+        change nothing, three edits after the T3 bullet stopped."""
+        text = (REPO / "AGENTS.md").read_text(encoding="utf-8")
+        playbook = text[text.index("**Editing a description**"):][:800]
+        self.assertIn("the list is the T3 one above", playbook)
+        self.assertIn("`evals/README.md` owns it", playbook)
+        self.assertNotIn("clean-room setting", text)

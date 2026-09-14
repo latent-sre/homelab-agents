@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -311,6 +313,58 @@ class FrozenPluginTest(unittest.TestCase):
             with provenance.frozen_plugin(plugin) as (frozen, _identity):
                 self.assertTrue(frozen.exists())
             self.assertFalse(frozen.exists())
+
+
+class CanonicalTempdirTest(unittest.TestCase):
+    """macOS's /var -> /private/var symlink, staged on any platform.
+
+    The retired runner canonicalized `tempfile.tempdir` at import because the ancestor walk
+    refuses a symlinked path component and every temp path on macOS has one. The move into this
+    module dropped it, nothing on the Linux PR job could notice, and the three-OS matrix runs
+    only after merge -- so the failure is staged here instead of waited for.
+    """
+
+    def setUp(self) -> None:
+        previous = tempfile.tempdir
+        self.addCleanup(setattr, tempfile, "tempdir", previous)
+        self.base = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, self.base, True)
+        real = self.base / "private_scratch"
+        real.mkdir()
+        self.link = self.base / "scratch"
+        self.link.symlink_to(real, target_is_directory=True)
+        self.plugin = self.base / "plugin"
+        self.plugin.mkdir()
+        (self.plugin / ".claude-plugin").mkdir()
+        (self.plugin / ".claude-plugin" / "plugin.json").write_bytes(b'{"name":"probe"}\n')
+        (self.plugin / "agents").mkdir()
+        (self.plugin / "agents" / "probe.md").write_bytes(b"---\nname: probe\n---\nfirst\n")
+
+    def test_a_symlinked_temp_root_makes_the_private_copy_unreadable(self) -> None:
+        """The macOS failure itself: the walk refuses the frozen copy's own parent."""
+        tempfile.tempdir = str(self.link)
+        with self.assertRaisesRegex(provenance.ProvenanceError, "unsafe provenance path"):
+            with provenance.frozen_plugin(self.plugin):
+                pass
+
+    def test_canonicalizing_the_temp_root_makes_it_usable_again(self) -> None:
+        tempfile.tempdir = str(self.link)
+        provenance.canonicalize_tempdir()
+        with provenance.frozen_plugin(self.plugin) as (frozen, identity):
+            self.assertTrue(frozen.exists())
+            self.assertEqual(identity["sha256"], provenance.plugin_identity(frozen)["sha256"])
+
+    def test_importing_the_module_canonicalizes_the_temp_root(self) -> None:
+        """Pins the import-time call, not just the function: removing it must fail something."""
+        env = {**os.environ, "TMPDIR": str(self.link)}
+        env.pop("PYTHONDONTWRITEBYTECODE", None)
+        program = "import tempfile, fleet.provenance; print(tempfile.gettempdir())"
+        result = subprocess.run(
+            [sys.executable, "-c", program],
+            cwd=str(Path(__file__).resolve().parents[1]), env=env,
+            capture_output=True, text=True, check=True,
+        )
+        self.assertEqual(str(self.link.resolve()), result.stdout.strip())
 
 
 class ValidatedMembersTest(unittest.TestCase):

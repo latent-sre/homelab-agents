@@ -269,11 +269,16 @@ Keeping this straight is the difference between an archive and a graveyard.
 
 1. **Reuse** — serving as the 'before' side of a paired run. This job is **fragile by design** and
    usually already over: a stored capture is reusable only if its cluster, cases, evaluator, and
-   plugin bytes are all unchanged since capture **and** its recorded conditions — requested
-   model, clean-room setting, threshold, timeout — equal the planned run; checked by hand (the
-   script that once automated this comparison, `eval_baseline.py`, was retired 2026-09-01) — so
-   any of a schema bump, a case edit, an evaluator change, a fleet edit, or a different model or
-   setting ends it permanently.
+   plugin bytes are all unchanged since capture **and** its recorded conditions equal the planned
+   run — requested model, **observed** model, threshold, timeout, `max_turns`, and
+   `components_observed`, the routing competition each session actually saw. `max_turns` joined
+   that list when the native harness made it a lever: it bounds how many chances a session has to
+   dispatch, so two captures under different caps are not comparable however alike the rest looks.
+   `clean_room_requested` is deliberately NOT on the list — it was measured on 2026-09-14 to
+   change nothing under `claude plugin eval`, so comparing it proves nothing. The check is by hand
+   (the script that once automated it, `eval_baseline.py`, was retired 2026-09-01) — so any of a
+   schema bump, a case edit, an evaluator change, a fleet edit, or a different condition ends it
+   permanently.
    **As of 2026-08-17 no stored capture holds this job** — all ten clusters resolve `STALE`, and
    the v3→v4 schema move plus the case retirement made that final rather than incidental. Every
    paired round from here starts with a fresh capture on both sides.
@@ -430,8 +435,9 @@ negatives), so a full sweep at the methodology's `--runs 3` is **303 sessions**.
 suite had 111 cases / 333 sessions; eight automatic retro positives retired when the maintainer
 skill became explicit-only. Before starting a paired round, account for both sides: the 'before'
 and 'after' sides each cost a full sweep unless a
-stored capture is checked by hand — same bytes, same recorded model, clean-room setting,
-threshold, and timeout — and found reusable.
+stored capture is checked by hand against the full condition list under "Baseline retention"
+above — same bytes, same recorded and observed model, threshold, timeout, `max_turns`, and
+`components_observed` — and found reusable.
 
 ### Measurement caveat: skills fire, agents must be delegated to
 

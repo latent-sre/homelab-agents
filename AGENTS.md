@@ -142,8 +142,8 @@ that needs the same projection, so read each one and raise its `expect` to the n
 **Editing a description** (agent or skill) — descriptions drive routing. Run the overlapping
 cluster in `evals/routing/` before and after, and diff the rates. The 'before' side may be
 satisfied by a stored benchmark whose cluster, cases, evaluator, and plugin bytes are unchanged
-since capture and whose recorded model, clean-room setting, threshold, and timeout equal the
-planned run, checked by hand; the 'after' side is always a fresh run. Cross-references to other
+since capture and whose recorded conditions equal the planned run — the list is the T3 one above,
+and `evals/README.md` owns it; the 'after' side is always a fresh run. Cross-references to other
 fleet members must use the plugin namespace (`sde-agents:code-reviewer`,
 `/sde-agents:backend-craft`); a bare backticked name is only for content already in context, such
 as a preloaded skill.

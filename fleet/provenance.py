@@ -125,6 +125,25 @@ class ProvenanceError(RuntimeError):
     """The eval input cannot be identified without following an unsafe filesystem entry."""
 
 
+def canonicalize_tempdir() -> None:
+    """Point the process's temp root at its real path, so the ancestor walk can accept it.
+
+    macOS mounts /var, /tmp, and /etc as symlinks to /private/* by OS design, so every
+    tempfile-derived path fails `_check_existing_ancestors` on that platform alone -- ten
+    provenance tests red on the macOS CI job from the day the walk shipped, green everywhere
+    else. Canonicalizing the temp ROOT once fixes every present and future tempfile call site
+    in one place; the walk stays fully strict below the base, so a link planted inside the
+    harness's own scratch tree still refuses. Process-global on purpose: any process that loads
+    this provenance layer needs canonical scratch paths or its own temp dirs are unreadable to
+    it. Dropped during the move out of the runner and restored after review caught it; the
+    three-OS matrix at T2 would have found it only after merge.
+    """
+    tempfile.tempdir = os.path.realpath(tempfile.gettempdir())
+
+
+canonicalize_tempdir()
+
+
 def _checked_stat(path: Path):
     try:
         file_stat = path.lstat()

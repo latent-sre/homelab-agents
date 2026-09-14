@@ -648,7 +648,19 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
         print(f"cluster error: {exc}", file=sys.stderr)
         return 2
 
-    with provenance.frozen_plugin(args.plugin_dir) as (frozen, identity):
+    with contextlib.ExitStack() as frozen_stack:
+        try:
+            # `frozen_plugin()` re-reads the plugin and hashes the private copy when it is
+            # ENTERED, so a plugin that became unreadable or changed since `before` raises
+            # here -- past the handler above, which has already returned. Entering it inside
+            # its own handler keeps an anticipated provenance failure at the documented
+            # exit 2 instead of a traceback.
+            frozen, identity = frozen_stack.enter_context(
+                provenance.frozen_plugin(args.plugin_dir)
+            )
+        except provenance.ProvenanceError as exc:
+            print(f"provenance error: {exc}", file=sys.stderr)
+            return 2
         # The name is already validated as a single path segment above, and `write_cases` refuses
         # an un-normalised directory of its own; a third check here would be one no test can make
         # fire, which is the kind of guard this repository treats as worse than none.
