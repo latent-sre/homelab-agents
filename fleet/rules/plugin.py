@@ -22,12 +22,37 @@ from fleet.snapshot import GATE_ROSTER, GUARD_ROSTER, Fleet
 # The hook reads its fast-path from "$IN" and its identity fallback from "$SQ", a
 # whitespace-stripped copy, so JSON spacing cannot decide whether the fallback fires. Either
 # variable opens a roster block, and the cross-check must recognise both.
-CASE_BLOCK_RE = re.compile(r'case "\$(?:IN|SQ)" in')
+CASE_BLOCK_RE = re.compile(r'case "\$(IN|SQ)" in')
+# The two blocks a roster must reach. Named, not counted: see `_select_roster_blocks`.
+ROSTER_VARIABLES = ("IN", "SQ")
 GROUP = "plugin"
 
 
-def _roster_blocks(command: str) -> list[str]:
-    return [segment.split("esac", 1)[0] for segment in CASE_BLOCK_RE.split(command)[1:]]
+def _roster_blocks(command: str) -> list[tuple[str, str]]:
+    """Every roster-bearing `case` block, paired with the variable that opened it."""
+    parts = CASE_BLOCK_RE.split(command)
+    return [
+        (parts[index], parts[index + 1].split("esac", 1)[0]) for index in range(1, len(parts), 2)
+    ]
+
+
+def _select_roster_blocks(blocks: list[tuple[str, str]]) -> dict[str, str]:
+    """The fast-path filter and the no-interpreter fallback, chosen by the variable each reads.
+
+    Never by position. The gate nests a second `case "$IN"` INSIDE its fallback to tell a
+    prompt-suppressed session from an interactive one, so the last block is that nested one --
+    whose branches name the gated agent only inside an English sentence in the denial reason.
+    Taking it as the fallback read as enforcement while checking prose: replacing the gate's real
+    `case "$SQ"` roster with a name that gates nobody left this rule, and the whole validator,
+    green (measured while building phase 5 of the machinery rewrite; the behavioural suite in
+    `tests/test_hook_wiring.py` was the only thing that caught it). The first block each variable
+    opens is the outer one, which is the one that decides.
+    """
+
+    found: dict[str, str] = {}
+    for variable, block in blocks:
+        found.setdefault(variable, block)
+    return found
 
 
 PLUGIN_RULE_IDS = (
@@ -218,23 +243,24 @@ def plugin_findings(
             # decides when no Python answers. A name added to GATED_AGENT_NAMES after an incident
             # would gate NOTHING while every check stays green without this (review-reported).
             gate_blocks = _roster_blocks(gate_command)
-            if len(gate_blocks) < 2:
+            gate_cases = _select_roster_blocks(gate_blocks)
+            if not set(ROSTER_VARIABLES) <= gate_cases.keys():
                 findings.append(
                     Finding(
                         "plugin.hooks.gate",
-                        f"{hooks_path}: expected the live-effect-gate hook to "
-                        f'contain two `case "$IN" in` blocks (the fast-path filter and the '
-                        f"no-interpreter fallback), found {len(gate_blocks)}. The roster "
-                        f"cross-check "
-                        f"cannot verify a hook it does not recognize, so this fails rather than "
-                        f"passing a hook it did not actually check.",
+                        f"{hooks_path}: expected the live-effect-gate hook to contain a "
+                        f'`case "$IN" in` fast-path filter and a `case "$SQ" in` no-interpreter '
+                        f"fallback; found blocks on "
+                        f"{[variable for variable, _ in gate_blocks] or 'no roster variable'}. "
+                        f"The roster cross-check cannot verify a hook it does not recognize, so "
+                        f"this fails rather than passing a hook it did not actually check.",
                         hooks_path,
                     )
                 )
             else:
                 for label, block in (
-                    ("fast-path filter", gate_blocks[0]),
-                    ("no-interpreter fallback", gate_blocks[-1]),
+                    ("fast-path filter", gate_cases["IN"]),
+                    ("no-interpreter fallback", gate_cases["SQ"]),
                 ):
                     for name in sorted(gated):
                         if name not in block:
@@ -294,24 +320,24 @@ def plugin_findings(
         # the guard on its own; a name present in only one block satisfies a substring check while
         # the other block silently lets the agent through (caught in review of this very rule).
         blocks = _roster_blocks(command)
-        if len(blocks) < 2:
+        cases = _select_roster_blocks(blocks)
+        if not set(ROSTER_VARIABLES) <= cases.keys():
             findings.append(
                 Finding(
                     "plugin.hooks.guard",
-                    f"{hooks_path}: expected the PreToolUse/Bash hook to contain two "
-                    f'`case "$IN" in` blocks (the fast-path filter and the no-interpreter '
-                    f"fallback), "
-                    f"found {len(blocks)}. The roster cross-check below cannot verify a hook it "
-                    f"does not "
-                    f"recognize, so this fails rather than passing a hook it did not actually "
-                    f"check.",
+                    f"{hooks_path}: expected the PreToolUse/Bash hook to contain a "
+                    f'`case "$IN" in` fast-path filter and a `case "$SQ" in` no-interpreter '
+                    f"fallback; found blocks on "
+                    f"{[variable for variable, _ in blocks] or 'no roster variable'}. "
+                    f"The roster cross-check below cannot verify a hook it does not recognize, "
+                    f"so this fails rather than passing a hook it did not actually check.",
                     hooks_path,
                 )
             )
         else:
             for label, block in (
-                ("fast-path filter", blocks[0]),
-                ("no-interpreter fallback", blocks[-1]),
+                ("fast-path filter", cases["IN"]),
+                ("no-interpreter fallback", cases["SQ"]),
             ):
                 for name in sorted(guarded):
                     if name not in block:

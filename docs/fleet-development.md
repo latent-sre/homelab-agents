@@ -274,6 +274,21 @@ Two properties fall out of that, both load-bearing and both tested:
   leaving every other caller untouched. A broken install degrades the reviewer; it cannot brick your
   session.
 
+**The hook file is generated, and the scripts are its source.** Each hook names its roster twice:
+a `case "$IN"` fast path that decides whether the interpreter runs at all, and a `case "$SQ"`
+identity fallback — matched against the whitespace-stripped payload — that fails closed when no
+interpreter answered. Those two copies were maintained by hand against `GUARDED_AGENT_NAMES` and
+`GATED_AGENT_NAMES`, and a name reaching only one of them left the agent uncovered while every
+file claimed otherwise. `fleet/hooks.py` now renders both copies from the scripts' own constants,
+and `scripts/generate_platform_adapters.py` emits `hooks/hooks.json` alongside the host adapters,
+byte-checked the same way. So: **add or remove a guarded or gated agent in the script**, then
+`python3 scripts/generate_platform_adapters.py --write`. Hand-editing the hook file is byte drift
+the validator rejects, and the diagnostic says what the stale file would actually do. The shell
+text itself is a template in `fleet/hooks.py` — editing it is a hook change and owes the probe,
+not only the tests. `tests/test_hook_wiring.py` remains the behavioural oracle: it extracts the
+rendered command and runs it under `sh`, because a renderer whose output parses is not a hook that
+decides correctly.
+
 The same file registers the optional `scripts/live-effect-gate.py` hook for `homelab-engineer`.
 Its default `host` policy adds no decision and does not need an interpreter; the host's actual
 permissions remain controlling. The operator may select `SDE_AGENTS_LIVE_EFFECT_POLICY=prompt`

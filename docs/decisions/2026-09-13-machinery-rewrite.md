@@ -6,8 +6,9 @@
   and the native eval pilot, both in `docs/archive/2026-09/`). Phases 1–5 now carry
   implementation authority in the order the phase table states, one PR each.
 - Owner of the live work item: `MACH-001` in `docs/fleet-roadmap.md`.
-- Amends nothing yet. Accepting phase 4 amends `evals/README.md` and the routing-eval sentence
-  in `AGENTS.md`; accepting phase 5 amends `docs/fleet-development.md`'s hook section.
+- Amendments discharged: phase 4 amended `evals/README.md` and the routing-eval sentence in
+  `AGENTS.md` (PR #191); phase 5 amended `docs/fleet-development.md`'s hook section and the
+  generated-output and hook playbooks in `AGENTS.md`.
 
 ## Context
 
@@ -530,3 +531,46 @@ Copilot separately observed that the property test never *pins* NEL, LINE SEPARA
 SEPARATOR: a few hundred generated strings may include none of them, so reverting
 `_escape_line_breakers` could pass wherever the example database is absent. A property is not a
 regression pin, and `LineBreakerEscapingTests` now covers all three deterministically.
+
+## Amendment, 2026-09-14 — phase 5 landed
+
+Phase 5 delivered its one row, and the amendment this record promised: `docs/fleet-development.md`'s
+hook section now says the hook file is generated and that a roster changes in the script.
+
+**The hook file is rendered, not written.** `fleet/hooks.py` holds each hook's shell text verbatim
+as a template with exactly two computed spans — the `case "$IN"` fast-path alternation and the
+`case "$SQ"` identity alternation — and renders them from `GUARDED_AGENT_NAMES` and
+`GATED_AGENT_NAMES`, read as AST data by `fleet.snapshot` (phase 1's reader; the generator's own
+roster lookup, which used to *import* the guard, moved onto it in the same change). Substitution is
+by explicit `@@PLACEHOLDER@@` rather than `str.format`, because both templates legitimately contain
+`${CLAUDE_PLUGIN_ROOT}` and JSON braces, and an escaping mistake here is a silently disarmed hook.
+Each hook renders with its own script's `PLUGIN_NAME`: the two must agree with the manifest, and
+rendering both from one value would hide a disagreement behind a file that looks consistent.
+
+**It is a generated file, not a generated root.** `--write` replaces a generated root wholesale,
+which is right for a directory whose every entry the generator produces. `hooks/` is not that
+directory — it is the plugin's own hook directory, and clearing it to regenerate one file would
+take anything a future hook adds with it. So the generator gained `GENERATED_FILES` beside
+`GENERATED_ROOTS`: byte-checked by `--check`, previewed by `--diff`, written by `--write`, and
+subject to the same link/reparse refusal the roots carry, with no directory handed to the writer.
+Its drift diagnostic is its own, because "Copilot would get host-dependent behavior" is not what a
+stale hook costs.
+
+**The check it replaces was reading prose as a roster.** The validator cross-checks each roster
+against the hook file in both of the file's blocks. It selected them by position — first and last
+— and the gate nests a `case "$IN"` inside its no-interpreter fallback to separate a suppressed
+session from an interactive one. That nested block is last, and it names `homelab-engineer` only
+inside an English denial reason. Measured while building this phase: replacing the gate's real
+`case "$SQ"` roster with a name that gates nobody left `validate_fleet.py` at exit 0 and
+`tests.test_fleet_rules` green. `tests/test_hook_wiring.py`, which executes the shell string, was
+the only instrument that caught it (11 failures). The blocks are now selected by the variable that
+opened them, and the mutation is pinned. The shipped hook was never wrong — the enforcement was
+checking something else, which is the exact class this repository treats as worse than no check.
+
+The cross-check stays alongside byte-drift validation rather than being retired by it. Byte drift
+proves the file equals what the renderer produces; the cross-check proves the file names each
+roster member in both deciding blocks. A wrong renderer satisfies the first and fails the second.
+
+Oracle, as the phase table states it: the committed `hooks/hooks.json` is byte-identical to the
+rendering (3,035 bytes, unchanged), and `tests/test_hook_wiring.py` still extracts the command and
+runs it under `sh`. Nothing in this phase changes a shipped byte of shell.

@@ -79,7 +79,10 @@ projections as a counted rewrite table, the verified Codex TOML emitter, `--diff
 on `claude/machinery-rewrite-fresh-ar08n6` and merged as PR #189. Phase 3 (probes and doctor on
 the kernel, `hypothesis` property tests, PROBE-006 closed) is implemented on the same branch,
 restarted from `main`. Phase 4 (routing evals handed to `claude plugin eval`, the verdict kept
-fleet-side, provenance moved onto the kernel) is implemented on the same branch; phase 5 remains.
+fleet-side, provenance moved onto the kernel) merged as PR #191. Phase 5 (`hooks/hooks.json`
+rendered from the guard and gate rosters by `fleet/hooks.py` and byte-checked by the adapter
+generator) is implemented on the same branch, restarted from `main`. All five phases are then
+implemented; MACH-001 still closes on the lint ratchet, which holds 12 file entries.
 
 **Outcome:** Every maintainer instrument under `scripts/` runs on the `fleet/` kernel with one
 implementation per primitive, policy held as data, structured findings, and the routing runner
@@ -165,18 +168,25 @@ Closes when phase 5 merges and the lint ratchet table in `pyproject.toml` is emp
 runs; the specifier restricts nothing, the validator's rule stands) and the CI pin moved to
 2.1.270 with the probe re-run — [pin refresh evidence](archive/2026-09/pin-refresh-evidence-2026-09-13.md).
 
-**Next action:** Merge the phase-3 PR (#190 — the probes and the doctor as verbs over the
-kernel's subprocess runner, stream decoder and findings type; PROBE-006 closed by the runner's
-timeout result; a read-only guard bypass closed by the new property tests and re-verified by a
-runtime probe on the pinned CLI —
-[evidence](archive/2026-09/guard-bypass-probe-2026-09-13.md)), then open phase 4.
-The phase-4 live precondition is met: the
-native pilot ran on 2026-09-13 (CLI 2.1.270, sonnet, two runs of three), the `tool_used: Agent`
-grader matched `sde-agents:homelab-engineer` in five of six runs and the observed
-`subagent_type` was the namespaced form every time —
-[native eval pilot](archive/2026-09/native-eval-pilot-2026-09-13.md). Remaining before phase 4:
-the converter and recorder the record names, and a ruling on how the migrated suite records the
-grader-counts-errored-spawns caveat the pilot surfaced.
+**Phase 5 found a live defect in the check it replaces.** The validator's `plugin.hooks.gate`
+cross-check took the *last* `case` block as the gate's no-interpreter fallback. The gate nests a
+`case "$IN"` inside that fallback to separate a prompt-suppressed session from an interactive one,
+and the nested block names `homelab-engineer` only inside an English denial reason — so the rule
+was reading prose as a roster. Measured: replacing the gate's real `case "$SQ"` roster with a name
+that gates nobody left `validate_fleet.py` at exit 0 and `tests.test_fleet_rules` green; only
+`tests/test_hook_wiring.py`, which executes the shell string, caught it (11 failures). The rule now
+selects each block by the variable that opened it, with the mutation pinned in
+`tests/test_fleet_hooks.py`. The shipped hook was never wrong; the check was.
+
+**Next action:** Open the phase-5 PR (`fleet/hooks.py` renders both roster copies from the hook
+scripts' own constants; `hooks/hooks.json` joins the generator's byte-checked outputs as a
+standalone `GENERATED_FILES` entry rather than a deletable root; the gate cross-check defect above
+is fixed). **The probe is not run for this phase, and the reason is on the record**: the shipped
+`hooks/hooks.json` is byte-identical to the file the last probe ran against (3,035 bytes), so a
+run would re-prove an existing fact, which proportionality forbids. What changed is where those
+bytes come from, and byte-identity is the stronger evidence for that than a live session would
+be. The next probe — owed at the next CLI pin bump — is the first to exercise a machine-produced
+hook file, and that is the run to read carefully. Then the ratchet.
 
 #### LABFLOW-001 — simplify the homelab operating path
 
