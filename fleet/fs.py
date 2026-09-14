@@ -7,6 +7,7 @@ right. The comments name the incident; keep them when editing.
 from __future__ import annotations
 
 import os
+import re
 import stat
 from collections.abc import Iterable
 from pathlib import Path
@@ -139,6 +140,17 @@ def copytree_ignore(root: Path):
     return _ignore
 
 
+# Windows refuses these in any path component, and this repository's checks run on three OSes.
+# Kept beside `safe_path_segment` rather than inside it so the vocabulary is readable and the
+# check stays a pure test against it.
+_WINDOWS_HOSTILE = re.compile(r'[<>:"|?*\x00-\x1f]')
+_WINDOWS_RESERVED = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{digit}" for digit in "123456789"}
+    | {f"LPT{digit}" for digit in "123456789"}
+)
+
+
 def safe_path_segment(value: str, *, what: str) -> str:
     """One path component, or a refusal naming what was wrong.
 
@@ -162,6 +174,27 @@ def safe_path_segment(value: str, *, what: str) -> str:
         )
     if Path(value).is_absolute() or (os.altsep and os.altsep in value):
         raise ValueError(f"{what} must be relative, not an absolute path: {value!r}")
+    # Portable, not POSIX-only: these names are refused on every platform even though most are
+    # legal on Linux. A generated eval tree is created on whichever OS the operator is running,
+    # and this repository validates on three of them -- so a cluster or case id like `a:b`, `x?`,
+    # `CON` or `name.` that Linux accepts becomes an uncaught OSError from `mkdir` on Windows,
+    # after the sessions are paid for, instead of the documented configuration exit. Refusing
+    # everywhere keeps one answer rather than a name that means different things per host.
+    if _WINDOWS_HOSTILE.search(value):
+        raise ValueError(
+            f'{what} contains a character no Windows path may hold (<>:"|?* or a control '
+            f"character), so the generated tree would not build on every supported OS: {value!r}"
+        )
+    if value[-1] in ". ":
+        raise ValueError(
+            f"{what} ends in a dot or space, which Windows silently strips, so two different "
+            f"names would collide on one directory: {value!r}"
+        )
+    if value.split(".")[0].upper() in _WINDOWS_RESERVED:
+        raise ValueError(
+            f"{what} is a reserved Windows device name, which cannot be created as a file or "
+            f"directory there: {value!r}"
+        )
     return value
 
 

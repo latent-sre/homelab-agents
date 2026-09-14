@@ -80,7 +80,11 @@ def plugin_roster(plugin_dir: Path) -> tuple[frozenset[str], frozenset[str], str
         manifest = json.loads(
             (plugin_dir / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
-        namespace = str(manifest.get("name") or "").strip() or DEFAULT_PLUGIN_NAMESPACE
+        # A manifest that parses but is not an object (`[]`, `"x"`, `null`) reached `.get` and
+        # raised AttributeError past every handler -- a traceback before any session launched,
+        # on the one path this helper documents as falling back rather than failing.
+        name = manifest.get("name") if isinstance(manifest, dict) else None
+        namespace = str(name or "").strip() or DEFAULT_PLUGIN_NAMESPACE
     except (OSError, json.JSONDecodeError):
         namespace = DEFAULT_PLUGIN_NAMESPACE
     return agents, skills, namespace
@@ -223,7 +227,10 @@ def _run_records(result: object) -> dict[str, list[dict]]:
         arms = case.get("arms")
         if not isinstance(arms, dict):
             raise MalformedNativeResult(f"case {case.get('name')!r} 'arms' is not an object")
-        runs = arms.get("with") or []
+        # Default only an ABSENT field. `or []` also swallowed `{}`, `""`, `false` and `null`,
+        # so a malformed schema read as zero launched runs, got padded like an ordinary early
+        # stop, and wrote an INCONCLUSIVE benchmark instead of failing as unreadable.
+        runs = arms.get("with", [])
         if not isinstance(runs, list) or any(not isinstance(run, dict) for run in runs):
             raise MalformedNativeResult(
                 f"case {case.get('name')!r} run records are not a list of objects"
@@ -417,6 +424,28 @@ def _batch_components_uniform(scored: list[dict]) -> bool:
         if not e["inconclusive"]
     }
     return len(surfaces) <= 1 and all(e["components_uniform"] for e in scored)
+
+
+def _recovered_trace_records(document: object) -> dict[str, list[dict]]:
+    """Trace paths salvaged from a result document too malformed to read as records.
+
+    Only for the unreadable-shape exit, where `_run_records` refused before producing anything to
+    clean up. Walks whatever structure survived for `tracePath` strings; what it cannot recognise
+    is simply not recovered. Safe to point at arbitrary strings because the remover deletes only
+    directories the harness itself named (`claude-eval-`), never a path this walk invents.
+    """
+    found: list[dict] = []
+    pending: list[object] = [document]
+    while pending:
+        node = pending.pop()
+        if isinstance(node, dict):
+            trace = node.get("tracePath")
+            if isinstance(trace, str) and trace:
+                found.append({"tracePath": trace})
+            pending.extend(node.values())
+        elif isinstance(node, list):
+            pending.extend(node)
+    return {"<unreadable result>": found}
 
 
 def _remove_kept_temp_dirs(runs_by_case: dict[str, list[dict]]) -> None:
@@ -691,6 +720,11 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
         try:
             runs_by_case = _run_records(result)
         except MalformedNativeResult as exc:
+            # The runs are already paid for and `--keep-temp` has already left their directories,
+            # each holding a plugin copy and a session transcript. Rejecting the shape is no
+            # reason to leave them: the structured records are unavailable here, so the trace
+            # paths are recovered from whatever the document does carry.
+            _remove_kept_temp_dirs(_recovered_trace_records(result))
             print(f"\nnative harness wrote an unreadable result ({exc}); exit "
                   f"{completed.returncode}. benchmark.json was not written", file=sys.stderr)
             return 3

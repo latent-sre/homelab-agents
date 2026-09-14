@@ -13,6 +13,7 @@ import contextlib
 import io
 import json
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -1447,3 +1448,159 @@ class CodexSixthRoundTest(MainIntegrationTest):
         self.assertIn("the list is the T3 one above", playbook)
         self.assertIn("`evals/README.md` owns it", playbook)
         self.assertNotIn("clean-room setting", text)
+
+
+class CodexSeventhRoundTest(MainIntegrationTest):
+    """The five findings from the Codex review of `4be5559`. All five were real.
+
+    Two are the same shape as findings this PR already fixed one step to the side: a leaked
+    `--keep-temp` directory on an exit path that had no cleanup, and a defaulting expression that
+    accepted a malformed value instead of refusing it.
+    """
+
+    def _kept_trace(self) -> Path:
+        """A trace where the harness actually puts one, so the real remover can act on it."""
+        kept = self.tmp / "claude-eval-demo" / "run-1"
+        kept.mkdir(parents=True)
+        trace_path = kept / "trace.jsonl"
+        trace_path.write_text(self.trace.read_text(encoding="utf-8"), encoding="utf-8")
+        return trace_path
+
+    def _native_writing(self, document: dict):
+        real_run = subprocess.run
+
+        def run(argv, **kwargs):
+            if "--json" not in argv:
+                return real_run(argv, **kwargs)
+            Path(argv[argv.index("--json") + 1]).write_text(
+                json.dumps(document), encoding="utf-8"
+            )
+            return subprocess.CompletedProcess(argv, 0)
+        return run
+
+    def _main_with(self, document: dict) -> tuple[int, str]:
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            mock.patch.object(
+                eval_routing.subprocess, "run", side_effect=self._native_writing(document)
+            ),
+            mock.patch.object(eval_routing, "cli_version", return_value="2.1.270 (Claude Code)"),
+            contextlib.redirect_stderr(stderr),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = eval_routing.main(
+                [str(self.cluster), "--runs", "1", "--output-dir", str(self.out)]
+            )
+        return code, stderr.getvalue()
+
+    def test_an_unreadable_result_still_removes_the_traces_it_already_paid_for(self) -> None:
+        """P2: every native invocation passes `--keep-temp`, so by the time the shape is rejected
+        the runs exist on disk with a plugin copy and their transcripts. This exit had no cleanup
+        because the structured records it normally reads were exactly what failed to parse."""
+        trace_path = self._kept_trace()
+        kept_root = trace_path.parent.parent
+        code, stderr = self._main_with({
+            "claudeVersion": "2.1.270", "costUsd": 0.5, "partial": False,
+            # Valid JSON, rejected shape -- and the trace path survives in it.
+            "cases": [{"name": "pos-demo", "arms": {"with": [
+                {"error": None, "tracePath": str(trace_path)}, "not-a-run-record",
+            ]}}],
+        })
+        self.assertEqual(3, code)
+        self.assertIn("unreadable result", stderr)
+        self.assertFalse((self.out / "benchmark.json").exists())
+        self.assertFalse(
+            kept_root.exists(),
+            "a rejected result must not leave a plugin copy and session transcripts on disk",
+        )
+
+    def test_a_falsey_run_array_is_a_malformed_result_not_an_empty_batch(self) -> None:
+        """P2: `or []` also swallowed `{}`, `""`, `false` and `null`, so a malformed schema read
+        as zero launched runs, was padded like an ordinary early stop, and wrote an INCONCLUSIVE
+        benchmark -- a confident artifact standing on a document nothing had validated."""
+        for malformed in ({}, "", False, None, 0):
+            with self.subTest(value=malformed):
+                shutil.rmtree(self.out, ignore_errors=True)
+                code, stderr = self._main_with({
+                    "claudeVersion": "2.1.270", "costUsd": 0.5, "partial": False,
+                    "cases": [{"name": "pos-demo", "arms": {"with": malformed}}],
+                })
+                self.assertEqual(3, code)
+                self.assertIn("run records are not a list of objects", stderr)
+                self.assertFalse((self.out / "benchmark.json").exists())
+
+    def test_an_absent_run_array_is_still_an_empty_batch(self) -> None:
+        """The other half of the same fix: only a MISSING field may default, or a harness that
+        legitimately launched nothing would be reported as a malformed document."""
+        self.assertEqual(
+            {"pos-demo": []},
+            eval_routing._run_records({"cases": [{"name": "pos-demo", "arms": {}}]}),
+        )
+
+    def test_a_manifest_that_parses_but_is_not_an_object_falls_back(self) -> None:
+        """P2: `json.loads("[]")` succeeds and `.get` then raises AttributeError past every
+        handler -- a traceback before any session launched, on the path this helper documents as
+        falling back rather than failing."""
+        for body in ("[]", '"sde-agents"', "null", "3"):
+            with self.subTest(body=body):
+                other = self.tmp / f"plugin-{abs(hash(body))}"
+                (other / ".claude-plugin").mkdir(parents=True)
+                (other / ".claude-plugin" / "plugin.json").write_text(body, encoding="utf-8")
+                self.assertEqual(
+                    eval_routing.DEFAULT_PLUGIN_NAMESPACE, eval_routing.plugin_roster(other)[2]
+                )
+
+    def test_main_survives_a_non_object_manifest_on_the_plugin_it_evaluates(self) -> None:
+        """The wiring, not just the helper: the AttributeError was raised from `_run_batch`."""
+        elsewhere = self.tmp / "list-manifest"
+        (elsewhere / ".claude-plugin").mkdir(parents=True)
+        (elsewhere / ".claude-plugin" / "plugin.json").write_text("[]", encoding="utf-8")
+        (elsewhere / "agents").mkdir()
+        spec = json.loads(self.cluster.read_text(encoding="utf-8"))
+        spec["cases"] = [spec["cases"][0], dict(spec["cases"][0])]
+        self.cluster.write_text(json.dumps(spec), encoding="utf-8")
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            contextlib.redirect_stderr(io.StringIO()),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = eval_routing.main([
+                str(self.cluster), "--runs", "1", "--plugin-dir", str(elsewhere),
+            ])
+        self.assertEqual(2, code, "a duplicate case id is a configuration error, not a traceback")
+
+    def test_a_windows_hostile_cluster_name_is_refused_before_any_session(self) -> None:
+        """P2: these pass a separator-only check and fail at `mkdir` on Windows instead, as an
+        uncaught OSError after the batch is paid for. The refusal is portable, so the firing test
+        is too -- `tests.test_fleet_fs.PortableSegmentTest` pins the vocabulary."""
+        for name in ("a:b", "CON", "demo."):
+            with self.subTest(name=name):
+                spec = json.loads(self.cluster.read_text(encoding="utf-8"))
+                spec["cluster"] = name
+                cluster = self.tmp / f"hostile-{abs(hash(name))}.json"
+                cluster.write_text(json.dumps(spec), encoding="utf-8")
+                stderr = io.StringIO()
+                with (
+                    mock.patch.object(eval_routing, "CLAUDE", "claude"),
+                    mock.patch.object(
+                        eval_routing.subprocess, "run",
+                        side_effect=AssertionError("a session must never launch"),
+                    ),
+                    contextlib.redirect_stderr(stderr),
+                    contextlib.redirect_stdout(io.StringIO()),
+                ):
+                    code = eval_routing.main([str(cluster), "--runs", "1"])
+                self.assertEqual(2, code)
+                self.assertIn("cluster", stderr.getvalue())
+
+    def test_the_baseline_summary_names_the_destination_disagreement(self) -> None:
+        """P2: the summary said no positive failure was a wrong destination while a section
+        further down called one exactly that. A maintainer reads the table, not the appendix."""
+        text = (REPO / "evals" / "baselines" / "2026-09-14-native-migration" / "README.md"
+                ).read_text(encoding="utf-8")
+        summary = text[:text.index("### Does this measure the same thing")]
+        self.assertNotIn("none is a wrong destination", summary)
+        self.assertNotIn("no positive failure was a wrong destination", summary)
+        self.assertIn("14 of the 15 failures involve no wrong destination", summary)
+        self.assertIn("The fifteenth is not silence", summary)

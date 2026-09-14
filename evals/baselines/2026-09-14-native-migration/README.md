@@ -15,7 +15,7 @@
 |---|---|
 | Overall | **86 / 101** |
 | Negatives | **60 / 60 cases**, over **177 usable** negative runs (180 attempted, 3 excluded) |
-| Positives | 26 / 41 — every failure is under-firing, none is a wrong destination |
+| Positives | 26 / 41 — **14 of the 15 failures involve no wrong destination** (11 routed nowhere, 3 fired only expected members below the 0.5 threshold); the fifteenth is a destination disagreement, below |
 | INCONCLUSIVE | 0 |
 | Runs excluded | 6 of 303 (2%) |
 | Model observed | `claude-sonnet-5`, uniform across all ten clusters |
@@ -49,14 +49,24 @@ same surface is unrecorded here.
 
 ### The asymmetry is the result
 
-Every negative case passed, and no positive failure was a wrong destination. Stated precisely:
-no over-trigger was observed in the 177 negative runs that produced a usable transcript; the other
-three produced no routing verdict and are evidence in neither direction. That split is the
-documented behaviour of these evals rather than a surprise: `../../README.md` records that fleet members under-fire in one-shot
-headless mode, which makes a positive a weak absolute signal and a negative a strong one. Eleven of
-the fifteen failures routed **nowhere at all** — the session completed and declined to dispatch.
-None routed to a wrong cluster member. So this baseline says the descriptions are not
-over-claiming; it says much less about whether they are reachable enough.
+Every negative case passed, and **fourteen of the fifteen positive failures involve no wrong
+destination**. Stated precisely: no over-trigger was observed in the 177 negative runs that
+produced a usable transcript; the other three produced no routing verdict and are evidence in
+neither direction. That split is the documented behaviour of these evals rather than a surprise:
+`../../README.md` records that fleet members under-fire in one-shot headless mode, which makes a
+positive a weak absolute signal and a negative a strong one. Eleven of the fifteen failures routed
+**nowhere at all** — the session completed and declined to dispatch; three more fired only members
+the case expects, but in 1 of 3 runs against a 0.5 threshold.
+
+**The fifteenth is not silence, and this summary must not round it off to one.**
+`investigation/pos-diagnose-idle-lab-failure` dispatched a fleet member its case does not expect
+(`homelab-engineer`) in all three runs. It is the one open routing-boundary decision in this
+capture, tracked as ROUTE-001 and described below; an earlier draft of this table said no failure
+was a wrong destination, which hid exactly the row a maintainer reading this summary most needs to
+see.
+
+So this baseline says the descriptions are not over-claiming; it says much less about whether they
+are reachable enough.
 
 | cluster | case | rate | what fired |
 |---|---|---|---|
