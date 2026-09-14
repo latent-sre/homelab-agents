@@ -118,3 +118,55 @@ embedded in prose (`"delegate to sde-agents:researcher now"`) to count as a disp
 compares `strip_ns(value)` against the roster — the **whole** string value — so it never did, and
 widening the reading would score every case whose prompt merely names a sibling as having fired it.
 The test was corrected to the runner's semantics, not the reading to the test's.
+
+## Two more findings the converter work forced, both measured
+
+### The native harness is NOT a clean room
+
+`scripts/eval_clean_room.py` exists because a routing rate is only meaningful if the session's
+competition is known: a personal skill or a junction-deployed copy of the fleet changes what the
+model chooses between. The phase-4 plan assumed the native harness's own temp-directory isolation
+made that mode redundant. It does not.
+
+Read off the eval child session's own `system/init` event (CLI 2.1.270, one-turn throwaway case,
+`--keep-temp`), the session's routing surface was:
+
+- **Agents:** the eleven `sde-agents:*` agents, plus `Explore`, `Plan`, `claude`,
+  `claude-code-guide`, `general-purpose`, `statusline-setup`.
+- **Skills:** the twenty `sde-agents:*` skills, plus `batch`, `claude-api`, `code-review`,
+  `dataviz`, `debug`, `deep-research`, `doctor`, `fewer-permission-prompts`, `loop`, `run`,
+  `run-skill-generator`, `schedule`, `simplify`, `update-config`, `verify`, `workflow-authoring`.
+
+Several of those are direct routing competitors for fleet members — `code-review` against
+`deep-review` and `code-reviewer`, `debug` against `root-cause`, `verify` against
+`verification-engineer`. The harness gives the run a fresh cwd and its own config directory, but
+it inherits the operator's component surface.
+
+So `--clean-room` survives the migration rather than retiring with the runner. The lever is the
+same one `eval_clean_room.py` already uses: `CLAUDE_CONFIG_DIR` in the environment of the process
+that launches the sessions. `clean_room` stays a recorded condition, and two artifacts that differ
+on it are still not comparable.
+
+### A grader regex must be a single-quoted YAML scalar
+
+The pilot grader that matched a live dispatch 3/3 wrote its pattern in single quotes. The first
+version of the converter emitted it through `fleet.frontmatter.yaml_scalar`, which produces the
+double-quoted JSON form — correct for prose, wrong for a regex: a double-quoted YAML scalar
+processes escapes, so the pattern only survives if the reader decodes `\\s` back to `\s`.
+
+This is a silent failure by construction. A `max: 0` tripwire whose pattern was mangled matches
+nothing, counts zero calls, and passes forever while enforcing nothing — and no count in the
+report moves. It was caught because the test compiled the emitted pattern with `re` instead of
+reading it, and `re` rejected it outright (`bad escape (end of pattern)`).
+
+`fleet.frontmatter.yaml_single_quoted` is now the emitter for patterns, with the round-trip
+asserted against PyYAML in the existing dialect tripwire. Noted while proving it: the fleet's own
+`parse_text` is a lenient reader that strips outer quotes without decoding escapes, so it cannot
+round-trip either form of pattern — which is why the test checks the emitted bytes directly.
+
+### Incidental: the grader names the tool `Agent`, the runtime names it `Task`
+
+The child session's `init` event lists `Task`, not `Agent`, among its tools. `tool_used` graders
+still name `Agent` and match — proven by the pilot's control grader passing 3/3 against a real
+`Agent` call. `fleet.routing.ROUTING_TOOLS` accepts both spellings, so the fleet-side verdict is
+unaffected either way.

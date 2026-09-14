@@ -120,6 +120,35 @@ class EmitterTests(unittest.TestCase):
                 self.assertEqual(yaml.safe_load(f"k: {fm.yaml_scalar(value)}")["k"], value)
         self.assertEqual(yaml.safe_load(f"k: {fm.yaml_flow_list(['a b', 'c'])}")["k"], ["a b", "c"])
 
+    def test_a_single_quoted_scalar_carries_a_backslash_literally(self) -> None:
+        """The form a regex must be emitted in: only `''` is an escape, so `\\s` stays `\\s`."""
+        self.assertEqual(fm.yaml_single_quoted(r'"a"\s*:\s*"b"'), r"""'"a"\s*:\s*"b"'""")
+        self.assertEqual(fm.yaml_single_quoted("it's"), "'it''s'")
+
+    def test_a_value_with_a_line_break_is_refused_rather_than_emitted_torn(self) -> None:
+        """A single-quoted scalar cannot carry one, and this dialect reads line by line, so the
+        tail would be parsed as a frontmatter key of its own."""
+        for value in ("a\nb", "a\rb", "a\u2028b"):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "cannot carry a line break"):
+                    fm.yaml_single_quoted(value)
+
+    @unittest.skipIf(yaml is None, "PyYAML (dev dependency group) is required for the tripwire")
+    def test_a_single_quoted_regex_round_trips_through_a_conforming_parser(self) -> None:
+        """The claim the generated graders rest on: what the reader gets back IS the pattern.
+
+        If this were false a `max: 0` tripwire would match nothing, count zero calls, and pass
+        forever while enforcing nothing -- with no test in the tree able to tell.
+        """
+        for pattern in (
+            r'"subagent_type"\s*:\s*"(?:sde-agents:)?homelab-engineer"',
+            r'"(?:command|skill|name)"\s*:\s*"(?:sde-agents:)?runbook"',
+        ):
+            with self.subTest(pattern=pattern):
+                self.assertEqual(
+                    yaml.safe_load(f"k: {fm.yaml_single_quoted(pattern)}")["k"], pattern
+                )
+
 
 class DialectDifferentialTripwire(unittest.TestCase):
     """Every canonical definition must read the same under the dialect and a conforming parser,

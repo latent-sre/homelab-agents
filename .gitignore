@@ -54,3 +54,4 @@ evals/baselines/**/failing-run-evidence.json
 # suite root; both shapes are ignored.
 evals/native-pilot/results/
 evals/native-pilot/*/results/
+evals/generated/
