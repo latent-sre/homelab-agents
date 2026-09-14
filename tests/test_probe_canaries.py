@@ -586,6 +586,42 @@ class ProbeTimeoutRecoveryTests(unittest.TestCase):
             f"on a truncated transcript.",
         )
 
+    def test_an_unanswered_agent_session_reports_why_not_just_that(self) -> None:
+        """A timeout and a launch failure must not read as "never attempted".
+
+        They send the operator to different places -- wait and re-run, versus repair the
+        environment -- and `reading()` stores the cause without putting it in the verdict, so the
+        unconditional SKIP on this branch dropped it.
+        """
+        for result, expected in (
+            (
+                probe_plugin._proc.CommandResult(
+                    ("claude",), None, "", "", timed_out=True, error="timed out"
+                ),
+                "did not answer within 600s",
+            ),
+            (
+                probe_plugin._proc.CommandResult(
+                    ("claude",), 127, "", "", failed_to_start=True, error="No such file"
+                ),
+                "could not be started",
+            ),
+        ):
+            with self.subTest(result=result):
+                probe = probe_plugin.Probe()
+                with contextlib.redirect_stdout(io.StringIO()):
+                    probe.reading(result)
+                    cause = probe_plugin.unanswered_cause(result)
+                    probe.check(
+                        probe_plugin.SKIP,
+                        "the guard DENIED a --agent main session's denylisted command",
+                        cause or "the session never attempted the command",
+                    )
+                detail = probe.results[0][2]
+                self.assertIn(expected, detail)
+                self.assertNotIn("never attempted", detail)
+
+
     def test_an_errored_spawn_is_told_apart_from_an_absent_one(self) -> None:
         """`spawn_succeeded` returning False conflated two different findings.
 

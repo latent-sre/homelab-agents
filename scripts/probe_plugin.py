@@ -1207,10 +1207,15 @@ def main(argv: list[str] | None = None) -> int:
     agent_flag_seen = observed(agent_flag)
     agent_flag_ran = unguarded_runs(agent_flag_seen)
     if not agent_flag_attempted:
+        # "Never attempted" and "never answered" send the operator to different places: wait and
+        # re-run, versus repair the environment. `reading` above stores the cause but only the
+        # downgrade path appends it, so an unconditional SKIP here would drop it (Codex, #190).
+        no_answer = unanswered_cause(agent_session)
         probe.check(
             SKIP,
             "the guard DENIED a --agent main session's denylisted command",
-            "the session never attempted the command, so the guard was not consulted -- the "
+            no_answer
+            or "the session never attempted the command, so the guard was not consulted -- the "
             "`--agent` scoping clause stays doc-sourced for this run.",
         )
     elif not agent_flag_seen:
