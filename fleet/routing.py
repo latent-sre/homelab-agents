@@ -31,12 +31,15 @@ from fleet import stream
 # still accepted, because a stored transcript may predate the rename.
 ROUTING_TOOLS = ("Skill", "Agent", "Task")
 
-# The plugin whose components these transcripts are graded against. An explicitly namespaced
-# dispatch must carry THIS namespace; see `_named_components`.
+# The default plugin namespace. Callers grading a plugin other than this repository's own pass
+# the namespace explicitly: a roster read from one checkout and a namespace read from another is
+# how a confident verdict gets produced about the wrong plugin.
 PLUGIN_NAMESPACE = "sde-agents"
 
 
-def _named_components(value: object, roster: frozenset[str]) -> set[str]:
+def _named_components(
+    value: object, roster: frozenset[str], namespace: str = PLUGIN_NAMESPACE
+) -> set[str]:
     """Every roster component named by a tool call's input, namespace stripped.
 
     Scans all values rather than one field because the name arrives under different keys --
@@ -49,19 +52,19 @@ def _named_components(value: object, roster: frozenset[str]) -> set[str]:
     whose prompt merely names a sibling as having fired it.
     """
     if isinstance(value, str):
-        namespace, _, bare = value.partition(":")
+        explicit, _, bare = value.partition(":")
         if not _:
             return {value} & roster  # a bare name is this plugin's, by the roster it is matched to
         # An EXPLICIT namespace must be this plugin's. Accepting any of them let a dispatch to
         # `other-plugin:root-cause` count as the fleet's `root-cause`, so a positive could pass
         # without its expected destination ever being called.
-        return ({bare} & roster) if namespace == PLUGIN_NAMESPACE else set()
+        return ({bare} & roster) if explicit == namespace else set()
     if isinstance(value, dict):
         value = list(value.values())
     if isinstance(value, (list, tuple)):
         found: set[str] = set()
         for item in value:
-            found |= _named_components(item, roster)
+            found |= _named_components(item, roster, namespace)
         return found
     return set()
 
@@ -76,7 +79,9 @@ def bare_names(names: Iterable[str]) -> set[str]:
     return {n.split(":", 1)[1] if ":" in n else n for n in names}
 
 
-def fired_components(transcript: str, roster: frozenset[str]) -> set[str]:
+def fired_components(
+    transcript: str, roster: frozenset[str], namespace: str = PLUGIN_NAMESPACE
+) -> set[str]:
     """Roster components a transcript shows actually dispatched.
 
     A call whose `tool_result` came back `is_error` did NOT fire -- except for the skill-launch
@@ -84,7 +89,7 @@ def fired_components(transcript: str, roster: frozenset[str]) -> set[str]:
     """
     fired: set[str] = set()
     for exchange in stream.correlate_tool_results(transcript, tool_names=ROUTING_TOOLS):
-        named = _named_components(exchange.input, roster)
+        named = _named_components(exchange.input, roster, namespace)
         if not named:
             continue
         launched = exchange.name == "Skill" and stream.is_skill_launch_signal(exchange.result or "")

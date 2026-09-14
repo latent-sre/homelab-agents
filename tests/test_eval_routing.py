@@ -29,7 +29,9 @@ def trace(*events: dict) -> str:
 
 
 def call(name: str, tool_id: str, **inputs) -> dict:
-    return {"type": "assistant", "message": {"content": [
+    """One assistant tool call. Carries `model` because real assistant events do, and a run that
+    cannot say which model produced it is no longer counted as a measurement."""
+    return {"type": "assistant", "message": {"model": "claude-sonnet-5", "content": [
         {"type": "tool_use", "id": tool_id, "name": name, "input": inputs}]}}
 
 
@@ -338,7 +340,8 @@ class CaseFileTest(unittest.TestCase):
         spec = json.loads(path.read_text(encoding="utf-8"))
         members = set(spec["members"])
         self.assertTrue(
-            members <= eval_routing.FLEET, "cluster members must be real fleet components"
+            members <= set().union(*eval_routing.plugin_roster(REPO)[:2]),
+            "cluster members must be real fleet components",
         )
         ids = [c["id"] for c in spec["cases"]]
         self.assertEqual(len(ids), len(set(ids)), "case ids must be unique")
@@ -989,11 +992,12 @@ class CodexSecondRoundTest(MainIntegrationTest):
         handle.close()
         self.addCleanup(Path(handle.name).unlink, missing_ok=True)
         # `prompt-engineer` is a real fleet AGENT and a cluster member here, but unregistered.
+        agents, skills, namespace = eval_routing.plugin_roster(REPO)
         entry = eval_routing._scored(
             {"id": "n", "polarity": "negative", "expect_not_fires": ["prompt-craft"]},
             ["prompt-craft", "prompt-engineer"],
             [{"tracePath": handle.name, "error": None}],
-            eval_routing.FLEET, 0.5,
+            agents | skills, 0.5, agents=agents, namespace=namespace,
         )
         self.assertTrue(entry["inconclusive"])
         self.assertIn("prompt-engineer", entry["notes"][0])
@@ -1183,7 +1187,7 @@ class CodexFourthRoundTest(MainIntegrationTest):
 
         foreign = entry_for(["other-plugin:root-cause"])
         self.assertTrue(foreign["inconclusive"], "a different plugin's component is not this one")
-        ours = entry_for([f"{eval_routing.PLUGIN_NAMESPACE}:root-cause"])
+        ours = entry_for([f"{eval_routing.plugin_roster(REPO)[2]}:root-cause"])
         self.assertFalse(ours["inconclusive"])
         self.assertTrue(ours["passed"])
 
@@ -1256,3 +1260,131 @@ class CodexFifthRoundTest(MainIntegrationTest):
             with self.subTest(doc=doc):
                 with self.assertRaises(eval_routing.MalformedNativeResult):
                     eval_routing._run_records(doc)
+
+
+class CopilotReviewTest(MainIntegrationTest):
+    """The nine findings from the Copilot review of `126ddf8` — the second independent reviewer.
+
+    It found things five Codex rounds did not, most importantly that `--plugin-dir` can name a
+    different plugin while the roster and namespace were fixed from this checkout.
+    """
+
+    def test_the_roster_and_namespace_come_from_the_plugin_being_evaluated(self) -> None:
+        """A roster fixed at import graded another checkout's runs against this one's components
+        and namespace — a confident verdict about a plugin that was never measured."""
+        other = self.tmp / "other-plugin"
+        (other / ".claude-plugin").mkdir(parents=True)
+        (other / ".claude-plugin" / "plugin.json").write_text(
+            json.dumps({"name": "other-plugin"}), encoding="utf-8"
+        )
+        (other / "agents").mkdir()
+        (other / "agents" / "their-agent.md").write_text("---\nname: x\n---\n", encoding="utf-8")
+        agents, skills, namespace = eval_routing.plugin_roster(other)
+        self.assertEqual({"their-agent"}, set(agents))
+        self.assertEqual(frozenset(), skills)
+        self.assertEqual("other-plugin", namespace)
+        # And this repository still reads as itself.
+        self.assertEqual("sde-agents", eval_routing.plugin_roster(REPO)[2])
+
+    def test_main_reads_the_roster_from_the_plugin_it_was_pointed_at(self) -> None:
+        """The wiring, not just the helper: testing `plugin_roster` alone left this vacuous, and
+        pointing `main` back at this checkout kept the suite green."""
+        # Pointed at a directory that is NOT this checkout, so substituting `REPO` back in --
+        # the mutation this test exists to catch -- produces a different call. A duplicate case id
+        # makes `main` exit right after the roster is read, so no plugin needs to be loadable.
+        elsewhere = self.tmp / "elsewhere"
+        (elsewhere / ".claude-plugin").mkdir(parents=True)
+        (elsewhere / ".claude-plugin" / "plugin.json").write_text(
+            json.dumps({"name": "elsewhere", "version": "0.0.1"}), encoding="utf-8"
+        )
+        (elsewhere / "agents").mkdir()
+        spec = json.loads(self.cluster.read_text(encoding="utf-8"))
+        spec["cases"] = [spec["cases"][0], dict(spec["cases"][0])]
+        self.cluster.write_text(json.dumps(spec), encoding="utf-8")
+
+        seen: list[Path] = []
+        real = eval_routing.plugin_roster
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            mock.patch.object(
+                eval_routing, "plugin_roster",
+                side_effect=lambda d: (seen.append(Path(d)), real(d))[1],
+            ),
+            contextlib.redirect_stderr(io.StringIO()),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = eval_routing.main([
+                str(self.cluster), "--runs", "1", "--plugin-dir", str(elsewhere),
+            ])
+        self.assertEqual(2, code)
+        self.assertEqual([elsewhere], seen, "the roster must be read from --plugin-dir")
+
+    def test_a_plugin_without_a_readable_manifest_falls_back_rather_than_guessing(self) -> None:
+        empty = self.tmp / "no-manifest"
+        empty.mkdir()
+        self.assertEqual(
+            eval_routing.DEFAULT_PLUGIN_NAMESPACE, eval_routing.plugin_roster(empty)[2]
+        )
+
+    def test_an_explicit_zero_cost_ceiling_reaches_the_harness(self) -> None:
+        """`0` is falsey, so it was silently dropped and the caller got an UNCAPPED paid run."""
+        args = eval_routing._parser().parse_args([])
+        args.max_cost_usd = 0
+        command = eval_routing.native_command(
+            Path("/plugin"), "evals/generated/c", Path("/r.json"), args
+        )
+        self.assertIn("--max-cost-usd", command)
+        self.assertEqual("0", command[command.index("--max-cost-usd") + 1])
+
+    def test_a_run_with_no_observed_model_is_not_a_measurement(self) -> None:
+        """Model identity is a required comparability condition; counting the rate while leaving
+        `models_observed` short is how two incomparable artifacts come to look alike."""
+        handle = tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False, encoding="utf-8")
+        handle.write(trace(
+            {"type": "system", "subtype": "init", "agents": [], "skills": []},
+            {"type": "result", "is_error": False},
+        ))
+        handle.close()
+        self.addCleanup(Path(handle.name).unlink, missing_ok=True)
+        fired, notes, models, _surfaces = eval_routing.fired_per_run(
+            [{"tracePath": handle.name, "error": None}], frozenset({"root-cause"})
+        )
+        self.assertEqual([None], fired)
+        self.assertEqual([], models)
+        self.assertIn("no model observed", notes[0])
+
+    def test_more_runs_than_requested_is_refused(self) -> None:
+        """Only a shortfall was handled; extra records were all graded while the artifact still
+        claimed the requested count, giving a rate a false denominator."""
+        self.traces = [self.trace, self.trace]
+        code, stderr = self._main(runs=1)
+        self.assertEqual(3, code)
+        self.assertIn("but 1 were requested", stderr)
+        self.assertFalse((self.out / "benchmark.json").exists())
+
+    def test_a_detected_snapshot_mutation_still_cleans_up_its_traces(self) -> None:
+        """The early return bypassed cleanup, leaving the plugin copy and transcripts on disk --
+        exactly the disclosure the helper exists to prevent."""
+        removed: list[str] = []
+        with (
+            mock.patch.object(
+                eval_routing.provenance, "verify_frozen_plugin",
+                side_effect=eval_routing.provenance.ProvenanceError("changed"),
+            ),
+            mock.patch.object(
+                eval_routing, "_remove_kept_temp_dirs", side_effect=lambda r: removed.append(r)
+            ),
+        ):
+            code, stderr = self._main()
+        self.assertEqual(2, code)
+        self.assertTrue(removed, "a refused measurement must not leave its traces behind")
+
+    def test_the_t3_reuse_checklist_names_the_conditions_that_decide_comparability(self) -> None:
+        """AGENTS.md is always loaded, so a stale checklist there outranks the eval docs in
+        practice: it told maintainers to compare a flag that was measured to change nothing."""
+        text = (REPO / "AGENTS.md").read_text(encoding="utf-8")
+        checklist = text[text.index("T3 — release/CLI pin bump"):][:1200]
+        for condition in ("components_observed", "max_turns", "observed** model"):
+            with self.subTest(condition=condition):
+                self.assertIn(condition, checklist)
+        self.assertIn("clean_room_requested` is NOT one of them", checklist)

@@ -59,19 +59,31 @@ except ImportError:  # running as a bare script rather than a package
 REPO = Path(_REPO_ROOT)
 CLAUDE = shutil.which("claude")
 
-FLEET_AGENTS = frozenset(p.stem for p in (REPO / "agents").glob("*.md"))
-FLEET_SKILLS = frozenset(
-    p.name for p in (REPO / "skills").iterdir() if p.is_dir()
-) if (REPO / "skills").is_dir() else frozenset()
-FLEET = FLEET_AGENTS | FLEET_SKILLS
+DEFAULT_PLUGIN_NAMESPACE = "sde-agents"
 
-# The plugin under test, read from its own manifest rather than hardcoded. Registration is checked
-# against `<namespace>:<name>`: stripping every namespace let an unrelated plugin's component with
-# the same basename satisfy the guard, so a negative could pass while the fleet's own component
-# was never loaded.
-PLUGIN_NAMESPACE = json.loads(
-    (REPO / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
-)["name"]
+
+def plugin_roster(plugin_dir: Path) -> tuple[frozenset[str], frozenset[str], str]:
+    """The agents, skills and namespace of the plugin BEING EVALUATED.
+
+    Read from `plugin_dir`, never from this checkout. `--plugin-dir` can name another revision or
+    another plugin entirely, and a roster fixed at import graded those runs against the wrong
+    component list and the wrong namespace -- producing a confident verdict about a plugin that
+    was never measured. Falls back to this repository's own namespace when the target has no
+    readable manifest name, because a missing name is not evidence of a different one.
+    """
+    agents = frozenset(p.stem for p in (plugin_dir / "agents").glob("*.md"))
+    skills_dir = plugin_dir / "skills"
+    skills = frozenset(
+        p.name for p in skills_dir.iterdir() if p.is_dir()
+    ) if skills_dir.is_dir() else frozenset()
+    try:
+        manifest = json.loads(
+            (plugin_dir / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
+        namespace = str(manifest.get("name") or "").strip() or DEFAULT_PLUGIN_NAMESPACE
+    except (OSError, json.JSONDecodeError):
+        namespace = DEFAULT_PLUGIN_NAMESPACE
+    return agents, skills, namespace
 
 # The code whose bytes decide a verdict, named for `evaluator_identity`. Two benchmarks produced by
 # different grading code are not comparable even when every other condition matches, and this is
@@ -177,7 +189,13 @@ def native_command(
         "--keep-temp",
         "--json", str(result_path),
         *(("--model", args.model) if args.model else ()),
-        *(("--max-cost-usd", str(args.max_cost_usd)) if args.max_cost_usd else ()),
+        # `is not None`, not truthiness: `--max-cost-usd 0` is falsey, and silently dropping it
+        # launched an UNCAPPED paid run for a caller asking for a zero budget.
+        *(
+            ("--max-cost-usd", str(args.max_cost_usd))
+            if args.max_cost_usd is not None
+            else ()
+        ),
     ]
 
 
@@ -218,6 +236,7 @@ def fired_per_run(
     runs: list[dict],
     roster: frozenset[str],
     auth_check: Callable[[str, str], None] = lambda _text, _stderr: None,
+    namespace: str = DEFAULT_PLUGIN_NAMESPACE,
 ) -> tuple[list[frozenset[str] | None], list[str], list[str], list[dict]]:
     """Each run's firing set, or None when the run produced no usable transcript.
 
@@ -261,10 +280,17 @@ def fired_per_run(
         # deliberately keeps a completed non-error result as a measurement.
         auth_check(text, str(run.get("error") or ""))
         model = stream.observed_model(text)
-        if model:
-            models.append(model)
+        if not model:
+            # Model identity is a required comparability condition, so a run that cannot say which
+            # model produced it is not a measurement -- recording its rate while leaving
+            # `models_observed` silently short is how two incomparable artifacts look alike.
+            fired.append(None)
+            surfaces.append({"agents": [], "skills": []})
+            notes.append(f"{label}: no model observed in the transcript")
+            continue
+        models.append(model)
         surfaces.append(stream.registered_components(text))
-        found = frozenset(routing.fired_components(text, roster))
+        found = frozenset(routing.fired_components(text, roster, namespace))
         if found or stream.session_completed(text):
             fired.append(found)
             if run.get("error"):
@@ -284,8 +310,10 @@ def _scored(
     roster: frozenset[str],
     threshold: float,
     auth_check: Callable[[str, str], None] = lambda _text, _stderr: None,
+    agents: frozenset[str] = frozenset(),
+    namespace: str = DEFAULT_PLUGIN_NAMESPACE,
 ) -> dict:
-    fired, notes, models, surfaces = fired_per_run(runs, roster, auth_check)
+    fired, notes, models, surfaces = fired_per_run(runs, roster, auth_check, namespace)
 
     # A run whose session never REGISTERED the components this case is graded against cannot
     # evidence that they did not fire: they could not have. Without this, a stale or external
@@ -297,7 +325,7 @@ def _scored(
     # negative that forbids only a skill would otherwise stay valid while an agent member was
     # absent from a stale plugin -- a benchmark written against an incomplete competition, which
     # is what the retiring runner's registration contract covered.
-    required = targets | (set(members) & FLEET_AGENTS)
+    required = targets | (set(members) & set(agents))
     for index, surface in enumerate(surfaces):
         if fired[index] is None:
             continue
@@ -305,7 +333,7 @@ def _scored(
         # plugin's `root-cause`.
         registered = {*surface.get("agents", []), *surface.get("skills", [])}
         missing = {
-            name for name in required if f"{PLUGIN_NAMESPACE}:{name}" not in registered
+            name for name in required if f"{namespace}:{name}" not in registered
         }
         if missing:
             fired[index] = None
@@ -603,11 +631,17 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
         print(f"provenance error: {exc}", file=sys.stderr)
         return 2
 
+    # Read from the plugin being evaluated, not this checkout: `--plugin-dir` can name another
+    # revision or another plugin, and grading those runs against this repository's roster produces
+    # a confident verdict about something that was never measured.
+    fleet_agents, fleet_skills, namespace = plugin_roster(args.plugin_dir)
+    fleet_roster = fleet_agents | fleet_skills
+
     try:
         # `cluster_files` refuses duplicate ids, and that refusal was outside every handler: the
         # CLI ended in a traceback instead of the documented configuration-error exit 2.
         files = nativecases.cluster_files(
-            spec, cases, agents=FLEET_AGENTS,
+            spec, cases, agents=fleet_agents,
             max_turns=args.max_turns, timeout_seconds=args.timeout,
         )
     except ValueError as exc:
@@ -654,6 +688,10 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
             # this check exists to catch, and what the retiring runner passed here.
             provenance.verify_frozen_plugin(frozen, identity)
         except provenance.ProvenanceError as exc:
+            # Cleanup before returning: `runs_by_case` already names every preserved trace, and
+            # these directories hold a copy of the plugin under test plus the sessions'
+            # transcripts. An early return here left exactly the disclosure the helper exists for.
+            _remove_kept_temp_dirs(runs_by_case)
             print(f"\nprovenance error: {exc}; benchmark.json was not written", file=sys.stderr)
             return 2
     # Grade BEFORE cleaning up: the verdict is computed from the traces inside those kept
@@ -668,6 +706,15 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
     try:
         for case in cases:
             records = list(runs_by_case.get(str(case["id"]), []))
+            if len(records) > args.runs:
+                # Only a shortfall was handled. An early-access schema returning EXTRA records
+                # graded all of them while the artifact still said `runs_per_case: args.runs`.
+                print(
+                    f"\nnative harness returned {len(records)} runs for case {case['id']!r} but "
+                    f"{args.runs} were requested; benchmark.json was not written", file=sys.stderr,
+                )
+                _remove_kept_temp_dirs(runs_by_case)
+                return 3
             missing = args.runs - len(records)
             if missing > 0:
                 records += [
@@ -675,8 +722,8 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
                     for _ in range(missing)
                 ]
             entry = _scored(
-                case, members, records, FLEET, args.threshold,
-                eval_clean_room.raise_if_auth_failed,
+                case, members, records, fleet_roster, args.threshold,
+                eval_clean_room.raise_if_auth_failed, fleet_agents, namespace,
             )
             if missing > 0 and not entry["inconclusive"]:
                 # Padding alone only shrinks the denominator: a case whose single launched run

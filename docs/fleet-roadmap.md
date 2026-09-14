@@ -95,8 +95,10 @@ generated adapters byte-identical and every existing verdict unchanged unless it
 change; the routing runner is not wired onto the kernel before it retires (provenance hole).
 
 **Phase 4 obligation — discharged 2026-09-14, with the disposition stated per test rather than
-in aggregate** (a first draft of this paragraph claimed all thirteen were re-homed and was wrong
-about four of them):
+in aggregate**. Two counts here were wrong and are corrected: a first draft claimed all were
+re-homed (wrong for four), and the total was given as thirteen while the groups below enumerate
+**fourteen** — the drive-letter test was deferred separately from the original thirteen and
+belongs in the same disposition:
 
 - Re-homed to `FrozenPluginTest` in `tests/test_fleet_provenance.py`, driven directly instead of
   through a runner: `test_routing_executes_frozen_plugin_when_source_changes_and_restores`,
@@ -139,7 +141,7 @@ with its reason recorded:
 `test_routing_executes_frozen_plugin_when_source_changes_and_restores` and
 `test_routing_refuses_frozen_plugin_mutated_by_a_session` (both now covered directly by
 `FrozenPluginTest`, so these two are re-homed already),
-`test_transient_private_snapshot_mutation_is_a_host_sandbox_boundary`; and the self-binding four:
+`test_transient_private_snapshot_mutation_is_a_host_sandbox_boundary`; and the self-binding five:
 `test_clean_room_classifier_is_loaded_once_per_evaluator_process`,
 `test_clean_room_identity_hashes_the_exact_compiled_source_buffer`,
 `test_standalone_runner_is_bound_to_its_actual_compiled_source_buffer`,
@@ -470,7 +472,10 @@ threshold, and per-run evidence; no known-invalid artifact is called an anchor.
 each artifact also carries `max_turns` and `components_observed` — the routing competition read
 off each session's own `init` event — because the flag that was supposed to control it
 (`--clean-room`) was measured the same day to change nothing under the native harness. Conditions
-are uniform across all ten clusters (one observed model, one CLI version, one component surface),
+are uniform across all ten clusters on the two conditions the artifacts can establish (one
+observed model, one CLI version); the component surface is recorded only as an equal UNION per
+cluster, and per-run uniformity is unknown for this batch because the field that records it was
+added after it ran,
 which is what makes them a single anchor rather than ten co-located measurements. Zero
 INCONCLUSIVE; 6 of 303 runs excluded.
 
