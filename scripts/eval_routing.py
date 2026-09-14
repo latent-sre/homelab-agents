@@ -50,6 +50,12 @@ if _REPO_ROOT not in sys.path:
 
 from fleet import fs, nativecases, provenance, routing, stream  # noqa: E402
 
+try:  # the auth/clean-room classifier, imported at module level so main() and _run_batch() share it
+    from scripts import eval_clean_room  # noqa: E402
+except ImportError:  # running as a bare script rather than a package
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import eval_clean_room  # type: ignore[no-redef]  # noqa: E402
+
 REPO = Path(_REPO_ROOT)
 CLAUDE = shutil.which("claude")
 
@@ -71,6 +77,9 @@ EVALUATOR_PATHS = (
     # the tool permissions a session runs under or the pattern a grader matches, so leaving it out
     # made two runs measuring different generated inputs carry the same evaluator hash.
     REPO / "fleet" / "frontmatter.py",
+    # Decides the recorded auth conditions AND whether a batch is accepted at all, so a change
+    # here changes which runs become a benchmark. The retiring runner hashed it for that reason.
+    REPO / "scripts" / "eval_clean_room.py",
 )
 
 
@@ -195,6 +204,10 @@ def fired_per_run(
     surfaces: list[dict[str, list[str]]] = []
     for index, run in enumerate(runs):
         label = f"run {index + 1}"
+        # Classified before the read, not after: an authentication failure can prevent the trace
+        # from ever being written, and the `continue` below would then skip the classifier
+        # entirely -- letting earlier successful runs carry the batch to exit 0 during an outage.
+        auth_check("", str(run.get("error") or ""))
         try:
             text = Path(str(run.get("tracePath"))).read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
@@ -304,8 +317,15 @@ def _scored(
         "fired_per_run": [sorted(f) if f is not None else None for f in fired],
         "notes": notes,
         "models_observed": sorted(set(models)),
+        # Both this union and `components_uniform` below read the SAME valid runs. Including an
+        # excluded run here let a case report union X u Y while flagging itself uniform, and the
+        # batch check then accepted a second case whose valid runs really saw X u Y.
         "components_observed": {
-            key: sorted({name for s in surfaces for name in s.get(key, [])})
+            key: sorted({
+                name
+                for s, f in zip(surfaces, fired, strict=True) if f is not None
+                for name in s.get(key, [])
+            })
             for key in ("agents", "skills")
         },
         # Whether every run that produced a surface saw the SAME one. The union above cannot tell
@@ -487,39 +507,54 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError(
                     f"case {case.get('id')!r} prompt must be a non-empty string (got {prompt!r})"
                 )
-            fs.safe_path_segment(str(case.get("id")), what="case id")
+            # The ORIGINAL value, not `str()` of it: coercion accepted a missing id as the string
+            # "None" and a numeric one as "42", and a missing id then raised KeyError inside the
+            # generator rather than exiting 2 here. `safe_path_segment` rejects a non-string and an
+            # empty one itself, so no separate type check is added -- one a mutation could not
+            # make fail is a guard this repository treats as worse than none.
+            fs.safe_path_segment(case.get("id"), what="case id")
         except ValueError as exc:
             print(f"cluster error: {exc}", file=sys.stderr)
             return 2
 
-    try:
-        from scripts import eval_clean_room
-    except ImportError:  # running as a bare script rather than a package
-        sys.path.insert(0, str(REPO / "scripts"))
-        import eval_clean_room  # type: ignore[no-redef]
-
     # Classified for EVERY run, not just clean-room ones. Recording `null` on an ordinary run made
     # two benchmarks taken against different providers -- Anthropic versus Bedrock versus Vertex --
     # look identical in their conditions, which is exactly the comparison this block exists to stop.
-    clean_room: contextlib.AbstractContextManager = contextlib.nullcontext(None)
-    env: dict | None = None
     try:
         auth_mode = eval_clean_room.auth_provider_mode(None, clean_room=bool(args.clean_room))
-        if args.clean_room:
-            # `clean_env()` raises AuthUnavailable when it is ENTERED, not when it is constructed,
-            # so entering it here keeps the documented exit-2 path from becoming a traceback. The
-            # stack holds it open for the batch and yields the environment the sessions run under.
-            stack = contextlib.ExitStack()
-            env = stack.enter_context(eval_clean_room.clean_env())
-            clean_room = stack
     except eval_clean_room.AuthUnavailable as exc:
         print(f"clean room unavailable: {exc}", file=sys.stderr)
         return 2
-    if args.clean_room:
-        print("! --clean-room was measured on 2026-09-14 to change nothing under `claude plugin "
-              "eval`, which sets its own config dir. Read `components_observed` in the written "
-              "conditions for the surface these sessions actually saw.", file=sys.stderr)
 
+    # Everything from here runs INSIDE the stack. Entering `clean_env()` copies `.credentials.json`
+    # into a temp directory immediately, so any return or raise between that entry and the
+    # `with` that was supposed to hold it -- a provenance failure, a duplicate case id -- left the
+    # credential copy on disk. The stack now wraps the whole post-entry path, and `_run_batch`
+    # holds the part that can fail.
+    with contextlib.ExitStack() as stack:
+        env: dict | None = None
+        if args.clean_room:
+            try:
+                # `clean_env()` raises AuthUnavailable when ENTERED, not when constructed, so it
+                # is entered inside the handler that turns that into exit 2.
+                env = stack.enter_context(eval_clean_room.clean_env())
+            except eval_clean_room.AuthUnavailable as exc:
+                print(f"clean room unavailable: {exc}", file=sys.stderr)
+                return 2
+            print("! --clean-room was measured on 2026-09-14 to change nothing under `claude "
+                  "plugin eval`, which sets its own config dir. Read `components_observed` in the "
+                  "written conditions for the surface these sessions actually saw.",
+                  file=sys.stderr)
+        return _run_batch(args, spec, members, cases, env, auth_mode)
+
+
+def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> int:
+    """The measurement itself, split out so the clean room's context wraps every exit path.
+
+    Not a cosmetic split: with the body inline, an early return between entering `clean_env()` and
+    the `with` that held it left a copy of the operator's credentials in a temp directory.
+    """
+    cluster_path = Path(args.cluster)
     try:
         before = provenance.benchmark_provenance(
             [cluster_path], cases, args.case, args.plugin_dir, args.limit or None,
@@ -529,12 +564,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"provenance error: {exc}", file=sys.stderr)
         return 2
 
-    files = nativecases.cluster_files(
-        spec, cases, agents=FLEET_AGENTS,
-        max_turns=args.max_turns, timeout_seconds=args.timeout,
-    )
+    try:
+        # `cluster_files` refuses duplicate ids, and that refusal was outside every handler: the
+        # CLI ended in a traceback instead of the documented configuration-error exit 2.
+        files = nativecases.cluster_files(
+            spec, cases, agents=FLEET_AGENTS,
+            max_turns=args.max_turns, timeout_seconds=args.timeout,
+        )
+    except ValueError as exc:
+        print(f"cluster error: {exc}", file=sys.stderr)
+        return 2
 
-    with clean_room, provenance.frozen_plugin(args.plugin_dir) as (frozen, identity):
+    with provenance.frozen_plugin(args.plugin_dir) as (frozen, identity):
         # The name is already validated as a single path segment above, and `write_cases` refuses
         # an un-normalised directory of its own; a third check here would be one no test can make
         # fire, which is the kind of guard this repository treats as worse than none.
@@ -587,14 +628,25 @@ def main(argv: list[str] | None = None) -> int:
             if missing > 0:
                 records += [
                     {"tracePath": None, "error": "run never launched (harness stopped early)"}
+                    for _ in range(missing)
                 ]
-                records += [dict(records[-1]) for _ in range(missing - 1)]
-            scored.append(
-                _scored(
-                    case, members, records, FLEET, args.threshold,
-                    eval_clean_room.raise_if_auth_failed,
-                )
+            entry = _scored(
+                case, members, records, FLEET, args.threshold,
+                eval_clean_room.raise_if_auth_failed,
             )
+            if missing > 0 and not entry["inconclusive"]:
+                # Padding alone only shrinks the denominator: a case whose single launched run
+                # passed was still graded 1/1 and reported as a result, while the artifact claimed
+                # `runs_per_case: 3`. A case the harness never finished was not measured at the
+                # run count this benchmark states, so it is INCONCLUSIVE regardless of how its
+                # launched runs went.
+                entry["inconclusive"] = True
+                entry["passed"] = False
+                entry["detail"] = (
+                    f"INCONCLUSIVE — only {args.runs - missing} of {args.runs} requested runs "
+                    "were launched (harness stopped early)"
+                )
+            scored.append(entry)
     except eval_clean_room.AuthUnavailable as exc:
         # Aborting the batch, not excluding the affected runs: an authentication outage part-way
         # through invalidates the measurement, and excluding its runs would let the earlier valid

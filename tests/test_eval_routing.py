@@ -20,7 +20,7 @@ from pathlib import Path
 from unittest import mock
 
 from fleet import fs as fs_module
-from scripts import eval_routing
+from scripts import eval_clean_room, eval_routing
 from tests.support import REPO
 
 
@@ -1045,3 +1045,115 @@ class CodexSecondRoundTest(MainIntegrationTest):
         self.assertFalse(hasattr(prov, "_is_link_or_reparse"))
         self.assertFalse(hasattr(prov, "_absolute_without_resolving"))
         self.assertIs(prov.fs.is_link_or_reparse, fs_module.is_link_or_reparse)
+
+
+class CodexThirdRoundTest(MainIntegrationTest):
+    """The ten findings from the Codex review of `f267981`. Real again.
+
+    Four are round-2 fixes that covered the finding but not the invariant one step to the side --
+    the same pattern round 2 showed against round 1.
+    """
+
+    def test_an_auth_failure_with_no_trace_still_aborts(self) -> None:
+        """P1: the classifier ran only after a successful trace read, but an auth failure can stop
+        the trace from ever being written -- and the `continue` skipped the check entirely."""
+        calls: list[tuple[str, str]] = []
+
+        def classifier(text: str, stderr: str) -> None:
+            calls.append((text, stderr))
+            if "authenticate" in stderr.lower():
+                raise eval_clean_room.AuthUnavailable("OAuth session expired")
+
+        with self.assertRaises(eval_clean_room.AuthUnavailable):
+            eval_routing.fired_per_run(
+                [{"tracePath": "/nonexistent/trace.jsonl",
+                  "error": "Failed to authenticate: OAuth session expired"}],
+                frozenset({"root-cause"}), classifier,
+            )
+        self.assertTrue(calls, "the classifier must run before the unreadable-trace return")
+
+    def test_a_case_the_harness_stopped_short_of_is_inconclusive(self) -> None:
+        """P1: padding shrank the denominator, but a passing first run was still graded 1/1,
+        stayed non-inconclusive, and exited 0 while the artifact claimed three runs."""
+        # One trace returned for three requested runs: exactly what a cost ceiling produces.
+        self.traces = [self.trace]
+        code, _stderr = self._main(runs=3)
+        self.assertEqual(3, code, "an unfinished measurement is exit 3, not a pass")
+        entry = json.loads((self.out / "benchmark.json").read_text())["cases"][0]
+        self.assertTrue(entry["inconclusive"])
+        self.assertFalse(entry["passed"])
+        self.assertIn("of 3 requested runs", entry["detail"])
+
+    def test_the_surface_union_counts_only_valid_runs(self) -> None:
+        """P2: the union kept an excluded run's surface while the uniformity flag filtered it out,
+        so a case could report a union it flagged itself uniform over."""
+        paths = []
+        for skills in (["sde-agents:root-cause"], ["sde-agents:root-cause", "sde-agents:extra"]):
+            handle = tempfile.NamedTemporaryFile(
+                "w", suffix=".jsonl", delete=False, encoding="utf-8"
+            )
+            # The second run registers an extra component but never reaches a result, so it is
+            # excluded -- and its surface must not reach the union either.
+            events = [{"type": "system", "subtype": "init", "agents": [], "skills": skills}]
+            if len(skills) == 1:
+                events += [call("Skill", "s1", command="root-cause"), result_event()]
+            handle.write(trace(*events))
+            handle.close()
+            self.addCleanup(Path(handle.name).unlink, missing_ok=True)
+            paths.append(handle.name)
+        entry = eval_routing._scored(
+            {"id": "p", "polarity": "positive", "prompt": "x", "expect_fires": ["root-cause"]},
+            ["root-cause"],
+            [{"tracePath": p, "error": None} for p in paths],
+            frozenset({"root-cause"}), 0.5,
+        )
+        self.assertEqual(
+            ["sde-agents:root-cause"], entry["components_observed"]["skills"],
+            "an excluded run's surface must not enter the union",
+        )
+
+    def test_the_auth_classifier_is_part_of_the_evaluator_identity(self) -> None:
+        """P2: it decides which runs become a benchmark at all."""
+        self.assertIn(REPO / "scripts" / "eval_clean_room.py", eval_routing.EVALUATOR_PATHS)
+
+    def test_a_duplicate_or_malformed_case_id_exits_two(self) -> None:
+        """P2: `cluster_files` refuses duplicates, but outside every handler -- so the CLI ended in
+        a traceback rather than the documented configuration-error exit."""
+        spec = json.loads(self.cluster.read_text(encoding="utf-8"))
+        base = spec["cases"][0]
+        for cases, expected in (
+            ([base, dict(base)], "two cases with id"),
+            ([{k: v for k, v in base.items() if k != "id"}], "non-empty string"),
+            ([{**base, "id": 42}], "non-empty string"),
+        ):
+            with self.subTest(cases=cases):
+                spec["cases"] = cases
+                self.cluster.write_text(json.dumps(spec), encoding="utf-8")
+                code, stderr = self._main()
+                self.assertEqual(2, code)
+                self.assertIn(expected, stderr)
+
+    def test_the_clean_room_is_closed_when_a_later_step_fails(self) -> None:
+        """P1: entering `clean_env()` copies `.credentials.json` immediately, and any return
+        between that and the `with` that held it left the copy on disk."""
+        closed: list[str] = []
+
+        @contextlib.contextmanager
+        def tracking_clean_env():
+            try:
+                yield {"CLAUDE_CONFIG_DIR": "/tmp/fake-room"}
+            finally:
+                closed.append("closed")
+
+        spec = json.loads(self.cluster.read_text(encoding="utf-8"))
+        spec["cases"] = [spec["cases"][0], dict(spec["cases"][0])]  # duplicate id -> exit 2
+        self.cluster.write_text(json.dumps(spec), encoding="utf-8")
+        with (
+            mock.patch.object(eval_routing, "CLAUDE", "claude"),
+            mock.patch.object(eval_clean_room, "clean_env", tracking_clean_env),
+            contextlib.redirect_stderr(io.StringIO()),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = eval_routing.main([str(self.cluster), "--runs", "1", "--clean-room"])
+        self.assertEqual(2, code)
+        self.assertEqual(["closed"], closed, "the credential copy must not outlive an early exit")

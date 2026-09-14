@@ -1,18 +1,26 @@
 # 2026-09-14 — first routing baseline under `claude plugin eval`
 
-**Complete: all ten clusters, 101 cases, 303 runs, $39.42.** This is the reference point for
-routing-description comparisons taken from 2026-09-14 onward.
+**Complete: all ten clusters, 101 cases, 303 runs, $39.42.**
+
+> **Historical record, NOT a reusable before-side.** These artifacts record evaluator
+> `a6fcefed361c` over four files. The evaluator that shipped with the same pull request hashes to
+> a different value and includes `fleet/frontmatter.py`, `scripts/eval_clean_room.py` and the
+> review fixes made after this batch ran. `AGENTS.md`'s T3 reuse contract requires the evaluator
+> bytes to be unchanged, so **no run made with the merged runner may reuse this capture as its
+> before-side** — the 'before' side of any future description edit needs a fresh capture. What
+> this batch remains good for: what the fleet's routing did on 2026-09-14 under the conditions
+> each artifact records, and the case-by-case comparison against the pre-migration baseline below.
 
 | | |
 |---|---|
 | Overall | **86 / 101** |
-| Negatives | **60 / 60** — no over-trigger anywhere in 303 runs |
+| Negatives | **60 / 60 cases**, over **177 usable** negative runs (180 attempted, 3 excluded) |
 | Positives | 26 / 41 — every failure is under-firing, none is a wrong destination |
 | INCONCLUSIVE | 0 |
 | Runs excluded | 6 of 303 (2%) |
 | Model observed | `claude-sonnet-5`, uniform across all ten clusters |
 | CLI | 2.1.270, uniform |
-| Component surface | identical in all ten clusters |
+| Component surface | equal **unions** in all ten clusters — see the caveat below |
 
 | cluster | overall | positives | negatives | excluded | cost |
 |---|---|---|---|---|---|
@@ -27,15 +35,24 @@ routing-description comparisons taken from 2026-09-14 onward.
 | retro-boundary | 5/5 | 1/1 | 4/4 | 0 | $2.16 |
 | verification-seam | 4/4 | 1/1 | 3/3 | 2 | $1.89 |
 
-The uniformity row matters as much as the scores: one model, one CLI version and one component
-surface across every cluster means these ten artifacts are a single baseline rather than ten
-measurements that happen to sit in one directory. `models_observed` is read off the transcripts,
-so a batch that had silently mixed tiers would say so here instead of echoing the request.
+One model and one CLI version across every cluster is what makes these ten artifacts a single
+batch rather than ten measurements that happen to share a directory. `models_observed` is read off
+the transcripts, so a batch that had silently mixed tiers would say so here instead of echoing the
+request.
+
+**The component surface is a weaker claim than the other two, and deliberately stated as one.**
+These artifacts record only a UNION per cluster, and equal unions cannot establish that every run
+saw the same surface: a component appearing in one run of ten produces the same union as one
+present throughout. The `components_uniform` field that answers this was added *after* this batch
+ran and appears in none of these files. So: the unions are equal, and whether each run saw that
+same surface is unrecorded here.
 
 ### The asymmetry is the result
 
-Negatives are perfect and positives are not, and that split is the documented behaviour of these
-evals rather than a surprise: `../../README.md` records that fleet members under-fire in one-shot
+Every negative case passed, and no positive failure was a wrong destination. Stated precisely:
+no over-trigger was observed in the 177 negative runs that produced a usable transcript; the other
+three produced no routing verdict and are evidence in neither direction. That split is the
+documented behaviour of these evals rather than a surprise: `../../README.md` records that fleet members under-fire in one-shot
 headless mode, which makes a positive a weak absolute signal and a negative a strong one. Eleven of
 the fifteen failures routed **nowhere at all** — the session completed and declined to dispatch.
 None routed to a wrong cluster member. So this baseline says the descriptions are not
