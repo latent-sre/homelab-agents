@@ -967,7 +967,10 @@ class CodexSecondRoundTest(MainIntegrationTest):
              "result": "Failed to authenticate: OAuth session expired"},
         ), encoding="utf-8")
         code, stderr = self._main()
-        self.assertEqual(3, code, "a measurement that did not happen is exit 3, not a verdict")
+        # Round 11 moved this to the exit code `evals/README.md` assigns to an authentication
+        # error; 3 is reserved for an INCONCLUSIVE measurement to re-run, and reporting an
+        # expired login as that tells automation to retry a batch that cannot succeed.
+        self.assertEqual(2, code, "an authentication error is exit 2, not a re-runnable 3")
         self.assertIn("eval aborted", stderr)
         self.assertFalse((self.out / "benchmark.json").exists())
 
@@ -2082,3 +2085,90 @@ class CodexTenthRoundTest(MainIntegrationTest):
         ):
             eval_clean_room.result_event("{}")
         self.assertEqual(["{}"], seen)
+
+
+class CodexEleventhRoundTest(MainIntegrationTest):
+    """The six findings from the Codex review of `4834d5c`. All six real.
+
+    Two are contract drift created by this PR's own earlier rounds: the registration abort added
+    in round 10 used the documented exit code while the authentication abort beside it did not,
+    and the reuse checklist gained `max_turns` while the two conditions the native harness made
+    decisive -- the CLI version and `components_uniform` -- were never added.
+    """
+
+    def test_both_abort_paths_use_the_exit_code_the_docs_assign(self) -> None:
+        """P2: the auth abort returned 3, which `evals/README.md` reserves for an INCONCLUSIVE
+        measurement to re-run. Automation following that contract retried an expired login."""
+        readme = (REPO / "evals" / "README.md").read_text(encoding="utf-8")
+        self.assertIn(
+            "`2` a usage, authentication, or registration error for which no benchmark was written",
+            " ".join(readme.split()),
+        )
+        self.trace.write_text(trace(
+            {"type": "system", "subtype": "init", "agents": [],
+             "skills": ["sde-agents:prompt-craft"]},
+            {"type": "result", "is_error": True,
+             "result": "Failed to authenticate: OAuth session expired"},
+        ), encoding="utf-8")
+        auth_code, _ = self._main()
+        self.trace.write_text(trace(
+            {"type": "system", "subtype": "init", "agents": [], "skills": []},
+            result_event(),
+        ), encoding="utf-8")
+        shutil.rmtree(self.out, ignore_errors=True)
+        registration_code, _ = self._main()
+        self.assertEqual(
+            (2, 2), (auth_code, registration_code),
+            "both are configuration errors for which no benchmark was written",
+        )
+
+    def test_a_native_case_without_a_usable_name_is_a_malformed_result(self) -> None:
+        """P2: `str(case.get("name"))` indexed the runs under the literal "None", so the expected
+        case looked like an ordinary early-stop shortfall and could still write a benchmark."""
+        for name in (None, 42, "", "   "):
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(
+                    eval_routing.MalformedNativeResult, "not a non-empty string"
+                ):
+                    eval_routing._run_records(
+                        {"cases": [{"name": name, "arms": {"with": []}}]}
+                    )
+
+    def test_a_repeated_native_case_name_is_a_malformed_result(self) -> None:
+        """The same finding's second half: a repeat silently replaced the first entry, discarding
+        its trace paths so their kept directories were never cleaned."""
+        with self.assertRaisesRegex(eval_routing.MalformedNativeResult, "more than once"):
+            eval_routing._run_records({"cases": [
+                {"name": "pos-demo", "arms": {"with": [{"tracePath": "/tmp/a"}]}},
+                {"name": "pos-demo", "arms": {"with": [{"tracePath": "/tmp/b"}]}},
+            ]})
+
+    def test_the_reuse_checklist_requires_the_cli_version_and_a_uniform_surface(self) -> None:
+        """P2 x2, at the owner and its paraphrase. The CLI version decides harness behaviour and
+        the bundled competition, and this procedure runs at pin bumps; `components_uniform: false`
+        says the capture's own runs saw different competitors, which no equal union repairs."""
+        owner = " ".join(
+            (REPO / "evals" / "README.md").read_text(encoding="utf-8").split()
+        )
+        checklist = owner[owner.index("## Baseline retention"):][:2600]
+        for required in ("`cli_version`", "components_uniform", "pin bumps"):
+            with self.subTest(owner=required):
+                self.assertIn(required, checklist)
+        agents = " ".join((REPO / "AGENTS.md").read_text(encoding="utf-8").split())
+        bullet = agents[agents.index("T3 — release/CLI pin bump"):][:1300]
+        for required in ("**CLI version**", "`components_uniform` true on both sides"):
+            with self.subTest(agents=required):
+                self.assertIn(required, bullet)
+
+    def test_the_roadmap_does_not_claim_the_registration_check_was_lost(self) -> None:
+        """P2: the disposition told a maintainer that registration and auth aborts belong to the
+        platform now. The runner reconstructs registration from each trace and aborts on it —
+        and round 10 made that abort stricter, so the claim got more wrong, not less."""
+        text = " ".join((REPO / "docs" / "fleet-roadmap.md").read_text(encoding="utf-8").split())
+        section = text[text.index("Deleted because the MECHANISM"):][:1600]
+        self.assertIn("RegistrationIncomplete", section)
+        self.assertIn("queue cancellation", section.replace("**", ""))
+        # The old claim survives only as a QUOTED correction, never as a current statement.
+        stale = "can no longer observe a failed registration"
+        self.assertIn(f'said the fleet "{stale}", which is wrong', section)
+        self.assertEqual(1, section.count(stale), "it must not also be asserted as fact")

@@ -247,7 +247,17 @@ def _run_records(result: object) -> dict[str, list[dict]]:
             raise MalformedNativeResult(
                 f"case {case.get('name')!r} run records are not a list of objects"
             )
-        records[str(case.get("name"))] = list(runs)
+        # The name is the key every later step joins on, and it comes from the harness. A
+        # missing or non-string one indexed the runs under the literal "None" -- so the expected
+        # case looked like an ordinary early-stop shortfall and could still write an INCONCLUSIVE
+        # benchmark -- and a repeat silently replaced the first entry, discarding its trace paths
+        # so their kept directories were never cleaned.
+        name = case.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise MalformedNativeResult(f"a case name is {name!r}, not a non-empty string")
+        if name in records:
+            raise MalformedNativeResult(f"the result names case {name!r} more than once")
+        records[name] = list(runs)
     return records
 
 
@@ -901,11 +911,13 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
     except eval_clean_room.AuthUnavailable as exc:
         # Aborting the batch, not excluding the affected runs: an authentication outage part-way
         # through invalidates the measurement, and excluding its runs would let the earlier valid
-        # ones pass every case and write a benchmark at exit 0. Exit 3 says "no measurement
-        # happened, re-run", which is the actionable answer here.
+        # ones pass every case and write a benchmark at exit 0. Exit 2, which `evals/README.md`
+        # assigns to "a usage, authentication, or registration error for which no benchmark was
+        # written" -- 3 is reserved for an INCONCLUSIVE measurement to re-run, and reporting an
+        # expired login as that tells automation to retry a batch that cannot succeed.
         _remove_kept_temp_dirs(runs_by_case)
         print(f"\neval aborted: {exc}; benchmark.json was not written", file=sys.stderr)
-        return 3
+        return 2
     _remove_kept_temp_dirs(runs_by_case)
     inconclusive = [s for s in scored if s["inconclusive"]]
     passed = sum(1 for s in scored if s["passed"])

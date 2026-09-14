@@ -276,10 +276,15 @@ Keeping this straight is the difference between an archive and a graveyard.
 1. **Reuse** — serving as the 'before' side of a paired run. This job is **fragile by design** and
    usually already over: a stored capture is reusable only if its cluster, cases, evaluator, and
    plugin bytes are all unchanged since capture **and** its recorded conditions equal the planned
-   run — requested model, **observed** model, threshold, timeout, `max_turns`, and
-   `components_observed`, the routing competition each session actually saw. `max_turns` joined
-   that list when the native harness made it a lever: it bounds how many chances a session has to
-   dispatch, so two captures under different caps are not comparable however alike the rest looks.
+   run — requested model, **observed** model, threshold, timeout, `max_turns`, `cli_version` (and
+   `native_claude_version`), and `components_observed`, the routing competition each session
+   actually saw — **and** `components_uniform` is true in both. Three of those need saying why:
+   `max_turns` bounds how many chances a session has to dispatch, so two captures under different
+   caps are not comparable however alike the rest looks; the **CLI version** decides both harness
+   behaviour and the bundled skills the fleet competes against, and this procedure is run at pin
+   bumps, so omitting it lets a platform change be attributed to the fleet edit under test; and
+   `components_uniform: false` says the capture's own runs saw different competitors, which no
+   equal union can repair — such a capture is not a coherent before-side at all.
    `clean_room_requested` is deliberately NOT on the list — it was measured on 2026-09-14 to
    change nothing under `claude plugin eval`, so comparing it proves nothing. The check is by hand
    (the script that once automated it, `eval_baseline.py`, was retired 2026-09-01) — so any of a
@@ -445,8 +450,9 @@ suite had 111 cases / 333 sessions; eight automatic retro positives retired when
 skill became explicit-only. Before starting a paired round, account for both sides: the 'before'
 and 'after' sides each cost a full sweep unless a
 stored capture is checked by hand against the full condition list under "Baseline retention"
-above — same bytes, same recorded and observed model, threshold, timeout, `max_turns`, and
-`components_observed` — and found reusable.
+above — same bytes, same recorded and observed model, threshold, timeout, `max_turns`, CLI
+version, and `components_observed`, with `components_uniform` true on both sides — and found
+reusable.
 
 ### Measurement caveat: skills fire, agents must be delegated to
 

@@ -188,15 +188,28 @@ def cluster_files(
     while every count still looked right.
     """
     files: dict[str, str] = {}
-    seen: set[str] = set()
+    seen: dict[str, str] = {}
     for case in cases:
         case_id = str(case["id"])
-        if case_id in seen:
-            raise ValueError(
-                f"cluster {spec.get('cluster')!r} has two cases with id {case_id!r}; the generated "
-                "case directory is keyed by id, so one would silently replace the other"
+        # Case-FOLDED, because the collision is a filesystem property rather than a string one:
+        # Windows and the default macOS volume resolve `Case` and `case` to one directory, so a
+        # case-sensitive check accepted both and the generated tree then ran fewer cases than the
+        # cluster selected -- after the sessions were paid for. The reserved-character checks in
+        # `fleet.fs` do not cover aliasing; this does.
+        key = case_id.casefold()
+        if key in seen:
+            also = seen[key]
+            detail = (
+                f"id {case_id!r}"
+                if also == case_id
+                else f"ids {also!r} and {case_id!r}, which differ only in case"
             )
-        seen.add(case_id)
+            raise ValueError(
+                f"cluster {spec.get('cluster')!r} has two cases with {detail}; the generated case "
+                "directory is keyed by id and is case-insensitive on Windows and macOS, so one "
+                "would silently replace the other"
+            )
+        seen[key] = case_id
         files.update(case_files(spec, case, agents=agents, **options))  # type: ignore[arg-type]
     return files
 

@@ -220,3 +220,39 @@ class ClusterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CaseInsensitiveIdTest(unittest.TestCase):
+    """Round 11: `Case` and `case` are one directory on Windows and default macOS volumes.
+
+    The duplicate check was case-sensitive, so both ids were accepted and the generated tree then
+    ran fewer cases than the cluster selected — after the sessions were paid for. The
+    reserved-character checks in `fleet.fs` do not cover aliasing.
+    """
+
+    SPEC = {"cluster": "demo", "members": ["root-cause"]}
+
+    def _cases(self, *ids: str) -> list[dict]:
+        return [
+            {"id": i, "polarity": "negative", "prompt": "p", "expect_not_fires": ["root-cause"]}
+            for i in ids
+        ]
+
+    def test_ids_differing_only_in_case_are_refused(self) -> None:
+        with self.assertRaisesRegex(ValueError, "differ only in case"):
+            nativecases.cluster_files(
+                self.SPEC, self._cases("Case", "case"), agents=frozenset()
+            )
+
+    def test_an_exact_duplicate_still_names_the_id_plainly(self) -> None:
+        with self.assertRaisesRegex(ValueError, "id 'case'"):
+            nativecases.cluster_files(
+                self.SPEC, self._cases("case", "case"), agents=frozenset()
+            )
+
+    def test_ids_that_merely_share_a_prefix_are_untouched(self) -> None:
+        files = nativecases.cluster_files(
+            self.SPEC, self._cases("case", "case-two"), agents=frozenset()
+        )
+        self.assertTrue(any(p.startswith("case/") for p in files))
+        self.assertTrue(any(p.startswith("case-two/") for p in files))

@@ -115,12 +115,22 @@ belongs in the same disposition:
   `test_standalone_runner_is_bound_to_its_actual_compiled_source_buffer`,
   `test_loaded_a_disk_b_identity_records_the_executing_routing_buffer`,
   `test_registry_survives_drive_letter_case_drift`.
-- Deleted because the behaviour is now the platform's: the three registration and auth-abort tests
+- Deleted because the MECHANISM they drove is now the platform's, not because the checks are
+  gone: the three registration and auth-abort tests
   (`test_routing_batch_aborts_auth_failure_without_writing_benchmark`,
   `test_routing_batch_requires_every_selected_agent_to_be_registered`,
-  `test_routing_batch_cancels_queued_runs_after_registration_failure`). The fleet no longer spawns
-  sessions, so it can no longer observe a failed registration or cancel a queue; what it still
-  owes — never writing a benchmark for a measurement that did not happen — is covered by
+  `test_routing_batch_cancels_queued_runs_after_registration_failure`). An earlier draft of this
+  line said the fleet "can no longer observe a failed registration", which is wrong and was
+  caught in review: the shipped runner reconstructs the registered surface from each trace and
+  aborts the batch through `RegistrationIncomplete` at exit 2, and the authentication abort is
+  likewise retained — both are exercised by
+  `CodexTenthRoundTest.test_an_unregistered_component_aborts_the_batch_rather_than_one_run`,
+  `CodexSecondRoundTest.test_an_authentication_failure_aborts_the_batch`, and the
+  missing-registration tests in `CodexReviewFindingsTest`, `CodexSecondRoundTest`,
+  `CodexFourthRoundTest` and `CodexEighthRoundTest`. What genuinely moved is **queue
+  cancellation**: the fleet no longer spawns the sessions, so there is no queue of its own to
+  cancel — the harness owns that, and the fleet's remaining obligation, never writing a benchmark
+  for a measurement that did not happen, is covered by
   `test_an_unreadable_native_result_is_a_measurement_failure_not_a_verdict`.
 
 The original list is kept below so a reviewer can check that disposition against it.
