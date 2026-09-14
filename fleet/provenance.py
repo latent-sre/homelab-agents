@@ -84,10 +84,22 @@ PLUGIN_HASH_EXCLUSIONS = (
 )
 
 
-_HARD_EXCLUDED_REFERENCE_ROOTS = frozenset({
-    ".git", "evals", "tests", ".agents", ".claude", ".codex", ".codex-plugin",
-    ".github", ".probe-tmp", ".superpowers", "platforms", "plugins",
-})
+_HARD_EXCLUDED_REFERENCE_ROOTS = frozenset(
+    {
+        ".git",
+        "evals",
+        "tests",
+        ".agents",
+        ".claude",
+        ".codex",
+        ".codex-plugin",
+        ".github",
+        ".probe-tmp",
+        ".superpowers",
+        "platforms",
+        "plugins",
+    }
+)
 
 
 _TRANSIENT_DIR_NAMES = frozenset(
@@ -98,9 +110,7 @@ _TRANSIENT_DIR_NAMES = frozenset(
 _TRANSIENT_FILE_NAMES = frozenset({".DS_Store", "Thumbs.db", ".coverage"})
 
 
-_PLUGIN_ROOT_REFERENCE = re.compile(
-    rb"\$\{CLAUDE_PLUGIN_ROOT\}[\\/]+([A-Za-z0-9_.\\/\-]+)"
-)
+_PLUGIN_ROOT_REFERENCE = re.compile(rb"\$\{CLAUDE_PLUGIN_ROOT\}[\\/]+([A-Za-z0-9_.\\/\-]+)")
 
 
 _BACKTICK_CONTENT = re.compile(rb"(?<!`)`([^`\r\n]+)`(?!`)")
@@ -299,8 +309,11 @@ def validated_members(raw: object) -> list[str]:
 
 
 def selection_identity(
-    expression: str, cases: list[dict], limit: int | None = None,
-    *, members: list[str] | None = None,
+    expression: str,
+    cases: list[dict],
+    limit: int | None = None,
+    *,
+    members: list[str] | None = None,
 ) -> dict:
     """Hash selected definitions, the cluster's members, and the exact selection operation.
 
@@ -418,12 +431,15 @@ def _git_identity(root: Path) -> tuple[str | None, bool | None]:
         return None, None
     quiet_env = dict(os.environ)
     quiet_env["GIT_OPTIONAL_LOCKS"] = "0"
-    common = {"capture_output": True, "encoding": "utf-8", "errors": "replace",
-              "timeout": 30, "env": quiet_env}
+    common = {
+        "capture_output": True,
+        "encoding": "utf-8",
+        "errors": "replace",
+        "timeout": 30,
+        "env": quiet_env,
+    }
     try:
-        head = subprocess.run(
-            [git, "-C", str(root), "rev-parse", "--verify", "HEAD"], **common
-        )
+        head = subprocess.run([git, "-C", str(root), "rev-parse", "--verify", "HEAD"], **common)
         status_result = subprocess.run(
             [git, "-C", str(root), "status", "--porcelain=v1", "--untracked-files=all"],
             **common,
@@ -480,7 +496,8 @@ def _plugin_runtime_files(plugin_dir: Path) -> tuple[Path, dict[str, bytes], set
             included.add("/".join(parts))
         for parts in (
             _backticked_repo_paths(files[relative], relative)
-            if relative in instruction_files else ()
+            if relative in instruction_files
+            else ()
         ):
             target = root.joinpath(*parts)
             try:
@@ -506,7 +523,9 @@ def _plugin_runtime_files(plugin_dir: Path) -> tuple[Path, dict[str, bytes], set
 
 
 def _plugin_identity_from_files(
-    root: Path, files: dict[str, bytes], included: set[str],
+    root: Path,
+    files: dict[str, bytes],
+    included: set[str],
 ) -> dict:
     """Identify the exact in-memory snapshot returned by `_plugin_runtime_files`."""
     digest = hashlib.sha256()
@@ -580,9 +599,15 @@ def verify_frozen_plugin(plugin_dir: Path, expected_identity: dict) -> None:
 
 
 def benchmark_provenance(
-    source_paths: list[Path], cases: list[dict], expression: str, plugin_dir: Path,
-    limit: int | None = None, *, evaluator_paths: list[Path],
-    plugin_identity_value: dict | None = None, members: list[str] | None = None,
+    source_paths: list[Path],
+    cases: list[dict],
+    expression: str,
+    plugin_dir: Path,
+    limit: int | None = None,
+    *,
+    evaluator_paths: list[Path],
+    plugin_identity_value: dict | None = None,
+    members: list[str] | None = None,
 ) -> dict:
     return {
         "schema": PROVENANCE_SCHEMA,
@@ -596,9 +621,7 @@ def benchmark_provenance(
         # projection. A precomputed identity binds provenance to those already-captured bytes while
         # retaining one schema without conflating scopes.
         "plugin": (
-            plugin_identity(plugin_dir)
-            if plugin_identity_value is None
-            else plugin_identity_value
+            plugin_identity(plugin_dir) if plugin_identity_value is None else plugin_identity_value
         ),
     }
 

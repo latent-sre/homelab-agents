@@ -51,9 +51,13 @@ red check is fixed if trivial, else recorded in `docs/fleet-roadmap.md`.
 - **T0 — edit loop** (seconds): `python3 scripts/validate_fleet.py` (byte-compares every
   generated adapter, so no separate `--check` run; `python3 -m fleet validate --json` is the same
   run with rule ids) + the owning test module
-  (`python3 -m unittest discover -s tests -p test_<area>.py`) + `ruff check .` (the lint gate;
-  `pyproject.toml` owns its rule set and the per-file ratchet for legacy findings). After **any** canonical agent or
-  skill edit, regenerate the host adapters with
+  (`python3 -m unittest discover -s tests -p test_<area>.py`) + `ruff check .` **and**
+  `ruff format --check fleet` (the lint gate; `pyproject.toml` owns its rule set and the per-file
+  ratchet for legacy findings). Run BOTH — CI runs both, and `ruff check` passes on code the
+  formatter would rewrite, so running only the first sends a red commit to CI that was green
+  locally. Use the pinned `ruff` version (`pyproject.toml`'s dev group): the formatter's output
+  moves between releases, so formatting with another version can still fail the pinned check.
+  After **any** canonical agent or skill edit, regenerate the host adapters with
   `python3 scripts/generate_platform_adapters.py --write`; after adding, renaming, or removing a
   component, also refresh the README inventory with
   `python3 scripts/validate_fleet.py --write-inventory`.

@@ -197,13 +197,16 @@ def manifest(spec: Mapping[str, object], files: Mapping[str, str]) -> str:
     The directory is disposable and git-ignored, so anyone who finds one needs it to say where it
     came from before they trust or edit it.
     """
-    return json.dumps(
-        {
-            "generated_by": "fleet/nativecases.py",
-            "cluster": spec.get("cluster"),
-            "source": f"evals/routing/{spec.get('cluster')}.json",
-            "files": sorted(files),
-            "warning": "generated per run; edit the cluster JSON, never this directory",
-        },
-        indent=2,
-    ) + "\n"
+    return (
+        json.dumps(
+            {
+                "generated_by": "fleet/nativecases.py",
+                "cluster": spec.get("cluster"),
+                "source": f"evals/routing/{spec.get('cluster')}.json",
+                "files": sorted(files),
+                "warning": "generated per run; edit the cluster JSON, never this directory",
+            },
+            indent=2,
+        )
+        + "\n"
+    )
