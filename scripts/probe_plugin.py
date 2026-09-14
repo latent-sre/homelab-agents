@@ -175,7 +175,7 @@ def run(cmd: list[str], **kwargs) -> _proc.CommandResult:
     return _proc.run(cmd, timeout=600, **kwargs)
 
 
-def setup_failure(results: "list[_proc.CommandResult]") -> str | None:
+def setup_failure(results: list[_proc.CommandResult]) -> str | None:
     """The first setup command that did not succeed, described, or None if all did.
 
     Before the runner stopped raising, a `git` that timed out or was missing took the probe down
@@ -282,9 +282,9 @@ class Probe:
         skipped = [r for r in self.results if r[0] == SKIP]
         print(f"\n{len(passed)}/{len(self.results)} passed, {len(failed)} failed, {len(skipped)} inconclusive")
 
-        for status, label, detail in failed:
+        for _status, label, detail in failed:
             print(f"\nFAILED: {label}\n  {detail}")
-        for status, label, detail in skipped:
+        for _status, label, detail in skipped:
             print(f"\nINCONCLUSIVE: {label}\n  {detail}")
 
         if failed:
@@ -724,7 +724,7 @@ def _refuses_bypass_permissions() -> bool:
     return getattr(os, "geteuid", None) is not None and os.geteuid() == 0
 
 
-def probe_workflow_contract(probe: "Probe") -> None:
+def probe_workflow_contract(probe: Probe) -> None:
     """The workflow platform contract: namespaced resolution, agentType spawns, and PreToolUse
     delivery with plugin-namespaced agent_type inside workflow-spawned agents.
 

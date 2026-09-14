@@ -152,7 +152,10 @@ as a preloaded skill.
 **Touching a Claude hook — the read-only guard or the live-effect gate** — read the docstrings in
 `scripts/readonly-guard.py` and `scripts/live-effect-gate.py` and the hook section of
 `docs/fleet-development.md` first;
-then run the tests *and* the probe. Non-negotiables: the guard's allowlist grows by adding a
+then run the tests *and* the probe. **A roster changes in the script, never in `hooks/hooks.json`**:
+that file is rendered from `GUARDED_AGENT_NAMES` and `GATED_AGENT_NAMES` by `fleet/hooks.py`, so
+edit the constant and regenerate. Changing the shell semantics means editing the template there,
+which is a hook change and owes the probe. Non-negotiables: the guard's allowlist grows by adding a
 *reader*, never an interpreter (no `python`, `pytest`, `npm`, `make`, no exemption for this repo's
 own scripts); the gate's roster grows by adding a *live effect an incident or drill showed
 unlisted*, never by exempting one; both resolve their script through `${CLAUDE_PLUGIN_ROOT}` so a
@@ -235,12 +238,16 @@ handoff when the host cannot request a pass. Provenance:
   a dependency ban on other tooling: `pyproject.toml`'s dev group is pinned tooling for the
   maintainer loop, and `fleet/` itself stays standard-library so it can never become a hook
   import.
-- **Never hand-edit a generated adapter.** The generated trees are `.github/agents/`,
-  `.github/skills/`, `.codex/agents/`, and `plugins/sde-agents/skills/`; edit the canonical file or
-  the generator, because byte-drift validation erases anything else. Adding a tree edits
+- **Never hand-edit generated output.** The generated trees are `.github/agents/`,
+  `.github/skills/`, `.codex/agents/`, and `plugins/sde-agents/skills/`, and `hooks/hooks.json` is
+  generated too — it is rendered from the guard's and gate's own rosters by `fleet/hooks.py`, so a
+  roster edit reaches the armed hook only through `--write`. Edit the canonical file or the
+  generator, because byte-drift validation erases anything else. Adding a tree edits
   `generate_platform_adapters.py`'s `GENERATED_ROOTS`; retiring one **moves** it to
   `RETIRED_GENERATED_ROOTS`, because only a still-declared root makes `--write` delete the obsolete
-  copies instead of leaving a second plausible fleet.
+  copies instead of leaving a second plausible fleet. A generated file that is **not** the whole
+  contents of its directory goes in `GENERATED_FILES` instead, which gives it the same byte checks
+  without handing `--write` a directory it would clear.
 - **One parser per fact.** Frontmatter, `tools:` values, and namespaced references come from
   `fleet/frontmatter.py` and `fleet/references.py`, re-exported by `scripts/fleet_records.py`;
   the validator judges one `fleet/snapshot.py` snapshot of the tree, loaded once. Extend the

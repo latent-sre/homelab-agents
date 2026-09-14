@@ -3,8 +3,7 @@
 
 from __future__ import annotations
 
-from typing import Mapping
-
+from collections.abc import Mapping
 
 HOSTS = {"claude", "codex", "vscode"}
 KINDS = {"static", "discovery", "behavioral", "model-baseline"}

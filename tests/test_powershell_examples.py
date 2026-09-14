@@ -1,14 +1,13 @@
 """A failed native process must stop the documented dependent-step recipe."""
 from __future__ import annotations
 
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
-
+from pathlib import Path
 
 SHELL = shutil.which('pwsh') or shutil.which('powershell')
 SOURCE = Path(__file__).resolve().parents[1] / 'skills/code-craft/references/powershell.md'
@@ -29,7 +28,10 @@ class NativeFailureExampleTest(unittest.TestCase):
         marker = "Write-Output 'DEPENDENT_RAN'"
         # Stop alone does not catch a native failure; the explicit exit check must make the
         # difference. Disable the newer optional behavior so this also exercises the 5.1 path.
-        setup = "$ErrorActionPreference = 'Stop'\n$PSNativeCommandUseErrorActionPreference = $false\n"
+        setup = (
+            "$ErrorActionPreference = 'Stop'\n"
+            "$PSNativeCommandUseErrorActionPreference = $false\n"
+        )
         with tempfile.TemporaryDirectory() as temporary:
             script = Path(temporary) / 'native-failure.ps1'
             for body, guarded in ((command, False), (recipe, True)):

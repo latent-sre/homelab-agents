@@ -44,7 +44,9 @@ class RoutingClusterTests(unittest.TestCase):
             {"id": "bad", "prompt": "p", "polarity": "positve", "expect_fires": ["craft"]},
         ])
         issues = self._issues_with_cluster(doc)
-        self.assertTrue(any("polarity" in i and "positive or negative" in i for i in issues), issues)
+        self.assertTrue(
+            any("polarity" in i and "positive or negative" in i for i in issues), issues
+        )
 
     def test_empty_positive_expectation_is_reported(self) -> None:
         doc = dict(self.BASE, cases=[
@@ -58,7 +60,9 @@ class RoutingClusterTests(unittest.TestCase):
             {"id": "bad", "prompt": "p", "polarity": "negative", "expect_not_fires": []},
         ])
         issues = self._issues_with_cluster(doc)
-        self.assertTrue(any("expect_not_fires" in i and "non-empty list" in i for i in issues), issues)
+        self.assertTrue(
+            any("expect_not_fires" in i and "non-empty list" in i for i in issues), issues
+        )
 
     def test_expectation_fields_reject_wrong_types(self) -> None:
         cases = [
@@ -79,7 +83,9 @@ class RoutingClusterTests(unittest.TestCase):
         ]
         issues = self._issues_with_cluster(dict(self.BASE, cases=cases))
         self.assertTrue(any("non-empty 'id'" in i for i in issues), issues)
-        self.assertTrue(any("missing-prompt" in i and "non-empty 'prompt'" in i for i in issues), issues)
+        self.assertTrue(
+            any("missing-prompt" in i and "non-empty 'prompt'" in i for i in issues), issues
+        )
         self.assertTrue(any("missing-polarity" in i and "polarity" in i for i in issues), issues)
         self.assertTrue(
             any("missing-positive-targets" in i and "expect_fires" in i for i in issues),

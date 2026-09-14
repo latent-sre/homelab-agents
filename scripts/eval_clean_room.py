@@ -9,7 +9,8 @@ to turn runner/auth failures into routing outcomes.
 Adapted from latent-sre/sre-agents' clean-room design, with a Python 3.10-compatible cleanup path.
 Source: https://github.com/latent-sre/sre-agents (MIT; Copyright 2026 SRE + SDE Agent Fleet
 contributors). The repository-root LICENSE carries the MIT text; the reviewed source revision and
-adaptation decision are recorded in docs/archive/2026-07/verification-round-outcomes-2026-07-29.md (retired to Git history).
+adaptation decision are recorded in
+docs/archive/2026-07/verification-round-outcomes-2026-07-29.md (retired to Git history).
 """
 from __future__ import annotations
 
@@ -136,7 +137,8 @@ def auth_provider_mode(env: dict[str, str] | None = None, *, clean_room: bool = 
     elif providers:
         auth = "provider-chain-env"
     elif environment.get("CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST"):
-        # Ranked below every explicit signal, provider selectors included: an exported key, token, or
+        # Ranked below every explicit signal, provider selectors included: an exported key,
+        # token, or
         # Bedrock/Vertex/Foundry selector says what the session actually authenticated with, while
         # the host flag only says the host COULD supply something. Ranking it above the provider
         # chain produced the one thing this function exists to prevent — a record whose `auth`
@@ -155,7 +157,8 @@ def require_credentials() -> Path:
         raise AuthUnavailable(
             f"no Claude credentials at {credentials}. The clean room refuses to run because an "
             "unauthenticated trace can look like a valid no-route result. Run `claude` and /login, "
-            "set an API-key/Bedrock/Vertex auth variable, or point CLAUDE_CONFIG_DIR at a logged-in "
+            "set an API-key/Bedrock/Vertex auth variable, or point CLAUDE_CONFIG_DIR at a "
+            "logged-in "
             "configuration directory."
         )
     return credentials
@@ -230,4 +233,6 @@ def raise_if_auth_failed(transcript: str, stderr: str = "") -> None:
         return
     evidence = "\n".join((json.dumps(event or {}), stderr or "", transcript or "")).casefold()
     if any(marker in evidence for marker in AUTH_MARKERS):
-        raise AuthUnavailable("Claude authentication failed during the eval; refresh /login and rerun")
+        raise AuthUnavailable(
+            "Claude authentication failed during the eval; refresh /login and rerun"
+        )

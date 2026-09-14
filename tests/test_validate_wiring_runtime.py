@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import unittest
 import json
+import unittest
 from pathlib import Path
 
 from scripts import validate_fleet
@@ -91,7 +91,7 @@ class PluginWiringRuntimeTests(PluginWiringMixin, unittest.TestCase):
         for name, tool_line in mutations:
             with self.subTest(agent=name):
 
-                def mutate(repo: Path) -> None:
+                def mutate(repo: Path, name: str = name, tool_line: str = tool_line) -> None:
                     path = repo / "agents" / f"{name}.md"
                     text = path.read_text(encoding="utf-8")
                     path.write_text(

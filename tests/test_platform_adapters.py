@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import tempfile
 import tomllib
@@ -9,8 +8,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from scripts import generate_platform_adapters
-from scripts import validate_fleet
+from fleet import hooks
+from scripts import generate_platform_adapters, validate_fleet
 from tests.support import (
     REPO,
     create_directory_link,
@@ -18,12 +17,21 @@ from tests.support import (
     remove_directory_link,
     repo_copy,
 )
+
 COPILOT_TOOL_ALIASES = {"agent", "edit", "execute", "read", "search", "web"}
 WRITE_TOOLS = {"Edit", "NotebookEdit", "Write"}
 
 
 _create_directory_link = create_directory_link
 _remove_directory_link = remove_directory_link
+
+# A synthetic two-file tree ships no hook scripts, so the rosters `expected_outputs` renders the
+# hook file from cannot be read there. Standing them in keeps those tests about the one thing
+# they are about; a real tree's rosters are pinned by tests/test_fleet_hooks.py.
+STAND_IN_ROSTERS = (
+    hooks.Roster(frozenset({"stand-in-guarded"}), "stand-in"),
+    hooks.Roster(frozenset({"stand-in-gated"}), "stand-in"),
+)
 
 
 # Canonical forms that a host rewrite used to translate and no longer does, because the sentence
@@ -129,8 +137,8 @@ class PlatformAdapterTests(unittest.TestCase):
 
             with mock.patch.object(
                 generate_platform_adapters,
-                "_guarded_names",
-                return_value=set(),
+                "_hook_rosters",
+                return_value=STAND_IN_ROSTERS,
             ):
                 # A synthetic two-file tree is not the fleet, so the rewrite-count
                 # contract (calibrated to the canonical corpus) says nothing here.
@@ -162,8 +170,8 @@ class PlatformAdapterTests(unittest.TestCase):
 
             with mock.patch.object(
                 generate_platform_adapters,
-                "_guarded_names",
-                return_value=set(),
+                "_hook_rosters",
+                return_value=STAND_IN_ROSTERS,
             ):
                 with self.assertRaisesRegex(
                     ValueError,
@@ -347,7 +355,7 @@ class PlatformAdapterTests(unittest.TestCase):
                 retired = root / ".claude" / "agents"
                 linked = root / link_relative
 
-                def is_link(path: Path) -> bool:
+                def is_link(path: Path, linked: Path = linked) -> bool:
                     return path == linked
 
                 with (
@@ -417,8 +425,8 @@ class PlatformAdapterTests(unittest.TestCase):
             try:
                 with mock.patch.object(
                     generate_platform_adapters,
-                    "_guarded_names",
-                    return_value=set(),
+                    "_hook_rosters",
+                    return_value=STAND_IN_ROSTERS,
                 ):
                     with self.assertRaisesRegex(
                         ValueError,
@@ -631,7 +639,11 @@ class PlatformAdapterTests(unittest.TestCase):
         for host, root, render in (
             ("copilot", ".github/skills", lambda: generate_platform_adapters.render_copilot_agent(
                 source, guarded_names=set())),
-            ("codex", "plugins/sde-agents/skills", lambda: generate_platform_adapters.render_codex_agent(source)),
+            (
+                "codex",
+                "plugins/sde-agents/skills",
+                lambda: generate_platform_adapters.render_codex_agent(source),
+            ),
         ):
             with self.subTest(host=host):
                 text = render()

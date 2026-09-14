@@ -328,9 +328,14 @@ def _string_set(node: ast.AST, constant: str, path: Path) -> frozenset[str]:
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
         and node.func.id in {"frozenset", "set"}
-        and len(node.args) == 1
+        and len(node.args) <= 1
         and not node.keywords
     ):
+        if not node.args:
+            # `frozenset()` is the obvious way to write "this hook covers nobody", which is a
+            # valid configuration -- the gate returns every caller to the host. Reading it as
+            # unparseable turned that into a generation failure (Copilot, PR #193).
+            return frozenset()
         node = node.args[0]
     if not isinstance(node, (ast.Set, ast.List, ast.Tuple)):
         raise RosterError(f"{path}: {constant} is not a literal set of names")

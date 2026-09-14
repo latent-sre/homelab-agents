@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import stat
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -66,6 +67,34 @@ class ReadTests(TempDirTestCase):
 
 
 class AtomicWriteTests(TempDirTestCase):
+    # Windows maps only the read-only bit onto a POSIX mode, so no mode survives a round trip
+    # there and every assertion below would be about the emulation rather than the helper.
+    @unittest.skipIf(os.name == "nt", "Windows does not round-trip POSIX file modes")
+    def test_atomic_write_keeps_the_existing_file_mode(self) -> None:
+        # `mkstemp` creates 0600 and `os.replace` installs that inode, so without carrying the
+        # mode over every rewrite would silently RESET the file's mode -- invisible to any content
+        # check, and enough to stop another reader in a shared checkout from loading it (Copilot,
+        # PR #193). Every caller of this helper rewrites files that already exist, so the fix
+        # belongs here rather than in one of them.
+        with tempfile.TemporaryDirectory() as directory:
+            existing = Path(directory) / "kept.json"
+            existing.write_bytes(b"first")
+            # Owner-read-only. It only has to differ from the 0600 `mkstemp` hands out, and any
+            # group- or world-readable literal is a CodeQL finding of its own -- rightly, since a
+            # test that must set a mode should set the least permissive one that proves the point.
+            preserved = 0o400
+            os.chmod(existing, preserved)
+            fs.atomic_write_bytes(existing, b"second")
+            self.assertEqual(b"second", existing.read_bytes())
+            self.assertEqual(preserved, stat.S_IMODE(existing.stat().st_mode))
+
+            # A file that did not exist gets what a plain create would have given it, never 0600.
+            fresh = Path(directory) / "fresh.json"
+            fs.atomic_write_bytes(fresh, b"new")
+            umask = os.umask(0)
+            os.umask(umask)
+            self.assertEqual(0o666 & ~umask, stat.S_IMODE(fresh.stat().st_mode))
+
     def test_write_replaces_content_and_leaves_no_temporary_file(self) -> None:
         target = self.base / "nested" / "out.toml"
         fs.atomic_write_bytes(target, b"first")

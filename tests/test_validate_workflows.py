@@ -3,8 +3,7 @@ from __future__ import annotations
 import re
 import unittest
 
-from scripts import generate_platform_adapters
-from scripts import validate_fleet
+from scripts import generate_platform_adapters, validate_fleet
 from tests.support import REPO, repo_copy
 
 

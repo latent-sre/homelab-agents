@@ -40,7 +40,6 @@ from pathlib import Path
 
 from tests.support import REPO
 
-
 NODE = shutil.which("node")
 WORKFLOW = REPO / "workflows" / "deep-review.js"
 

@@ -395,14 +395,14 @@ DENIED = [
 class ReadonlyGuardTest(unittest.TestCase):
     def test_allows_read_only_commands(self) -> None:
         procs = run_guard_batch([bash_call(command) for command in ALLOWED])
-        for command, proc in zip(ALLOWED, procs):
+        for command, proc in zip(ALLOWED, procs, strict=True):
             with self.subTest(command=command):
                 self.assertEqual(proc.returncode, EXIT_ALLOW)
                 self.assertEqual(decision(proc), "allow", f"falsely denied: {command!r}")
 
     def test_denies_state_changing_commands(self) -> None:
         procs = run_guard_batch([bash_call(command) for command in DENIED])
-        for command, proc in zip(DENIED, procs):
+        for command, proc in zip(DENIED, procs, strict=True):
             with self.subTest(command=command):
                 self.assertEqual(proc.returncode, EXIT_DENY)
                 self.assertEqual(decision(proc), "deny", f"falsely allowed: {command!r}")
@@ -466,7 +466,9 @@ class ReadonlyGuardTest(unittest.TestCase):
         self.assertEqual(decision(proc), "deny")
 
     def test_missing_command_field_passes_through(self) -> None:
-        proc = run_guard(json.dumps({"tool_name": "Bash", "agent_type": REVIEWER, "tool_input": {}}))
+        proc = run_guard(
+            json.dumps({"tool_name": "Bash", "agent_type": REVIEWER, "tool_input": {}})
+        )
         self.assertEqual(decision(proc), "allow")
 
 

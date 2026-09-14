@@ -86,7 +86,9 @@ class ClaudePluginValidationTests(unittest.TestCase):
 
     def test_failed_invocation_or_copy_is_not_a_pass(self) -> None:
         with mock.patch.object(validate_claude_plugin.shutil, "which", return_value="claude"):
-            with mock.patch.object(validate_claude_plugin, "validate", side_effect=OSError("missing")):
+            with mock.patch.object(
+                validate_claude_plugin, "validate", side_effect=OSError("missing")
+            ):
                 self.assertEqual(2, validate_claude_plugin.main(["--root", str(self.root)]))
             with mock.patch.object(
                 validate_claude_plugin, "validate",
@@ -113,11 +115,11 @@ class NativeClaudeContentsTests(unittest.TestCase):
                 path.write_text(data, encoding="utf-8")
                 returncodes: list[int] = []
 
-                def run(argv, **kwargs):
+                def run(argv, *, _returncodes=returncodes, **kwargs):
                     completed = subprocess.run(
                         argv, capture_output=True, encoding="utf-8", **kwargs,
                     )
-                    returncodes.append(completed.returncode)
+                    _returncodes.append(completed.returncode)
                     return completed
 
                 self.assertEqual(1, validate_claude_plugin.validate(

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-import unittest
 import json
+import unittest
 from pathlib import Path
 
-from scripts import validate_fleet
-from tests.validate_fleet_wiring_support import PluginWiringMixin, READONLY_BASH_AGENT, _add_guarded_name
+from tests.validate_fleet_wiring_support import (
+    READONLY_BASH_AGENT,
+    PluginWiringMixin,
+    _add_guarded_name,
+)
 
 
 class PluginWiringGuardTests(PluginWiringMixin, unittest.TestCase):
@@ -31,7 +34,7 @@ class PluginWiringGuardTests(PluginWiringMixin, unittest.TestCase):
         for target in ("code-reviewer_v2", "Code-Reviewer", "code--reviewer"):
             with self.subTest(target=target):
 
-                def mutate(repo: Path) -> None:
+                def mutate(repo: Path, target: str = target) -> None:
                     path = repo / "agents" / "researcher.md"
                     path.write_text(
                         path.read_text(encoding="utf-8")
@@ -96,7 +99,9 @@ class PluginWiringGuardTests(PluginWiringMixin, unittest.TestCase):
             _add_guarded_name(repo, "sde-fullstack")
 
         issues = self._issues_after(mutate)
-        self.assertTrue(any("never names 'sde-fullstack'" in i for i in issues), issues)
+        self.assertTrue(
+            any("is missing" in i and "'sde-fullstack'" in i for i in issues), issues
+        )
 
     def test_name_present_in_only_one_hook_roster_is_reported(self) -> None:
         # REGRESSION (review-reported, reproduced): the hook holds TWO rosters — the `case`
@@ -130,7 +135,8 @@ class PluginWiringGuardTests(PluginWiringMixin, unittest.TestCase):
 
         issues = self._issues_after(drop_from_fallback)
         self.assertTrue(
-            any("no-interpreter fallback" in i and "principal-engineer" in i for i in issues), issues
+            any("no-interpreter fallback" in i and "principal-engineer" in i for i in issues),
+            issues,
         )
 
     def test_unrecognized_hook_shape_fails_rather_than_passing(self) -> None:
@@ -171,7 +177,9 @@ class PluginWiringGuardTests(PluginWiringMixin, unittest.TestCase):
         # Add a new read-only agent that holds Bash and forget to register it with the guard --
         # the exact way a future agent would arrive unguarded while every test stayed green.
         issues = self._issues_after(
-            lambda r: (r / "agents" / "auditor.md").write_text(READONLY_BASH_AGENT, encoding="utf-8")
+            lambda r: (r / "agents" / "auditor.md").write_text(
+                READONLY_BASH_AGENT, encoding="utf-8"
+            )
         )
         self.assertTrue(
             any("'read-only' is a promise, not a control" in i for i in issues), issues
@@ -179,7 +187,6 @@ class PluginWiringGuardTests(PluginWiringMixin, unittest.TestCase):
 
     def test_guarding_an_agent_that_does_not_exist_is_reported(self) -> None:
         def mutate(repo: Path) -> None:
-            path = repo / "scripts" / "readonly-guard.py"
             _add_guarded_name(repo, "ghost")
 
         issues = self._issues_after(mutate)
@@ -196,8 +203,14 @@ class PluginWiringGateTests(PluginWiringMixin, unittest.TestCase):
         def mutate(repo: Path) -> None:
             config = self._hooks(repo)
             for entry in config["hooks"]["PreToolUse"]:
-                entry["hooks"] = [h for h in entry["hooks"] if "live-effect-gate.py" not in h.get("command", "")]
-            (repo / "hooks" / "hooks.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
+                entry["hooks"] = [
+                    h
+                    for h in entry["hooks"]
+                    if "live-effect-gate.py" not in h.get("command", "")
+                ]
+            (repo / "hooks" / "hooks.json").write_text(
+                json.dumps(config, indent=2), encoding="utf-8"
+            )
 
         issues = self._issues_after(mutate)
         self.assertTrue(any("live-effect-gate.py" in i for i in issues), issues)
@@ -213,7 +226,8 @@ class PluginWiringGateTests(PluginWiringMixin, unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             path.write_text(
                 text.replace('GATED_AGENT_NAMES = frozenset({"homelab-engineer"})',
-                             'GATED_AGENT_NAMES = frozenset({"homelab-engineer", "sde-fullstack"})'),
+                             'GATED_AGENT_NAMES = frozenset('
+                             '{"homelab-engineer", "sde-fullstack"})'),
                 encoding="utf-8", newline="\n")
 
         issues = self._issues_after(add_unwired_name)
@@ -231,10 +245,15 @@ class PluginWiringGateTests(PluginWiringMixin, unittest.TestCase):
                 for hook in entry["hooks"]:
                     if "live-effect-gate.py" in hook.get("command", ""):
                         hook["command"] = hook["command"].replace("${CLAUDE_PLUGIN_ROOT}/", "./")
-            (repo / "hooks" / "hooks.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
+            (repo / "hooks" / "hooks.json").write_text(
+                json.dumps(config, indent=2), encoding="utf-8"
+            )
 
         issues = self._issues_after(mutate)
-        self.assertTrue(any("live-effect-gate.py" in i and "CLAUDE_PLUGIN_ROOT" in i for i in issues), issues)
+        self.assertTrue(
+            any("live-effect-gate.py" in i and "CLAUDE_PLUGIN_ROOT" in i for i in issues),
+            issues,
+        )
 
     def test_gated_agent_must_exist_and_hold_bash(self) -> None:
         def mutate(repo: Path) -> None:
@@ -254,12 +273,16 @@ class PluginWiringGateTests(PluginWiringMixin, unittest.TestCase):
         def mutate(repo: Path) -> None:
             path = repo / "scripts" / "live-effect-gate.py"
             path.write_text(
-                path.read_text(encoding="utf-8").replace('PLUGIN_NAME = "sde-agents"', 'PLUGIN_NAME = "sde-agent"'),
+                path.read_text(encoding="utf-8").replace(
+                    'PLUGIN_NAME = "sde-agents"', 'PLUGIN_NAME = "sde-agent"'
+                ),
                 encoding="utf-8",
             )
 
         issues = self._issues_after(mutate)
-        self.assertTrue(any("live-effect-gate.py" in i and "PLUGIN_NAME" in i for i in issues), issues)
+        self.assertTrue(
+            any("live-effect-gate.py" in i and "PLUGIN_NAME" in i for i in issues), issues
+        )
 
     def test_guarded_and_gated_rosters_must_be_disjoint(self) -> None:
         def mutate(repo: Path) -> None:

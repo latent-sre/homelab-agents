@@ -36,7 +36,9 @@ READONLY_BASH_AGENT = (
 class PluginWiringMixin:
     """Shared copy-and-validate fixture for independently scheduled wiring-test shards."""
 
-    def _issues_after(self: unittest.TestCase, mutate, *, check_adapters: bool = False) -> list[str]:
+    def _issues_after(
+        self: unittest.TestCase, mutate, *, check_adapters: bool = False
+    ) -> list[str]:
         with repo_copy() as dst:
             mutate(dst)
             # Each test checks one deliberate breakage. Only adapter mutations pay for the
