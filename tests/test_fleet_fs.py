@@ -76,10 +76,13 @@ class AtomicWriteTests(TempDirTestCase):
         with tempfile.TemporaryDirectory() as directory:
             existing = Path(directory) / "kept.json"
             existing.write_bytes(b"first")
-            os.chmod(existing, 0o644)
+            # Group-readable, not world-readable: it only has to differ from the 0600 `mkstemp`
+            # hands out, and a world-readable literal here is a CodeQL finding of its own.
+            preserved = 0o640
+            os.chmod(existing, preserved)
             fs.atomic_write_bytes(existing, b"second")
             self.assertEqual(b"second", existing.read_bytes())
-            self.assertEqual(0o644, stat.S_IMODE(existing.stat().st_mode))
+            self.assertEqual(preserved, stat.S_IMODE(existing.stat().st_mode))
 
             # A file that did not exist gets what a plain create would have given it, never 0600.
             fresh = Path(directory) / "fresh.json"
