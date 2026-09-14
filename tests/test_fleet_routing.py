@@ -9,9 +9,10 @@ tests pin the reading this module keeps instead.
 from __future__ import annotations
 
 import json
+import pathlib
 import unittest
 
-from fleet import routing
+from fleet import routing, stream
 
 ROSTER = frozenset({"root-cause", "lab-audit", "code-reviewer", "researcher"})
 
@@ -176,6 +177,124 @@ class GradingTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, expected):
                     routing.grade_case(case, self.MEMBERS, [])
 
+
+# --- the retiring runner's transcript helpers, moved with the tests that use them ---
+
+FLEET = frozenset(
+    [p.stem for p in pathlib.Path("agents").glob("*.md")]
+    + [p.name for p in pathlib.Path("skills").iterdir() if p.is_dir()]
+)
+
+
+def skill_use(name: str, tool_id: str = "t1") -> dict:
+    return {"type": "tool_use", "id": tool_id, "name": "Skill", "input": {"command": name}}
+
+
+def agent_use(name: str, tool_id: str = "t1") -> dict:
+    return {
+        "type": "tool_use", "id": tool_id, "name": "Agent",
+        "input": {"subagent_type": name, "prompt": "go"},
+    }
+
+
+def tool_result(tool_id: str, is_error: bool) -> dict:
+    return {"type": "tool_result", "tool_use_id": tool_id, "is_error": is_error}
+
+
+def fired_in(text: str) -> set[str]:
+    """`fired_components` against the real fleet roster, which these cases name members of."""
+    return routing.fired_components(text, FLEET)
+
+
+class ComponentDetectionTest(unittest.TestCase):
+    """The retiring runner's own detection tests, retargeted at the kernel that replaced it.
+
+    Every case here was written for a defect that had already reached a measurement, so they move
+    across rather than being re-derived from the new implementation.
+    """
+
+    def test_detects_namespaced_skill(self) -> None:
+        self.assertEqual(
+            {"prompt-craft"}, fired_in(transcript(skill_use("sde-agents:prompt-craft")))
+        )
+
+    def test_detects_bare_agent_spawn(self) -> None:
+        self.assertEqual(
+            {"prompt-engineer"}, fired_in(transcript(agent_use("prompt-engineer")))
+        )
+
+    def test_detects_multiple_components(self) -> None:
+        found = fired_in(transcript(
+            skill_use("sde-agents:backend-craft", tool_id="a"),
+            agent_use("sde-agents:sde-fullstack", tool_id="b"),
+        ))
+        self.assertEqual({"backend-craft", "sde-fullstack"}, found)
+
+    def test_prose_mention_is_not_a_firing(self) -> None:
+        # The model naming a component in TEXT is not the component firing. Only tool calls count.
+        prose = {
+            "type": "text",
+            "text": "You could use prompt-craft or spawn prompt-engineer for this.",
+        }
+        self.assertEqual(set(), fired_in(transcript(prose)))
+
+    def test_non_fleet_tool_is_ignored(self) -> None:
+        read = {"type": "tool_use", "name": "Read", "input": {"file_path": "prompt-craft.md"}}
+        self.assertEqual(set(), fired_in(transcript(read)))
+
+    def test_unknown_name_in_skill_input_is_ignored(self) -> None:
+        self.assertEqual(set(), fired_in(transcript(skill_use("some-other-skill"))))
+
+    def test_malformed_lines_do_not_crash(self) -> None:
+        self.assertEqual(set(), fired_in("not json\n{bad\n"))
+
+    def test_unexpected_event_shapes_are_skipped_not_fatal(self) -> None:
+        """Both readers run on every line of every session; a raise here loses a paid batch.
+
+        Observed 2026-08-10 on a live `verifier-fails-honestly-no-product-edit` session: an event
+        carrying a string `message` raised AttributeError out of `components_fired`, past the
+        behavioral runner's auth-only handler, aborting the batch with no benchmark written.
+        """
+        odd_events = "\n".join((
+            json.dumps({"type": "system", "message": "session resumed"}),
+            json.dumps({"type": "assistant", "message": None}),
+            json.dumps({"type": "assistant", "message": ["not", "a", "mapping"]}),
+            json.dumps(["a bare list line"]),
+            json.dumps("a bare string line"),
+            json.dumps(7),
+        ))
+        real = transcript(skill_use("sde-agents:prompt-craft"))
+        self.assertEqual(
+            {"prompt-craft"}, fired_in(odd_events + "\n" + real)
+        )
+
+        odd_and_result = odd_events + "\n" + json.dumps({
+            "type": "result", "is_error": False, "duration_ms": 11,
+            "usage": {"input_tokens": 3, "output_tokens": 4},
+            "message": "still a string", "model": "claude-sonnet-5",
+        })
+        self.assertTrue(stream.session_completed(odd_and_result))
+        self.assertEqual("claude-sonnet-5", stream.observed_model(odd_and_result))
+
+    def test_errored_tool_result_does_not_count_as_fired(self) -> None:
+        # A failed skill invocation (is_error: true) is NOT the skill firing — counting it would
+        # produce false PASS results on positives whose spawn failed.
+        line1 = transcript(skill_use("sde-agents:prompt-craft", tool_id="tu_1"))
+        line2 = transcript(tool_result("tu_1", is_error=True))
+        self.assertEqual(set(), fired_in(line1 + "\n" + line2))
+
+    def test_successful_tool_result_counts_as_fired(self) -> None:
+        line1 = transcript(agent_use("prompt-engineer", tool_id="tu_2"))
+        line2 = transcript(tool_result("tu_2", is_error=False))
+        self.assertEqual({"prompt-engineer"}, fired_in(line1 + "\n" + line2))
+
+    def test_missing_tool_result_still_counts_as_fired(self) -> None:
+        # Streams can end before the result comes back (timeout); absence of an error is
+        # not an error.
+        self.assertEqual(
+            {"prompt-craft"},
+            fired_in(transcript(skill_use("sde-agents:prompt-craft", tool_id="tu_3"))),
+        )
 
 if __name__ == "__main__":
     unittest.main()

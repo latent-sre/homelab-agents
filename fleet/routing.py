@@ -74,6 +74,19 @@ def fired_components(transcript: str, roster: frozenset[str]) -> set[str]:
     return fired
 
 
+def validated_threshold(value: object) -> float:
+    """A positive's pass bar, refused unless it is a real number in (0, 1].
+
+    `True` is deliberately rejected even though `0 < True <= 1` holds: a bool arriving here is a
+    caller mistake, and accepting it would silently set the bar to "every run".
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"threshold must be a number in (0, 1] (got {value!r})")
+    if not 0 < value <= 1:  # also rejects nan, which fails every comparison
+        raise ValueError(f"threshold must be > 0 and <= 1 (got {value!r})")
+    return float(value)
+
+
 @dataclass(frozen=True)
 class CaseVerdict:
     """One case's outcome across its runs, with the invalid runs held apart from the rates.
@@ -99,7 +112,13 @@ class CaseVerdict:
         return None if self.inconclusive else self.hits / self.valid_runs
 
     def passed(self, threshold: float) -> bool:
-        """A case is never `passed` while it is inconclusive, in either polarity."""
+        """A case is never `passed` while it is inconclusive, in either polarity.
+
+        The threshold is validated HERE rather than at the caller because this is the only place
+        it changes a verdict: a threshold of 0 passes every positive on zero correct runs, and a
+        bool or a string would compare without raising and silently decide cases.
+        """
+        threshold = validated_threshold(threshold)
         if self.inconclusive:
             return False
         rate = self.rate or 0.0

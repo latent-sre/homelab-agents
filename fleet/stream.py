@@ -154,3 +154,48 @@ def is_skill_launch_signal(result_text: str) -> bool:
     """Whether an `is_error` tool_result is the Skill tool's launch signal, not a failure."""
     lowered = result_text.lower()
     return any(signal in lowered for signal in SKILL_LAUNCH_SIGNALS)
+
+
+def final_result(text: str) -> dict[str, object] | None:
+    """The session's last `result` event, or None if it never reached one.
+
+    Read as the LAST one rather than the first: a transcript can carry more than one, and it is
+    the final structured result that says how the session ended.
+    """
+    found: dict[str, object] | None = None
+    for event in iter_events(text):
+        if event.get("type") == "result":
+            found = event
+    return found
+
+
+def session_completed(text: str) -> bool:
+    """Whether the session reached a final result that was not an error.
+
+    This is what separates a silence that is an OBSERVATION from one that is only an unfinished
+    run, and getting it wrong is expensive in both directions. A session that completed and routed
+    nowhere is real evidence -- a genuine miss on a positive, a genuine pass on a negative. A
+    session cut off before it finished has decided nothing, and scoring its silence as "did not
+    route" greens negatives vacuously and drops misses out of a positive's denominator.
+
+    Deliberately NOT the same as "the process exited zero": a run cut at its turn or time limit is
+    reported as an error by the harness while its transcript may already contain the routing
+    decision, and a clean exit with no result event is still silence.
+    """
+    result = final_result(text)
+    return result is not None and not result.get("is_error")
+
+
+def observed_model(text: str) -> str | None:
+    """The model the session ACTUALLY ran on, read off the transcript.
+
+    Independent of any requested model on purpose: routing behaviour varies by tier, so an
+    artifact that records the request rather than the observation cannot be validly diffed against
+    another -- and the runs a conditions block exists to describe are exactly the pinned ones,
+    where the two would agree and hide the bug.
+    """
+    for event in iter_events(text):
+        candidate = event.get("model") or event_message_field(event, "model")
+        if isinstance(candidate, str) and candidate:
+            return candidate
+    return None
