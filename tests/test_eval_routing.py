@@ -1157,3 +1157,50 @@ class CodexThirdRoundTest(MainIntegrationTest):
             code = eval_routing.main([str(self.cluster), "--runs", "1", "--clean-room"])
         self.assertEqual(2, code)
         self.assertEqual(["closed"], closed, "the credential copy must not outlive an early exit")
+
+
+class CodexFourthRoundTest(MainIntegrationTest):
+    """The three findings from the Codex review of `4a88510`. Real, and the round was small."""
+
+    def test_a_foreign_namespace_does_not_satisfy_registration(self) -> None:
+        """P1: stripping every namespace let `other-plugin:root-cause` stand in for this plugin's
+        `root-cause`, so a negative passed while the fleet's own component never loaded."""
+        def entry_for(skills: list[str]) -> dict:
+            handle = tempfile.NamedTemporaryFile(
+                "w", suffix=".jsonl", delete=False, encoding="utf-8"
+            )
+            handle.write(trace(
+                {"type": "system", "subtype": "init", "agents": [], "skills": skills},
+                result_event(),
+            ))
+            handle.close()
+            self.addCleanup(Path(handle.name).unlink, missing_ok=True)
+            return eval_routing._scored(
+                {"id": "n", "polarity": "negative", "expect_not_fires": ["root-cause"]},
+                ["root-cause"], [{"tracePath": handle.name, "error": None}],
+                frozenset({"root-cause"}), 0.5,
+            )
+
+        foreign = entry_for(["other-plugin:root-cause"])
+        self.assertTrue(foreign["inconclusive"], "a different plugin's component is not this one")
+        ours = entry_for([f"{eval_routing.PLUGIN_NAMESPACE}:root-cause"])
+        self.assertFalse(ours["inconclusive"])
+        self.assertTrue(ours["passed"])
+
+    def test_a_cluster_member_cannot_rewrite_a_generated_path(self) -> None:
+        """P2: the target becomes a grader FILENAME, and `x/../../prompt` normalised onto the
+        case's own `prompt.md` -- a grader overwriting the prompt, inside the tree, so the
+        containment check downstream could not catch it."""
+        from fleet import nativecases
+        spec = {"cluster": "demo", "members": ["x/../../prompt"], "cases": []}
+        case = {"id": "c", "polarity": "negative", "prompt": "p",
+                "expect_not_fires": ["x/../../prompt"]}
+        with self.assertRaisesRegex(ValueError, "cluster member"):
+            nativecases.case_files(spec, case, agents=frozenset())
+
+    def test_the_evaluator_identity_covers_its_own_provenance_machinery(self) -> None:
+        """P2: a change to the identity code or the path primitives moved what is accepted while
+        `evaluator.sha256` stayed put, making captures from different logic look reusable."""
+        for path in (REPO / "fleet" / "provenance.py", REPO / "fleet" / "fs.py"):
+            with self.subTest(path=path.name):
+                self.assertIn(path, eval_routing.EVALUATOR_PATHS)

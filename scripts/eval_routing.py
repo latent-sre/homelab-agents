@@ -65,6 +65,14 @@ FLEET_SKILLS = frozenset(
 ) if (REPO / "skills").is_dir() else frozenset()
 FLEET = FLEET_AGENTS | FLEET_SKILLS
 
+# The plugin under test, read from its own manifest rather than hardcoded. Registration is checked
+# against `<namespace>:<name>`: stripping every namespace let an unrelated plugin's component with
+# the same basename satisfy the guard, so a negative could pass while the fleet's own component
+# was never loaded.
+PLUGIN_NAMESPACE = json.loads(
+    (REPO / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+)["name"]
+
 # The code whose bytes decide a verdict, named for `evaluator_identity`. Two benchmarks produced by
 # different grading code are not comparable even when every other condition matches, and this is
 # the only place that says which files those are.
@@ -80,6 +88,11 @@ EVALUATOR_PATHS = (
     # Decides the recorded auth conditions AND whether a batch is accepted at all, so a change
     # here changes which runs become a benchmark. The retiring runner hashed it for that reason.
     REPO / "scripts" / "eval_clean_room.py",
+    # The identity machinery itself, and the path primitives it and the generator validate with.
+    # A change to either moves selection or plugin identity, or what paths are accepted, while
+    # every other listed byte stays the same -- captures from different logic would look reusable.
+    REPO / "fleet" / "provenance.py",
+    REPO / "fleet" / "fs.py",
 )
 
 
@@ -264,10 +277,12 @@ def _scored(
     for index, surface in enumerate(surfaces):
         if fired[index] is None:
             continue
-        registered = routing.bare_names(
-            [*surface.get("agents", []), *surface.get("skills", [])]
-        )
-        missing = required - registered
+        # Qualified, not bare: `other-plugin:root-cause` must not satisfy a requirement for this
+        # plugin's `root-cause`.
+        registered = {*surface.get("agents", []), *surface.get("skills", [])}
+        missing = {
+            name for name in required if f"{PLUGIN_NAMESPACE}:{name}" not in registered
+        }
         if missing:
             fired[index] = None
             notes.append(

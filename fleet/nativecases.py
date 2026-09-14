@@ -134,10 +134,16 @@ def case_files(
         targets = case.get("expect_not_fires")
         if targets is None:
             targets = list(spec["members"])  # the documented broad negative: the whole cluster
-        graders = {
-            f"{case_id}/graders/no-{t}.md": _forbidden_grader(str(t), tool_for(str(t), agent_set))
-            for t in targets
-        }
+        graders = {}
+        for target in targets:
+            # The target becomes a FILENAME. Unchecked, a member like `x/../../prompt` produced
+            # `<case>/graders/no-x/../../prompt.md`, which normalises onto `<case>/prompt.md` --
+            # a grader silently overwriting the case's own prompt, and the containment check
+            # downstream still passed because the result stays inside the tree.
+            name = safe_path_segment(str(target), what="cluster member")
+            graders[f"{case_id}/graders/no-{name}.md"] = _forbidden_grader(
+                name, tool_for(name, agent_set)
+            )
     else:
         graders = {f"{case_id}/graders/verdict-is-fleet-side.md": _VACUOUS_GRADER}
 
