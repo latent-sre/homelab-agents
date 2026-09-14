@@ -5,7 +5,10 @@
   phase 0 merged in PR #187 and both live preconditions were met (the unprivileged probe re-run
   and the native eval pilot, both in `docs/archive/2026-09/`). Phases 1–5 now carry
   implementation authority in the order the phase table states, one PR each.
-- Owner of the live work item: `MACH-001` in `docs/fleet-roadmap.md`.
+- **Closed 2026-09-14.** All five phases merged (PRs #187, #188, #189, #190, #191, #193) and
+  the lint ratchet reached its amended acceptance, so `MACH-001` left `docs/fleet-roadmap.md`
+  under that file's rule that it carries only unfinished work. This record is now the owner of
+  what that item held; the two facts it alone carried are preserved below.
 - Amendments discharged: phase 4 amended `evals/README.md` and the routing-eval sentence in
   `AGENTS.md` (PR #191); phase 5 amended `docs/fleet-development.md`'s hook section and the
   generated-output and hook playbooks in `AGENTS.md`.
@@ -209,6 +212,48 @@ runs — one live batch, the retiring runner's reader and scorer applied to iden
 count and the per-run firing sets. What that oracle cannot exercise, and why, is recorded with it:
 `docs/archive/2026-09/routing-migration-oracle-2026-09-14.md`.
 
+### The thirteen runner tests, dispositioned
+
+`fleet/provenance.py` took the retiring runner's identity machinery and 21 of its tests. Thirteen
+more drove that machinery through the runner's `main` and could not run until the thin replacement
+existed; a fourteenth (the drive-letter test) was deferred separately and belongs with them. Phase
+4 did not merge until each was re-homed or deleted with its reason, and this is that disposition —
+recorded here because the roadmap item that held it has closed. Two counts in the original were
+wrong and are corrected: an early draft claimed all were re-homed (false for four), and gave the
+total as thirteen where the groups below enumerate fourteen.
+
+- **Re-homed to `FrozenPluginTest` in `tests/test_fleet_provenance.py`**, driven directly rather
+  than through a runner: `test_routing_executes_frozen_plugin_when_source_changes_and_restores`,
+  `test_routing_refuses_frozen_plugin_mutated_by_a_session`,
+  `test_transient_private_snapshot_mutation_is_a_host_sandbox_boundary`.
+- **Re-homed to `MainIntegrationTest` in `tests/test_eval_routing.py`**, which drives `main` with
+  the native harness mocked and mutation-proves both guards:
+  `test_routing_benchmark_writes_complete_provenance`,
+  `test_routing_benchmark_refuses_plugin_content_changed_during_run`,
+  `test_a_cluster_edited_mid_batch_into_a_bad_target_exits_two`.
+- **Deleted with the machinery the phase-4 amendment drops** (evaluator self-binding):
+  `test_clean_room_classifier_is_loaded_once_per_evaluator_process`,
+  `test_clean_room_identity_hashes_the_exact_compiled_source_buffer`,
+  `test_standalone_runner_is_bound_to_its_actual_compiled_source_buffer`,
+  `test_loaded_a_disk_b_identity_records_the_executing_routing_buffer`,
+  `test_registry_survives_drive_letter_case_drift`.
+- **Deleted because the MECHANISM they drove is now the platform's, not because the checks are
+  gone**: `test_routing_batch_aborts_auth_failure_without_writing_benchmark`,
+  `test_routing_batch_requires_every_selected_agent_to_be_registered`,
+  `test_routing_batch_cancels_queued_runs_after_registration_failure`. An earlier draft said the
+  fleet "can no longer observe a failed registration", which is wrong and was caught in review:
+  the shipped runner reconstructs the registered surface from each trace and aborts the batch
+  through `RegistrationIncomplete` at exit 2, and the authentication abort is likewise retained —
+  both exercised by
+  `CodexTenthRoundTest.test_an_unregistered_component_aborts_the_batch_rather_than_one_run`,
+  `CodexSecondRoundTest.test_an_authentication_failure_aborts_the_batch`, and the
+  missing-registration tests in `CodexReviewFindingsTest`, `CodexSecondRoundTest`,
+  `CodexFourthRoundTest` and `CodexEighthRoundTest`. What genuinely moved is **queue
+  cancellation**: the fleet no longer spawns the sessions, so it has no queue of its own to
+  cancel. Its remaining obligation — never writing a benchmark for a measurement that did not
+  happen — is covered by
+  `test_an_unreadable_native_result_is_a_measurement_failure_not_a_verdict`.
+
 ## Rejected alternatives
 
 - **Rewrite everything in one PR.** The suite is the only complete statement of the machinery's
@@ -238,8 +283,10 @@ count and the per-run firing sets. What that oracle cannot exercise, and why, is
   command now carries its partial transcript as text, and the test pool now excludes
   `node_modules` exactly as the probe's plugin copy always did.
 - Drift facts 2 and 4 were resolved by measurement the same day; fact 3 by refreshing the
-  known-key sets with a dated test. Fact 1 (native evals) needs a live run and stays MACH-001's
-  first live action.
+  known-key sets with a dated test. Fact 1 (native evals) needed a live run, which phase 4 took on
+  2026-09-14 — see the oracle in
+  [`routing-migration-oracle-2026-09-14.md`](../archive/2026-09/routing-migration-oracle-2026-09-14.md)
+  (link intentionally over the wrap target; a split path would not resolve).
 
 ## Reopen triggers
 
@@ -596,3 +643,15 @@ excluded them.
 The distinction that matters for the next maintainer: a suppression dated to when the gate was
 introduced is debt, and a suppression that states a reason is a decision. The table now holds only
 the second kind, and the rule against widening an entry is unchanged.
+
+**The probe was not run for this phase, and that is a ruling rather than an omission.**
+`AGENTS.md`'s hook playbook owes a `scripts/probe_plugin.py` run for a hook change, and the
+shipped `hooks/hooks.json` did not change a byte — it is identical at 3,035 bytes to the file the
+last probe ran against, and absent from `git diff` on every head of the phase-5 PR. A run would
+therefore have re-proved an existing fact, which proportionality forbids, and byte-identity is
+the stronger evidence for a change of PROVENANCE than a live session would be. **The next probe —
+owed at the next CLI pin bump — is the first to exercise a machine-produced hook file, and is the
+run to read carefully.** Weighing against this ruling, and recorded because it belongs beside it:
+review found three separate ways the renderer could have emitted bytes other than expected, so
+the argument rests on the committed bytes being unchanged, not on the renderer being obviously
+right.

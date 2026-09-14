@@ -2171,11 +2171,19 @@ class CodexEleventhRoundTest(MainIntegrationTest):
         self.assertIn("must be **true** on both sides", section)
         self.assertIn("exactly one** model", section)
 
-    def test_the_roadmap_does_not_claim_the_registration_check_was_lost(self) -> None:
+    def test_the_disposition_does_not_claim_the_registration_check_was_lost(self) -> None:
         """P2: the disposition told a maintainer that registration and auth aborts belong to the
         platform now. The runner reconstructs registration from each trace and aborts on it —
-        and round 10 made that abort stricter, so the claim got more wrong, not less."""
-        text = " ".join((REPO / "docs" / "fleet-roadmap.md").read_text(encoding="utf-8").split())
+        and round 10 made that abort stricter, so the claim got more wrong, not less.
+
+        The disposition moved out of `docs/fleet-roadmap.md` when MACH-001 closed on 2026-09-14:
+        that file carries only unfinished work, so a closed item leaves it and its durable
+        evidence moves to the owning decision record. The correction is what this test guards, not
+        the file it sits in — but it is pinned to one named file on purpose, so relocating it
+        again fails here rather than silently losing the reader check.
+        """
+        owner = REPO / "docs" / "decisions" / "2026-09-13-machinery-rewrite.md"
+        text = " ".join(owner.read_text(encoding="utf-8").split())
         section = text[text.index("Deleted because the MECHANISM"):][:1600]
         self.assertIn("RegistrationIncomplete", section)
         self.assertIn("queue cancellation", section.replace("**", ""))
