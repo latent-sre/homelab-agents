@@ -182,6 +182,16 @@ _STRUCTURE_DENY = re.compile(
 # Operator tokens that separate one command from the next. Every resulting segment must stand on its
 # own as an allowed read — `git log; rm -rf /` gets no free pass from its harmless first half.
 _SEPARATORS = {"|", "||", "&&", ";", "\n"}
+# Every character `shlex(punctuation_chars=True)` treats as an operator character. It emits a RUN
+# of adjacent ones as a SINGLE token, which is the bypass found by the property test below:
+# `ls;(rm -rf /)` lexes as ['ls', ';(', 'rm', '-rf', '/', ')'], and `;(` is not in _SEPARATORS, so
+# the line never splits. The whole thing stayed one segment whose command is the allowed `ls`,
+# with `rm -rf /` riding in as its arguments -- ALLOWED, while both `rm -rf /` and `(rm -rf /)`
+# are denied on their own. Any operator token that is not exactly a separator we recognise is
+# therefore structure we do not understand, and is denied. A quoted `(` in a search pattern is
+# denied with it: after posix lexing it is the same token, and the guard's standing trade is a
+# loud false positive over a silent allow.
+_OPERATOR_CHARS = frozenset("();<>|&")
 
 # --- the allowlist --------------------------------------------------------------------------
 # Plain readers and filters: they consume input and print. None can write a file on their own (a
@@ -495,6 +505,13 @@ def is_allowed(command: str, *, network_allowed: bool = True) -> bool:
             tokens = _tokenize(line)
         except ValueError:
             return False  # unbalanced quotes: we do not understand it, so we do not permit it
+        if any(
+            token and set(token) <= _OPERATOR_CHARS and token not in _SEPARATORS
+            for token in tokens
+        ):
+            # An operator run we do not recognise (`;(`, `&&(`, a stray `)`), so we cannot say
+            # where one command ends and the next begins. Same rule as the unbalanced quote above.
+            return False
         segments = _split_segments(tokens)
         if not segments or not all(
             _segment_allowed(segment, network_allowed=network_allowed) for segment in segments

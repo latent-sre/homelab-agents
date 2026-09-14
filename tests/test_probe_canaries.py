@@ -6,6 +6,7 @@ comments and these source checks keep a copy-edit from silently invalidating tha
 """
 from __future__ import annotations
 
+import ast
 import contextlib
 import io
 import json
@@ -473,6 +474,422 @@ class BuilderSkillLoadingTests(unittest.TestCase):
         self.assertEqual(["INCONCLUSIVE", "PASS", "INCONCLUSIVE"], self.check_loading(
             self.call("opaque", "Bash", command="cat unseen-file"),
         ))
+
+
+class ProbeTimeoutRecoveryTests(unittest.TestCase):
+    """PROBE-006: a leg that never answers must not discard the rest of the run.
+
+    The probe used to spawn through `run_completed`, so a session that hit the 600-second limit
+    raised `TimeoutExpired` out of whatever leg was running. Every later check -- and every
+    result already collected -- went with it, and the operator paid for a full probe to learn
+    nothing. Reproduced at the operator's limit in the 2026-09-07 diagnostic correction.
+    """
+
+    def test_the_runner_returns_a_timeout_instead_of_raising(self) -> None:
+        with mock.patch.object(
+            probe_plugin._proc,
+            "run",
+            return_value=probe_plugin._proc.CommandResult(
+                ("claude",), None, "partial transcript", "", timed_out=True, error="timed out"
+            ),
+        ):
+            result = probe_plugin.run(["claude", "-p", "hello"])
+        self.assertTrue(result.timed_out)
+        # The transcript the run already paid for survives the failure.
+        self.assertEqual("partial transcript", result.stdout)
+
+    def test_an_unanswered_leg_is_inconclusive_with_its_own_cause(self) -> None:
+        timed_out = probe_plugin._proc.CommandResult(
+            ("claude",), None, "", "", timed_out=True, error="timed out"
+        )
+        never_started = probe_plugin._proc.CommandResult(
+            ("claude",), 127, "", "", failed_to_start=True, error="No such file"
+        )
+        answered = probe_plugin._proc.CommandResult(("claude",), 0, "ok", "")
+
+        self.assertIn("did not answer within 600s", probe_plugin.unanswered_cause(timed_out))
+        self.assertIn("could not be started", probe_plugin.unanswered_cause(never_started))
+        self.assertIsNone(probe_plugin.unanswered_cause(answered))
+
+        for result in (timed_out, never_started):
+            with self.subTest(result=result):
+                probe = probe_plugin.Probe()
+                with contextlib.redirect_stdout(io.StringIO()):
+                    proceeded = probe.answered(result, "a leg that got no answer")
+                self.assertFalse(proceeded)
+                self.assertEqual([probe_plugin.SKIP], [s for s, *_ in probe.results])
+                self.assertNotIn(probe_plugin.FAIL, [s for s, *_ in probe.results])
+
+    def test_an_unclassified_failure_is_reported_not_silenced(self) -> None:
+        """The default is to REPORT. Forgetting a classification must never hide a regression.
+
+        The flag marks the ABSENCE side precisely so this is true: a presence-based FAIL added
+        later, or simply missed, stays a FAIL on partial evidence. Noisy is recoverable; a
+        silently downgraded security regression is not. Four unmarked presence-based verdicts
+        were found across three review rounds under the opposite default, which is why the
+        default moved rather than the list growing again.
+        """
+        timed_out = probe_plugin._proc.CommandResult(
+            ("claude",), None, "partial", "", timed_out=True, error="timed out"
+        )
+        probe = probe_plugin.Probe()
+        with contextlib.redirect_stdout(io.StringIO()):
+            probe.reading(timed_out)
+            probe.check(probe_plugin.FAIL, "a denylisted command RAN unguarded")
+            probe.check(probe_plugin.FAIL, "a canary was not present", absence=True)
+        statuses = {label: status for status, label, _ in probe.results}
+        self.assertEqual(
+            probe_plugin.FAIL,
+            statuses["a denylisted command RAN unguarded"],
+            "an unclassified verdict was silenced by a truncated transcript",
+        )
+        self.assertEqual(probe_plugin.SKIP, statuses["a canary was not present"])
+
+    def test_every_downgradable_verdict_fails_on_a_falsy_predicate(self) -> None:
+        """Structural, because prose is not checkable and my first attempt at this lied.
+
+        The earlier version of this test matched the detail text for absence words and flagged
+        `PASS if default_hits else FAIL` -- a genuine absence whose prose happens to describe the
+        consequence rather than the gap. Classifying semantics from wording produces both false
+        alarms and false confidence, so this asserts the shape instead.
+
+        A `probe.check(PASS if X else FAIL, ...)` reaches FAIL when X is FALSY: something was not
+        found. A bare `probe.check(FAIL, ...)` is reached because a branch condition was TRUE:
+        the oracle saw something. Only the first form may carry `absence=True`, and that is
+        decidable from the syntax tree rather than from how the message reads.
+        """
+        source = Path(probe_plugin.__file__).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        offenders = []
+        marked = 0
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "check"
+                and any(kw.arg == "absence" for kw in node.keywords)
+            ):
+                continue
+            marked += 1
+            verdict = node.args[0] if node.args else None
+            conditional_on_a_predicate = isinstance(verdict, ast.IfExp) and isinstance(
+                verdict.orelse, ast.Name
+            ) and verdict.orelse.id == "FAIL"
+            if not conditional_on_a_predicate:
+                offenders.append(node.lineno)
+        self.assertTrue(marked, "no absence-based verdicts marked; the cascade is unsuppressed")
+        self.assertEqual(
+            [],
+            offenders,
+            f"lines {offenders} pass absence=True on an unconditional FAIL. That verdict is "
+            f"reached because something WAS observed, and marking it downgradable silences it "
+            f"on a truncated transcript.",
+        )
+
+    def test_an_unanswered_agent_session_reports_why_not_just_that(self) -> None:
+        """A timeout and a launch failure must not read as "never attempted".
+
+        They send the operator to different places -- wait and re-run, versus repair the
+        environment -- and `reading()` stores the cause without putting it in the verdict, so the
+        unconditional SKIP on this branch dropped it.
+        """
+        for result, expected in (
+            (
+                probe_plugin._proc.CommandResult(
+                    ("claude",), None, "", "", timed_out=True, error="timed out"
+                ),
+                "did not answer within 600s",
+            ),
+            (
+                probe_plugin._proc.CommandResult(
+                    ("claude",), 127, "", "", failed_to_start=True, error="No such file"
+                ),
+                "could not be started",
+            ),
+        ):
+            with self.subTest(result=result):
+                probe = probe_plugin.Probe()
+                with contextlib.redirect_stdout(io.StringIO()):
+                    probe.reading(result)
+                    cause = probe_plugin.unanswered_cause(result)
+                    probe.check(
+                        probe_plugin.SKIP,
+                        "the guard DENIED a --agent main session's denylisted command",
+                        cause or "the session never attempted the command",
+                    )
+                detail = probe.results[0][2]
+                self.assertIn(expected, detail)
+                self.assertNotIn("never attempted", detail)
+
+
+    def test_an_errored_spawn_is_told_apart_from_an_absent_one(self) -> None:
+        """`spawn_succeeded` returning False conflated two different findings.
+
+        No correlated result at all is an absence and means nothing on a partial transcript. A
+        result that came back marked `is_error` is a plugin-loading or name-resolution failure
+        the oracle positively saw, and marking the combined predicate downgradable silenced it.
+        """
+        agent = "sde-agents:code-reviewer"
+        errored = json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "call_1",
+                            "name": "Agent",
+                            "input": {"subagent_type": agent},
+                        }
+                    ]
+                },
+            }
+        ) + "\n" + json.dumps(
+            {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {"type": "tool_result", "tool_use_id": "call_1", "is_error": True,
+                         "content": "boom"}
+                    ]
+                },
+            }
+        )
+        self.assertTrue(probe_plugin.spawn_errored(errored, agent))
+        self.assertFalse(probe_plugin.spawn_succeeded(errored, agent))
+
+        # An absent result is neither a success nor an observed error.
+        absent = json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "call_2",
+                            "name": "Agent",
+                            "input": {"subagent_type": agent},
+                        }
+                    ]
+                },
+            }
+        )
+        self.assertFalse(probe_plugin.spawn_errored(absent, agent))
+        self.assertFalse(probe_plugin.spawn_succeeded(absent, agent))
+
+    def test_an_answered_gate_arm_is_graded_even_when_its_peer_times_out(self) -> None:
+        """Drives `_probe_live_effect_gate` itself, because the defect was CONTROL FLOW.
+
+        The first version of this test rebuilt the loop in its own body and inserted the expected
+        FAIL by hand. It executed none of the production branch it claimed to cover, so
+        reinstating the early return left it green -- a test that reads as enforcement while
+        enforcing nothing, which is the class this PR keeps finding (Codex, #190).
+
+        The AGENT arm answers with a transcript showing the live verb RAN unguarded; the MAIN arm
+        times out. The observed regression must survive its peer's timeout.
+        """
+        marker = probe_plugin.GATE_CMD.format(marker="AGENT")
+        ran_unguarded = "\n".join(
+            json.dumps(event)
+            for event in (
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "id": "call_gate",
+                                "name": "Bash",
+                                "input": {"command": marker},
+                            }
+                        ]
+                    },
+                },
+                {
+                    "type": "user",
+                    "message": {
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "call_gate",
+                                "content": "GATEPROBE_AGENT\nno such file",
+                            }
+                        ]
+                    },
+                },
+            )
+        )
+
+        def spawn(cmd, **_kwargs):
+            argv = tuple(cmd)
+            if "--agent" in argv:
+                return probe_plugin._proc.CommandResult(argv, 0, ran_unguarded, "")
+            return probe_plugin._proc.CommandResult(
+                argv, None, "", "", timed_out=True, error="timed out"
+            )
+
+        probe = probe_plugin.Probe()
+        with (
+            mock.patch.object(probe_plugin, "run", side_effect=spawn),
+            mock.patch.object(probe_plugin, "CLAUDE", "claude"),
+            mock.patch.object(probe_plugin, "existing_path", return_value=None),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            probe_plugin._probe_live_effect_gate(probe, Path("probe-target"))
+
+        verdicts = {label: status for status, label, _ in probe.results}
+        self.assertEqual(
+            probe_plugin.SKIP,
+            verdicts.get("the live-effect gate differential (MAIN arm)"),
+            "the timed-out MAIN arm was not reported",
+        )
+        agent_verdict = verdicts.get(
+            "the gate DENIED homelab-engineer's live verb under dontAsk"
+        )
+        self.assertIsNotNone(
+            agent_verdict,
+            "the answered AGENT arm was never graded -- the early return is back",
+        )
+        self.assertEqual(
+            probe_plugin.FAIL,
+            agent_verdict,
+            "the AGENT arm observed the live verb running unguarded, and that verdict was "
+            "discarded or downgraded because its peer timed out",
+        )
+
+    def test_an_answering_leg_clears_the_previous_session_truncation(self) -> None:
+        """`answered` begins reading its result, so a leg that answered is judged on its own.
+
+        Two entry points where only one reset the state: `answered` returned True without
+        clearing, so a real regression found by a leg that DID answer was downgraded to
+        INCONCLUSIVE because an unrelated earlier session had timed out.
+        """
+        timed_out = probe_plugin._proc.CommandResult(
+            ("claude",), None, "", "", timed_out=True, error="timed out"
+        )
+        answered = probe_plugin._proc.CommandResult(("claude",), 0, "ok", "")
+        probe = probe_plugin.Probe()
+        with contextlib.redirect_stdout(io.StringIO()):
+            probe.reading(timed_out)
+            self.assertTrue(probe.answered(answered, "a leg that did answer"))
+            probe.check(probe_plugin.FAIL, "a real regression this leg found")
+        statuses = {label: status for status, label, _ in probe.results}
+        self.assertEqual(probe_plugin.FAIL, statuses["a real regression this leg found"])
+
+    def test_a_failed_setup_command_is_the_legs_inconclusive_not_a_fleet_failure(self) -> None:
+        """Setup is environment. A repository that was never initialised proves nothing."""
+        missing_git = probe_plugin._proc.CommandResult(
+            ("git", "init", "-q", "/tmp/x"), 127, "", "", failed_to_start=True, error="No such file"
+        )
+        timed_out = probe_plugin._proc.CommandResult(
+            ("git", "add", "-A"), None, "", "", timed_out=True, error="timed out"
+        )
+        ok = probe_plugin._proc.CommandResult(("git", "init"), 0, "", "")
+
+        self.assertIsNone(probe_plugin.setup_failure([ok, ok]))
+        for broken in (missing_git, timed_out):
+            with self.subTest(result=broken):
+                cause = probe_plugin.setup_failure([ok, broken, ok])
+                self.assertIsNotNone(cause)
+                self.assertIn("probe setup command", cause)
+                self.assertIn(broken.argv[0], cause)
+
+    def test_a_broken_workspace_stops_the_run_before_any_paid_session(self) -> None:
+        """No repository means nothing to probe, so the run must not spend on sessions."""
+        spawned: list[tuple[str, ...]] = []
+
+        def spawn(cmd, **_kwargs):
+            argv = tuple(cmd)
+            spawned.append(argv)
+            if argv and argv[0] == "git":
+                return probe_plugin._proc.CommandResult(
+                    argv, 127, "", "", failed_to_start=True, error="No such file"
+                )
+            return probe_plugin._proc.CommandResult(argv, 0, "", "")
+
+        with (
+            mock.patch.object(probe_plugin, "run", side_effect=spawn),
+            mock.patch.object(probe_plugin, "CLAUDE", "claude"),
+            mock.patch.object(probe_plugin, "_remove_workspace"),
+            tempfile.TemporaryDirectory() as tmp,
+            mock.patch.object(probe_plugin, "REPO", Path(tmp)),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = probe_plugin.main([])
+
+        self.assertEqual(2, code, "a broken workspace is INCONCLUSIVE, never a fleet FAIL")
+        self.assertEqual(
+            [], [argv for argv in spawned if argv and argv[0] == "claude"],
+            "the probe spent on a model session against a repository that does not exist",
+        )
+
+    def test_a_truncated_transcript_makes_later_checks_unevaluated_not_failed(self) -> None:
+        """The PROBE-002 distinction, applied to the whole run.
+
+        A transcript that stops mid-session cannot tell "the canary is absent" from "the oracle
+        saw nothing", so a confident FAIL on that evidence is the cascade that made one
+        environment condition read as a dozen fleet defects.
+        """
+        timed_out = probe_plugin._proc.CommandResult(
+            ("claude",), None, "", "", timed_out=True, error="timed out"
+        )
+        answered = probe_plugin._proc.CommandResult(("claude",), 0, "ok", "")
+        probe = probe_plugin.Probe()
+        with contextlib.redirect_stdout(io.StringIO()):
+            probe.check(probe_plugin.FAIL, "before truncation", absence=True)
+            probe.reading(timed_out)
+            probe.check(probe_plugin.FAIL, "after truncation", absence=True)
+            probe.check(probe_plugin.PASS, "a pass is still a pass")
+            # A later leg drives its OWN session; a timeout in the previous one must not
+            # silence its verdicts.
+            probe.reading(answered)
+            probe.check(probe_plugin.FAIL, "the next session answered", absence=True)
+
+        statuses = {label: status for status, label, _ in probe.results}
+        self.assertEqual(probe_plugin.FAIL, statuses["before truncation"])
+        self.assertEqual(probe_plugin.SKIP, statuses["after truncation"])
+        # A PASS on partial evidence is still real: the canary was observed, not merely absent.
+        self.assertEqual(probe_plugin.PASS, statuses["a pass is still a pass"])
+        self.assertEqual(probe_plugin.FAIL, statuses["the next session answered"])
+        detail = next(d for _, label, d in probe.results if label == "after truncation")
+        self.assertIn("unevaluated", detail)
+
+    def test_a_timed_out_main_session_still_reaches_the_workflow_leg(self) -> None:
+        """The heart of PROBE-006: later legs run their own sessions and must still be reached."""
+        reached: list[str] = []
+
+        def spawn(cmd, **_kwargs):
+            """Setup succeeds; only the model sessions time out.
+
+            The distinction is the test's whole point. A `git init` that fails means there is no
+            repository to probe, and returning early is right; a SESSION that times out must not
+            take the legs that drive their own sessions with it.
+            """
+            argv = tuple(cmd)
+            if argv and argv[0] == "git":
+                return probe_plugin._proc.CommandResult(argv, 0, "", "")
+            return probe_plugin._proc.CommandResult(
+                argv, None, "", "", timed_out=True, error="timed out"
+            )
+
+        with (
+            mock.patch.object(probe_plugin, "run", side_effect=spawn),
+            mock.patch.object(probe_plugin, "CLAUDE", "claude"),
+            mock.patch.object(probe_plugin, "_remove_workspace"),
+            mock.patch.object(
+                probe_plugin,
+                "probe_workflow_contract",
+                side_effect=lambda probe: reached.append("workflow"),
+            ),
+            tempfile.TemporaryDirectory() as tmp,
+            mock.patch.object(probe_plugin, "REPO", Path(tmp)),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = probe_plugin.main([])
+
+        self.assertEqual(["workflow"], reached, "the run stopped at the timed-out session")
+        # INCONCLUSIVE, never a green run and never a fleet defect.
+        self.assertEqual(2, code)
 
 
 class ProbeInconclusiveReportingTests(unittest.TestCase):

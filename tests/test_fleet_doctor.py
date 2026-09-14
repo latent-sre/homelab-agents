@@ -353,12 +353,12 @@ class FleetDoctorTests(unittest.TestCase):
             calls.append(tuple(argv))
             fleet_doctor._assert_read_only_command(argv)
             if tuple(argv[-2:]) == ("rev-parse", "HEAD"):
-                return fleet_doctor.CommandResult(0, "a" * 40 + "\n", "")
+                return fleet_doctor.CommandResult(tuple(argv), 0, "a" * 40 + "\n", "")
             if tuple(argv[-2:]) == ("status", "--short"):
-                return fleet_doctor.CommandResult(0, "", "")
+                return fleet_doctor.CommandResult(tuple(argv), 0, "", "")
             if tuple(argv[-2:]) == ("plugin", "list"):
-                return fleet_doctor.CommandResult(0, "sde-agents 1.4.0\n", "")
-            return fleet_doctor.CommandResult(0, "test-cli 1.0\n", "")
+                return fleet_doctor.CommandResult(tuple(argv), 0, "sde-agents 1.4.0\n", "")
+            return fleet_doctor.CommandResult(tuple(argv), 0, "test-cli 1.0\n", "")
 
         def which(command: str) -> str:
             return str(Path("C:/tools") / f"{command}.exe")
@@ -407,8 +407,8 @@ class FleetDoctorTests(unittest.TestCase):
     def test_junction_mode_without_plugin_reports_dormant_guard(self) -> None:
         def run(argv: tuple[str, ...]) -> fleet_doctor.CommandResult:
             if tuple(argv[-2:]) == ("plugin", "list"):
-                return fleet_doctor.CommandResult(0, "other-plugin\n", "")
-            return fleet_doctor.CommandResult(0, "test-cli 1.0\n", "")
+                return fleet_doctor.CommandResult(tuple(argv), 0, "other-plugin\n", "")
+            return fleet_doctor.CommandResult(tuple(argv), 0, "test-cli 1.0\n", "")
 
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
@@ -496,6 +496,123 @@ class FleetDoctorTests(unittest.TestCase):
         self.assertEqual(1, self._exit_code_for(fail=1, inconclusive=1, warn=1))
         self.assertEqual(2, self._exit_code_for(inconclusive=1, warn=1))
         self.assertEqual(3, self._exit_code_for(warn=1))
+
+
+class DoctorUsesTheKernelResult(unittest.TestCase):
+    """One result type, and the two failures it must keep apart.
+
+    The doctor used to keep its own three-field `CommandResult` and downgrade the kernel's into
+    it, turning both a timeout and a missing binary into `returncode=127` with the error text in
+    stderr. Those call for different operator actions -- wait or retry versus install the CLI --
+    and the doctor's whole job is telling the operator which thing to go fix.
+    """
+
+    def test_the_doctor_result_is_the_kernel_result(self) -> None:
+        self.assertIs(fleet_doctor._proc.CommandResult, fleet_doctor.CommandResult)
+
+    def test_a_timeout_and_a_missing_binary_stay_distinguishable(self) -> None:
+        timed_out = fleet_doctor.CommandResult(
+            ("claude", "--version"), None, "", "", timed_out=True, error="timed out"
+        )
+        missing = fleet_doctor.CommandResult(
+            ("claude", "--version"), 127, "", "", failed_to_start=True, error="No such file"
+        )
+        self.assertTrue(timed_out.timed_out)
+        self.assertFalse(timed_out.failed_to_start)
+        self.assertTrue(missing.failed_to_start)
+        self.assertFalse(missing.timed_out)
+        # Both are failures; the next test pins why `ok` is the read and returncode is not.
+        for result in (timed_out, missing):
+            with self.subTest(result=result):
+                self.assertFalse(result.ok)
+
+    def test_the_two_failures_produce_different_diagnostics(self) -> None:
+        """Holding the richer result is pointless if the report throws the distinction away.
+
+        Both failures leave `stderr` empty and put the cause in `error`, so a details dict of
+        `{"stderr": ...}` rendered them identically -- the operator saw one blank line either
+        way and could not choose between retrying and repairing the installation.
+        """
+        timed_out = fleet_doctor.CommandResult(
+            ("claude", "--version"), None, "", "", timed_out=True, error="timed out after 30s"
+        )
+        missing = fleet_doctor.CommandResult(
+            ("claude", "--version"), 127, "", "", failed_to_start=True, error="No such file"
+        )
+        timeout_details = fleet_doctor._failure_details(timed_out)
+        missing_details = fleet_doctor._failure_details(missing)
+
+        self.assertNotEqual(timeout_details, missing_details)
+        self.assertTrue(timeout_details["timed_out"])
+        self.assertNotIn("timed_out", missing_details)
+        self.assertTrue(missing_details["failed_to_start"])
+        self.assertNotIn("failed_to_start", timeout_details)
+        for details in (timeout_details, missing_details):
+            with self.subTest(details=details):
+                self.assertTrue(details["error"], "the only field carrying the cause is empty")
+
+    def test_a_successful_result_carries_no_failure_flags(self) -> None:
+        details = fleet_doctor._failure_details(
+            fleet_doctor.CommandResult(("git",), 0, "out", "warn\n")
+        )
+        self.assertEqual({"stderr": "warn"}, details)
+
+    def test_every_command_failure_branch_carries_the_cause(self) -> None:
+        """All FOUR production branches, driven through their own functions.
+
+        An earlier version of this test was named "every" while driving only the two
+        `_git_checks` branches, so the CLI and plugin-list branches could have gone back to a
+        bare `stderr` diagnostic with the suite green (Codex, #190). A test that asserts on the
+        helper alone proves nothing about a branch that never calls it, and a name that overstates
+        its coverage is worse than no test, because it stops anyone looking.
+        """
+        timed_out = fleet_doctor.CommandResult(
+            ("cmd",), None, "", "", timed_out=True, error="timed out after 30s"
+        )
+        ok_head = fleet_doctor.CommandResult(("git",), 0, "a" * 40 + "\n", "")
+
+        def assert_cause(check: fleet_doctor.Check, where: str) -> None:
+            self.assertEqual("inconclusive", check.status, where)
+            self.assertEqual("timed out after 30s", check.details.get("error"), where)
+            self.assertTrue(check.details.get("timed_out"), where)
+
+        # 1. repository.git -- the first command fails.
+        checks = fleet_doctor._git_checks(Path("/repo"), lambda argv: timed_out)
+        assert_cause(next(c for c in checks if c.check_id == "repository.git"), "repository.git")
+
+        # 2. repository.worktree -- the revision reads, the status command does not.
+        checks = fleet_doctor._git_checks(
+            Path("/repo"), lambda argv: ok_head if "rev-parse" in argv else timed_out
+        )
+        assert_cause(
+            next(c for c in checks if c.check_id == "repository.worktree"), "repository.worktree"
+        )
+
+        # 3. host.<name>.cli -- the executable is found but its version never comes back.
+        cli_checks, _ = fleet_doctor._cli_checks(
+            lambda command: f"/usr/bin/{command}", lambda argv: timed_out
+        )
+        version_checks = [c for c in cli_checks if c.check_id.endswith(".cli")]
+        self.assertTrue(version_checks, "no CLI version check was produced")
+        for check in version_checks:
+            assert_cause(check, check.check_id)
+
+        # 4. host.<name>.plugin -- the plugin inventory never comes back.
+        listing_check, healthy = fleet_doctor._plugin_listing_check(
+            "claude", "/usr/bin/claude", lambda argv: timed_out
+        )
+        assert_cause(listing_check, "host.claude.plugin")
+        self.assertFalse(healthy, "a failed listing must not report the inventory as readable")
+
+    def test_a_timed_out_command_is_not_read_as_a_passing_check(self) -> None:
+        """The trap the migration had to avoid, pinned as behaviour rather than as a comment."""
+        timed_out = fleet_doctor.CommandResult(
+            ("git",), None, "", "", timed_out=True, error="timed out"
+        )
+        # This is the expression the checks used before the migration.
+        self.assertFalse(bool(timed_out.returncode), "returncode None is falsy")
+        # And this is the one they use now.
+        self.assertFalse(timed_out.ok)
 
 
 if __name__ == "__main__":

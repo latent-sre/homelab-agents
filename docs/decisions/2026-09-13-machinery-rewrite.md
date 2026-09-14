@@ -405,3 +405,82 @@ Rounds 1–8 are recorded above; the ninth is the last, and this PR merges on it
 green CI rather than on a round returning clean. Bounded corrections to demonstrated in-scope
 defects remain permitted after it, as the cap has always allowed — what ends is the broad-review
 loop, not the obligation to fix a defect someone shows us.
+
+## Amendment, 2026-09-13 — phase 3 landed
+
+Phase 3 delivered its three rows, and the property tests changed what the phase was worth.
+
+**PROBE-006 is closed.** `probe_plugin.run` is `fleet.proc.run`, so a leg that gets no answer
+returns the partial transcript instead of raising out of the run. Two primitives carry the
+verdict: `unanswered_cause` names why a command produced no verdict — a timeout or a binary that
+never started, both environment rather than fleet defect, which is why both are INCONCLUSIVE —
+and `Probe.reading` declares which session the following checks read and how complete it is.
+`reading` clears as well as sets, and that half is load-bearing: each leg drives its own session,
+so a timeout in one must not silence the next. A truncated transcript downgrades a later FAIL to
+INCONCLUSIVE, which is PROBE-002's distinction applied to a session — evidence that simply stops
+cannot tell "the canary is absent" from "the oracle saw nothing".
+
+Wiring it reproduced PROBE-006 in a new form inside the fix: two early returns added for
+unanswered legs sat in `main()` rather than in a leg function, and would have skipped the workflow
+contract entirely. The test asserting a timed-out main session still reaches that leg is what
+surfaced it, which is the argument for writing the behavioural test before believing the fix.
+
+**The doctor holds the kernel's result.** It kept its own three-field `CommandResult` and
+downgraded into it, collapsing a timeout and a missing binary into one `returncode=127`. Those
+call for different operator actions, and telling the operator which thing to fix is the doctor's
+whole job. The checks now read `result.ok` rather than `result.returncode`, because a timed-out
+result carries `returncode=None` and the old expression would have called that a success.
+
+**The property tests found a live guard bypass on their first run.** `shlex(punctuation_chars=
+True)` emits a run of adjacent operator characters as ONE token, so `ls;(rm -rf /)` lexed as
+`['ls', ';(', 'rm', '-rf', '/', ')']`. `;(` matched no separator, the line never split, and the
+segment's command word was the allowed reader `ls` with the denied command as its arguments —
+ALLOWED, while both halves are denied alone. 33 variants confirmed. Any operator token that is
+not exactly a recognised separator is now denied, on the same rule the unbalanced quote used;
+a quoted `(` in a search pattern is denied with it, which is the guard's standing trade of a loud
+false positive over a silent allow. The forms are in the DENIED corpus as well as the property
+test, because that test skips without the dev group and a security regression must not be
+skippable.
+
+This is the case for the dependency, and it is worth stating plainly: the hand-written corpus had
+every separator with a space and none without. A corpus encodes the shapes its author thought of.
+
+Two dialect findings came from the same run. `yaml_scalar` emitted NEL, LINE SEPARATOR and
+PARAGRAPH SEPARATOR literally while `str.splitlines()` breaks on all three, so a description
+carrying one would be written whole and read back torn, its tail parsed as a frontmatter key —
+fixed by escaping them, with every generated adapter byte-identical. The second is recorded as
+DIALECT-001 rather than fixed: the reader strips quote characters instead of parsing the scalar,
+so it never decodes the escapes the hosts do decode, and it eats a trailing apostrophe. It is
+latent — nothing compares a description read back from a generated file against its canonical
+source — and the fix changes what every rule sees for every quoted value, which is a phase of its
+own rather than a change smuggled into this one.
+
+**The hook probe was run, and the gate is discharged.** `python3 scripts/probe_plugin.py` against
+CLI 2.1.270 — the pinned version — passed every guard and gate assertion: the guard denied the
+reviewer and a `--agent` main session, ignored the main loop, the live-effect gate denied
+homelab-engineer's live verb under `dontAsk` and ignored the main loop's identical one, and
+`${CLAUDE_PLUGIN_ROOT}` expanded. So the pinned CLI still supplies the scoped `agent_type` the
+guard's contract rests on, after the tokenizer change. Two failures and one inconclusive are
+recorded with their dispositions in
+[guard bypass probe evidence](../archive/2026-09/guard-bypass-probe-2026-09-13.md): both failures
+reproduce prior results on this same pin in code this phase does not touch, and the inconclusive
+is PROBE-003's root-session verdict observed live — one line with its own cause rather than five
+cascading FAILs, which is the polarity contract working.
+
+I had earlier reported this gate as impossible to discharge here, on the grounds that the
+environment had no `claude` CLI. That was wrong, and wrong in the way this whole phase is about: I
+asserted it without running `which claude`. The CLI was present at the pinned version the whole
+time, and the claim reached the pull request body before anyone checked it.
+
+A fourth round then found three more presence-based verdicts the truncation logic would silence
+(`code_status`, the literal-plugin-root read, and a completed gate arm discarded when its peer
+timed out). Enumerating them by hand had now failed three times, so the default moved instead of
+the list growing: `check()` downgrades only when the caller passes `absence=True`. An unclassified
+verdict is REPORTED. Forgetting now costs a noisy FAIL on partial evidence rather than a silent
+pass, which is the only safe direction for a security instrument. The absence side is the safe one
+to enumerate, because a mark that drifts there is visible as noise rather than as silence.
+
+Copilot separately observed that the property test never *pins* NEL, LINE SEPARATOR and PARAGRAPH
+SEPARATOR: a few hundred generated strings may include none of them, so reverting
+`_escape_line_breakers` could pass wherever the example database is absent. A property is not a
+regression pin, and `LineBreakerEscapingTests` now covers all three deterministically.

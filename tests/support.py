@@ -24,6 +24,38 @@ from fleet import fs
 
 REPO = Path(__file__).resolve().parents[1]
 
+# Hypothesis, or stand-ins that let a property test's decorators be CONSTRUCTED without it.
+#
+# The PyYAML tripwire's `yaml = None` idiom works because PyYAML is only ever called INSIDE a test
+# body, which `skipIf` reaches first. `@given(st.text())` is different: its argument is evaluated
+# while the class body runs, long before any skip can act, so a None placeholder raises
+# AttributeError at import and takes the whole unittest suite down with it on a bare interpreter --
+# breaking the contract that T0 runs without the dev group (Codex, PR #190; reproduced by blocking
+# the import). The stubs below make decoration total and inert; HAS_HYPOTHESIS is what the skip
+# reads. One copy here rather than one per test module, so the two cannot drift apart.
+try:
+    from hypothesis import given, settings
+    from hypothesis import strategies as st
+
+    HAS_HYPOTHESIS = True
+except ImportError:  # pragma: no cover - exercised only on hosts without the dev group
+    HAS_HYPOTHESIS = False
+
+    def _inert_decorator(*_args: object, **_kwargs: object) -> Callable[[Callable], Callable]:
+        return lambda function: function
+
+    given = settings = _inert_decorator
+
+    class _AbsentStrategies:
+        """Any strategy name, returning a value the inert `given` above never looks at."""
+
+        def __getattr__(self, _name: str) -> Callable[..., None]:
+            return lambda *_args, **_kwargs: None
+
+    st = _AbsentStrategies()
+
+HYPOTHESIS_REQUIRED = "hypothesis (dev dependency group) is required for the property tests"
+
 # The copy exclusions are the kernel's (fleet/fs.py), shared with the probe's plugin copy. They
 # used to be two lists "kept in step by hand"; the reasons for each entry live beside the set.
 _IGNORED_DIRS = fs.IGNORED_DIRS
