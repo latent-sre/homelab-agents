@@ -181,12 +181,36 @@ def native_command(
     ]
 
 
-def _run_records(result: dict) -> dict[str, list[dict]]:
-    """Per-case run records from the native result document, keyed by case name."""
+class MalformedNativeResult(Exception):
+    """The harness wrote valid JSON in a shape this cannot read."""
+
+
+def _run_records(result: object) -> dict[str, list[dict]]:
+    """Per-case run records from the native result document, keyed by case name.
+
+    Every level is type-checked rather than assumed. The document is written by an early-access
+    CLI whose schema can move under a version bump, and a partial failure can emit a structurally
+    incomplete one -- and this runs AFTER the sessions are paid for, so a shape surprise here must
+    become the documented measurement-failure exit rather than an AttributeError traceback.
+    """
+    if not isinstance(result, dict):
+        raise MalformedNativeResult(f"result document is {type(result).__name__}, not an object")
+    cases = result.get("cases")
+    if not isinstance(cases, list):
+        raise MalformedNativeResult(f"'cases' is {type(cases).__name__}, not a list")
     records: dict[str, list[dict]] = {}
-    for case in result.get("cases") or []:
-        arms = case.get("arms") or {}
-        records[str(case.get("name"))] = list(arms.get("with") or [])
+    for case in cases:
+        if not isinstance(case, dict):
+            raise MalformedNativeResult(f"a case entry is {type(case).__name__}, not an object")
+        arms = case.get("arms")
+        if not isinstance(arms, dict):
+            raise MalformedNativeResult(f"case {case.get('name')!r} 'arms' is not an object")
+        runs = arms.get("with") or []
+        if not isinstance(runs, list) or any(not isinstance(run, dict) for run in runs):
+            raise MalformedNativeResult(
+                f"case {case.get('name')!r} run records are not a list of objects"
+            )
+        records[str(case.get("name"))] = list(runs)
     return records
 
 
@@ -618,7 +642,12 @@ def _run_batch(args, spec: dict, members: list, cases: list, env, auth_mode) -> 
             print(f"\nnative harness produced no readable result ({exc}); exit "
                   f"{completed.returncode}. benchmark.json was not written", file=sys.stderr)
             return 3
-        runs_by_case = _run_records(result)
+        try:
+            runs_by_case = _run_records(result)
+        except MalformedNativeResult as exc:
+            print(f"\nnative harness wrote an unreadable result ({exc}); exit "
+                  f"{completed.returncode}. benchmark.json was not written", file=sys.stderr)
+            return 3
         try:
             # The copy that actually RAN, not the source checkout. Checking the source cannot
             # see a mutation a session made inside the private snapshot -- which is the one thing

@@ -31,6 +31,10 @@ from fleet import stream
 # still accepted, because a stored transcript may predate the rename.
 ROUTING_TOOLS = ("Skill", "Agent", "Task")
 
+# The plugin whose components these transcripts are graded against. An explicitly namespaced
+# dispatch must carry THIS namespace; see `_named_components`.
+PLUGIN_NAMESPACE = "sde-agents"
+
 
 def _named_components(value: object, roster: frozenset[str]) -> set[str]:
     """Every roster component named by a tool call's input, namespace stripped.
@@ -45,8 +49,13 @@ def _named_components(value: object, roster: frozenset[str]) -> set[str]:
     whose prompt merely names a sibling as having fired it.
     """
     if isinstance(value, str):
-        bare = value.split(":", 1)[1] if ":" in value else value
-        return {bare} & roster
+        namespace, _, bare = value.partition(":")
+        if not _:
+            return {value} & roster  # a bare name is this plugin's, by the roster it is matched to
+        # An EXPLICIT namespace must be this plugin's. Accepting any of them let a dispatch to
+        # `other-plugin:root-cause` count as the fleet's `root-cause`, so a positive could pass
+        # without its expected destination ever being called.
+        return ({bare} & roster) if namespace == PLUGIN_NAMESPACE else set()
     if isinstance(value, dict):
         value = list(value.values())
     if isinstance(value, (list, tuple)):
@@ -78,7 +87,8 @@ def fired_components(transcript: str, roster: frozenset[str]) -> set[str]:
         named = _named_components(exchange.input, roster)
         if not named:
             continue
-        if exchange.is_error and not stream.is_skill_launch_signal(exchange.result or ""):
+        launched = exchange.name == "Skill" and stream.is_skill_launch_signal(exchange.result or "")
+        if exchange.is_error and not launched:
             continue  # a genuine dispatch failure is not a routing decision
         fired |= named
     return fired

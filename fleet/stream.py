@@ -151,9 +151,21 @@ SKILL_LAUNCH_SIGNALS: tuple[str, ...] = ("execute skill:", "launching skill:")
 
 
 def is_skill_launch_signal(result_text: str) -> bool:
-    """Whether an `is_error` tool_result is the Skill tool's launch signal, not a failure."""
-    lowered = result_text.lower()
-    return any(signal in lowered for signal in SKILL_LAUNCH_SIGNALS)
+    """Whether an `is_error` tool_result is the Skill tool's launch signal, not a failure.
+
+    Matched at the START of the result, not anywhere inside it. A substring test -- what the
+    retiring runner used, and what this inherited -- also matched a genuine failure that happened
+    to mention the phrase, such as `Permission denied: could not execute skill: x`, turning a
+    failed dispatch into a counted one and letting a positive pass without routing anywhere.
+
+    Deliberately NOT tightened further to require the skill's own name: the exemption exists
+    because a tool-restricting skill LAUNCHES through an `is_error` result, and pinning this to
+    the CLI's exact message wording would resurrect the original defect -- `lab-audit` scoring
+    0/N on correct routing -- the next time that wording changes. Opening-phrase plus the
+    caller's tool check is the tightening that does not trade one silent failure for another.
+    """
+    lowered = result_text.lstrip().lower()
+    return any(lowered.startswith(signal) for signal in SKILL_LAUNCH_SIGNALS)
 
 
 def final_result(text: str) -> dict[str, object] | None:

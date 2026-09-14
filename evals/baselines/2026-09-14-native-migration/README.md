@@ -99,8 +99,13 @@ MACH-001 phase 4 moved the routing evals onto `claude plugin eval`. The migratio
 verdict — proved by grading one live batch's identical traces with both instruments
 (`docs/archive/2026-09/routing-migration-oracle-2026-09-14.md`) — but it did change the
 measurement **conditions**: the sessions now run under a declared tool set and a turn cap instead
-of the old wall clock. So every stored pre-migration rate stopped being comparable, and this run
-is the replacement reference point for future description edits.
+of the old wall clock. So every stored pre-migration rate stopped being comparable.
+
+This run is **not** the replacement reference point — see the banner at the top. Its evaluator
+predates the fixes that shipped in the same pull request, so the reuse contract disqualifies it as
+a before-side, and the next description edit needs a fresh capture of its own. What this run
+established is that the migration changed no verdict; what it cannot do is serve as the other half
+of a future comparison.
 
 ## Command
 

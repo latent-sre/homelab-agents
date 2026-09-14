@@ -1204,3 +1204,55 @@ class CodexFourthRoundTest(MainIntegrationTest):
         for path in (REPO / "fleet" / "provenance.py", REPO / "fleet" / "fs.py"):
             with self.subTest(path=path.name):
                 self.assertIn(path, eval_routing.EVALUATOR_PATHS)
+
+
+class CodexFifthRoundTest(MainIntegrationTest):
+    """The four findings from the Codex review of `d07c7c0`, all P2 and all real."""
+
+    def test_a_foreign_namespace_dispatch_is_not_a_fleet_dispatch(self) -> None:
+        """A session can register both this plugin's `root-cause` and another's. Stripping every
+        namespace let a call to the foreign one satisfy a positive expecting ours."""
+        roster = frozenset({"root-cause"})
+        self.assertEqual(
+            set(), eval_routing.routing._named_components(
+                {"command": "other-plugin:root-cause"}, roster
+            ),
+        )
+        for ours in ("sde-agents:root-cause", "root-cause"):
+            with self.subTest(spelling=ours):
+                self.assertEqual(
+                    {"root-cause"},
+                    eval_routing.routing._named_components({"command": ours}, roster),
+                )
+
+    def test_a_failure_that_merely_mentions_the_launch_phrase_is_still_a_failure(self) -> None:
+        """The exemption was a substring test, so a genuine error quoting the phrase counted as a
+        successful launch -- a positive passing without routing anywhere."""
+        from fleet import stream as stream_module
+        self.assertTrue(stream_module.is_skill_launch_signal("Execute skill: lab-audit"))
+        self.assertFalse(
+            stream_module.is_skill_launch_signal(
+                "Permission denied: could not execute skill: lab-audit"
+            )
+        )
+
+    def test_the_launch_exemption_applies_only_to_the_skill_tool(self) -> None:
+        """An Agent dispatch failure is not a skill launch, whatever its text says."""
+        roster = frozenset({"root-cause"})
+        agent = trace(
+            call("Agent", "a1", subagent_type="sde-agents:root-cause"),
+            {"type": "user", "message": {"content": [
+                {"type": "tool_result", "tool_use_id": "a1", "is_error": True,
+                 "content": "Execute skill: root-cause"}]}},
+        )
+        self.assertEqual(set(), eval_routing.routing.fired_components(agent, roster))
+
+    def test_a_malformed_native_result_is_a_measurement_failure(self) -> None:
+        """It is written by an early-access CLI and read AFTER the sessions are paid for, so a
+        shape surprise must be exit 3, not an AttributeError traceback."""
+        for doc in ([], {"cases": None}, {"cases": [None]},
+                    {"cases": [{"name": "c", "arms": "nope"}]},
+                    {"cases": [{"name": "c", "arms": {"with": [42]}}]}):
+            with self.subTest(doc=doc):
+                with self.assertRaises(eval_routing.MalformedNativeResult):
+                    eval_routing._run_records(doc)
