@@ -655,3 +655,55 @@ run to read carefully.** Weighing against this ruling, and recorded because it b
 review found three separate ways the renderer could have emitted bytes other than expected, so
 the argument rests on the committed bytes being unchanged, not on the renderer being obviously
 right.
+
+## Amendment, 2026-09-15 — the consolidation audit, and two leftovers it removed
+
+An operator asked the question this record could not answer from its own text: did the rewrite
+actually remove the machinery it replaced? Audited across the rewrite's 81 commits.
+
+**What the audit confirmed.** The retired generated roots are gone from disk and still declared,
+so `--write` keeps deleting them. The session-launching half really did move to
+`claude plugin eval` — no thread pool, process pool, or async gather survives anywhere under
+`scripts/`, and `eval_routing.py` retains only the converter, scorer and recorder this record said
+to keep. The guard's tokenizer exists once, in the hook that cannot import the kernel. The
+conformance schema is loaded by the validator rule rather than copied. `probe_plugin.run` is a
+three-line delegation to `fleet.proc.run`, not a fork. No file was deleted in the whole rewrite,
+which is correct: it rewired internals rather than dropping files.
+
+**Two leftovers were found and removed in the same change as this amendment.**
+
+- `scripts/validate_fleet.py`'s `agent_tool_bases` re-implemented `fleet/snapshot.py`'s
+  `Definition.tool_bases()` line for line — the same `TOOL_ENTRY_RE` over the same `split_tools`
+  — with no caller anywhere in the tree. A second implementation of one fact is the exact defect
+  the one-parser rule names, and it survived the change that existed to eliminate it, because
+  nothing referenced it loudly enough to notice. Its orphaned `TOOL_ENTRY_RE` import went with it;
+  `parse_frontmatter` and `split_tools` stay, because `tests/test_platform_adapters.py` consumes
+  them as `validate_fleet` exports.
+- `fleet/routing.py`'s `bare_names` was a namespace-stripping helper whose own docstring said it
+  existed so callers would not re-derive the rule. It had no callers, and nothing re-derived it
+  either. A mechanism with no task consuming it is what the proportionality rule forbids, and a
+  docstring asserting a consumer that never arrived is how the surplus stayed invisible.
+
+Neither deletion changed a test count (886, unchanged), which is itself the evidence that nothing
+pinned them.
+
+**Two findings were left open, deliberately, and are recorded here rather than acted on.**
+
+- `scripts/validate_fleet.py` carries a block of pre-rewrite API names as delegating shims
+  (`# --- rule groups under their legacy names ---`). They cannot disagree with the kernel, since
+  they delegate, but at least `validate_agent_guide` and `validate_perishable_tokens` have no
+  consumer in this repository. Whether that surface is owed to a consumer outside it is an
+  operator call, not a fact readable from the tree.
+- `scripts/eval_routing.py` calls `subprocess.run` directly rather than `fleet.proc.run`, and
+  that is very likely correct: `fleet/proc.py` is deliberately absent from `EVALUATOR_PATHS`, so
+  routing through it would put unhashed code in the measurement path. The reasoning appears
+  nowhere at the call site, and **this record's own stated reason for it is now false** — "the
+  runner stays untouched, deliberately not even wired onto the kernel" under *What retires* has
+  not been true since phase 4, which wired it onto the kernel in two places and hashed five kernel
+  modules into the evaluator identity. The comment is owed; the behaviour is not a defect.
+
+**The limit of the audit, stated so the next reader does not over-trust it.** It was name-based,
+so it produced false positives on every `fleet/rules/` function — those register through `@rule`
+and never appear at a call site — and those were excluded by inspection rather than by the scan.
+Dynamic access was checked for and none reaches these symbols, and there is no `__all__` export
+contract. A consumer outside this repository would be invisible to it.

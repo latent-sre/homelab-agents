@@ -100,16 +100,6 @@ def _named_components(
     return set()
 
 
-def bare_names(names: Iterable[str]) -> set[str]:
-    """Component names with any plugin namespace stripped (`sde-agents:x` -> `x`).
-
-    Exposed rather than re-derived by callers: the session's `init` event lists components
-    namespaced while a cluster names them bare, and a second copy of this one-line rule is how two
-    readers of the same roster start disagreeing.
-    """
-    return {n.split(":", 1)[1] if ":" in n else n for n in names}
-
-
 def fired_components(
     transcript: str, roster: frozenset[str], namespace: str = PLUGIN_NAMESPACE
 ) -> set[str]:

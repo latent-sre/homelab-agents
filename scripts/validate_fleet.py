@@ -56,7 +56,7 @@ from fleet.rules import routing as _routing  # noqa: E402
 from fleet.rules import skills as _skills  # noqa: E402
 from fleet.rules import workflows as _workflows  # noqa: E402
 from fleet.rules.adapters import load_platform_adapter_generator  # noqa: E402,F401
-from fleet.snapshot import TOOL_ENTRY_RE, Fleet  # noqa: E402
+from fleet.snapshot import Fleet  # noqa: E402
 
 # --- vocabularies, bound from fleet/policy.toml (the rationale for each lives beside it) --------
 ALIAS_MODELS = set(POLICY.model_aliases)
@@ -166,16 +166,6 @@ def validate_inventory(root: Path, expected: str) -> list[str]:
 
 def bundle_references(skill_file: Path) -> set[str]:
     return _skills.bundle_references(read_text(skill_file))
-
-
-def agent_tool_bases(path: Path) -> set[str]:
-    fields = parse_frontmatter(path) or {}
-    bases: set[str] = set()
-    for entry in split_tools(fields.get("tools", "")):
-        match = TOOL_ENTRY_RE.match(entry)
-        if match:
-            bases.add(match.group(1))
-    return bases
 
 
 def hook_commands(root: Path) -> list[str]:
