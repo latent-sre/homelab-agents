@@ -1789,14 +1789,30 @@ class CodexEighthRoundTest(MainIntegrationTest):
     def test_the_roadmap_does_not_present_the_historical_capture_as_the_anchor(self) -> None:
         """P1: the warning was added to the capture README and this PR's body but not to the
         roadmap — the next-action record, where a maintainer decides whether a fresh baseline is
-        owed. Its own acceptance clause forbids calling a known-invalid artifact an anchor."""
+        owed. Its own acceptance clause forbids calling a known-invalid artifact an anchor.
+
+        Re-anchored 2026-09-15, when the shipped-evaluator capture closed clause 1. The original
+        assertions pinned the 2026-09-14 batch's own figures ("Two clauses remain open", "14 of
+        the 15 failures"), which that capture's supersession legitimately retired. The RISK is
+        unchanged and still live — a superseded capture can be called the anchor at any future
+        edit — so the test is repointed rather than retired, per the structural-impossibility bar
+        in `docs/fleet-development.md`. What it now pins: the superseded batch is still labelled
+        non-reusable, the current anchor is named, and the wrong-destination accounting is stated
+        rather than rounded off to silence.
+        """
         text = (REPO / "docs" / "fleet-roadmap.md").read_text(encoding="utf-8")
         entry = text[text.index("#### EVAL-003"):text.index("#### ROUTE-001")]
         flat = " ".join(entry.replace("*", "").split())
         self.assertIn("historical and non-reusable", flat)
-        self.assertIn("Two clauses remain open", flat)
+        self.assertIn("2026-09-15-shipped-evaluator", flat)
+        # The count of open clauses is load-bearing: it is what tells a maintainer whether this
+        # item still owes a capture. It moved 2 -> 1 when the anchor landed.
+        self.assertIn("One clause remains open", flat)
+        self.assertNotIn("Two clauses remain open", flat)
+        # Never round the positive side off to "under-firing": the 2026-09-14 batch had one
+        # wrong-destination row and this entry must keep saying what this capture's failures were.
         self.assertNotIn("none a wrong destination", flat)
-        self.assertIn("14 of the 15 failures involve no wrong destination", flat)
+        self.assertIn("no failure anywhere involves a wrong destination", flat)
 
 
 class CodexNinthRoundTest(MainIntegrationTest):
@@ -2322,15 +2338,29 @@ class CodexTwelfthRoundTest(MainIntegrationTest):
 
     def test_the_roadmap_no_longer_calls_the_historical_capture_a_single_anchor(self) -> None:
         """P2: a clause survived in front of which the non-reusable caveat was inserted, so the
-        paragraph ended by asserting the opposite of its own status."""
+        paragraph ended by asserting the opposite of its own status.
+
+        Re-anchored 2026-09-15. The stranded clause itself is gone — the whole Evidence
+        disposition paragraph was rewritten for the shipped-evaluator capture — so the original
+        string assertions could no longer match. The failure MODE is not structurally impossible:
+        this entry describes two captures with opposite reuse status, which is exactly the
+        condition that produced the contradiction the first time, so the test stays and watches
+        the same seam. Doubt recorded per `docs/fleet-development.md`: a text tripwire cannot
+        catch every future stranded clause, only a contradiction between the two captures' named
+        status, which is the specific one that occurred.
+        """
         text = " ".join((REPO / "docs" / "fleet-roadmap.md").read_text(encoding="utf-8").split())
         entry = text[text.index("#### EVAL-003"):text.index("#### ROUTE-001")]
-        self.assertIn("not** a condition-complete anchor", entry)
-        self.assertIn('a clause left stranded when the caveat was inserted', entry)
+        # Exactly one capture is the anchor, and it is the shipped-evaluator one.
+        self.assertIn("`evals/baselines/2026-09-15-shipped-evaluator/`", entry)
+        self.assertIn("supersedes the 2026-09-14 batch", entry)
         self.assertEqual(
-            1, entry.count("makes them a single anchor"),
-            "the old claim survives only as a quoted correction",
+            0, entry.count("2026-09-14 batch is the current anchor"),
+            "the superseded capture is never named as the anchor",
         )
+        # The entry must keep saying WHY the superseded batch cannot be reused, not merely that
+        # it was replaced: a reader deciding whether to pay for a before-side needs the reason.
+        self.assertIn("historical and non-reusable", entry)
 
 
 def assert_compared_by_the_reuse_rule(test: unittest.TestCase, *conditions: str) -> None:

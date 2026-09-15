@@ -1,0 +1,773 @@
+{
+  "cluster": "continuous-improvement",
+  "runs_per_case": 3,
+  "members": [
+    "postmortem",
+    "prompt-craft",
+    "prompt-engineer",
+    "root-cause",
+    "runbook",
+    "self-improve-loop"
+  ],
+  "conditions": {
+    "cli_version": "2.1.272 (Claude Code)",
+    "model_requested": "sonnet",
+    "models_observed": [
+      "claude-sonnet-5"
+    ],
+    "plugin_dir": ".",
+    "threshold": 0.5,
+    "timeout_s": 180,
+    "max_turns": 6,
+    "concurrency": 4,
+    "auth_provider": {
+      "provider": "anthropic",
+      "auth": "host-managed-provider"
+    },
+    "clean_room_requested": false,
+    "harness": "claude plugin eval",
+    "components_observed": {
+      "agents": [
+        "Explore",
+        "Plan",
+        "claude",
+        "claude-code-guide",
+        "general-purpose",
+        "sde-agents:application-security-auditor",
+        "sde-agents:code-reviewer",
+        "sde-agents:homelab-engineer",
+        "sde-agents:multi-agent-architect",
+        "sde-agents:principal-engineer",
+        "sde-agents:prompt-engineer",
+        "sde-agents:repository-investigator",
+        "sde-agents:researcher",
+        "sde-agents:sde-fullstack",
+        "sde-agents:verification-engineer",
+        "statusline-setup"
+      ],
+      "skills": [
+        "batch",
+        "claude-api",
+        "code-review",
+        "dataviz",
+        "debug",
+        "deep-research",
+        "doctor",
+        "fewer-permission-prompts",
+        "loop",
+        "run",
+        "run-skill-generator",
+        "schedule",
+        "sde-agents:backend-craft",
+        "sde-agents:ci-actions",
+        "sde-agents:code-craft",
+        "sde-agents:deep-review",
+        "sde-agents:eng-ladder",
+        "sde-agents:frontend-craft",
+        "sde-agents:host-onboard",
+        "sde-agents:lab-audit",
+        "sde-agents:lab-incident",
+        "sde-agents:observability",
+        "sde-agents:onboarding-map",
+        "sde-agents:postmortem",
+        "sde-agents:prompt-craft",
+        "sde-agents:restore-drill",
+        "sde-agents:root-cause",
+        "sde-agents:runbook",
+        "sde-agents:security-audit",
+        "sde-agents:self-improve-loop",
+        "sde-agents:service-onboard",
+        "sde-agents:sre-tool",
+        "sde-agents:upgrade-campaign",
+        "simplify",
+        "update-config",
+        "verify",
+        "workflow-authoring"
+      ]
+    },
+    "components_uniform": true,
+    "native_claude_version": "2.1.272",
+    "native_cost_usd": 2.3065894
+  },
+  "provenance": {
+    "schema": "sde-agents/eval-provenance/v5",
+    "eval_sources": [
+      {
+        "path": "evals/routing/continuous-improvement.json",
+        "sha256": "b613b45eb68342f678bd193c75ab95a1ee37cf9af6c58fe6d4767cad9ba8a79f"
+      }
+    ],
+    "selection": {
+      "expression": "*",
+      "limit": null,
+      "case_ids": [
+        "neg-undiagnosed-failure",
+        "neg-direct-runbook",
+        "neg-resolved-incident-writeup",
+        "neg-one-shot-prompt-fix",
+        "neg-ordinary-build",
+        "neg-team-meeting-retro"
+      ],
+      "members": [
+        "postmortem",
+        "prompt-craft",
+        "prompt-engineer",
+        "root-cause",
+        "runbook",
+        "self-improve-loop"
+      ],
+      "canonicalization": "JSON UTF-8, sorted object keys, compact separators, array order preserved",
+      "sha256": "c352fcf15eaa71ce6d96965a982af292cb185ebf0155088247d8904ef9dc48da"
+    },
+    "evaluator": {
+      "sha256": "892f52b3dcaf88b9cd8a78ea171105408c47f72f49e2aeba9824e1a7a4df4625",
+      "files": [
+        {
+          "path": "fleet/frontmatter.py",
+          "sha256": "f76d7bb9cb15f0d308073f7af02a8edda29bc8a05256b3d0c28e0493fe2b6e65"
+        },
+        {
+          "path": "fleet/fs.py",
+          "sha256": "e81f27c4b1f2f24730c89f9890bdcac6797406c098edcc8689085ea1b2c2bd1f"
+        },
+        {
+          "path": "fleet/nativecases.py",
+          "sha256": "e140fd726f70c196d41e8a958dee04e2a7bdf1c0e333fdb335f4a2f5e168cc66"
+        },
+        {
+          "path": "fleet/provenance.py",
+          "sha256": "54c49c307c89142fa69ea016ffde1ece4ddf3088bdf3e678a657781336e4d7ac"
+        },
+        {
+          "path": "fleet/routing.py",
+          "sha256": "45fef15ababa69cb6840437d4b90ff0590fa50c5bdfe25a27a0380614f0b041c"
+        },
+        {
+          "path": "fleet/stream.py",
+          "sha256": "6600924d0d6de14bf2d8dfde446cd6f470a2bc293608048579c5af585a9c2ea4"
+        },
+        {
+          "path": "scripts/eval_clean_room.py",
+          "sha256": "54ed360f0bdd38d19189cc93633223414de2e733a33829ef6eae48969d0f3ea1"
+        },
+        {
+          "path": "scripts/eval_routing.py",
+          "sha256": "06e360789a73ec7333b49ead4d4530f7618b383c3ed6b82821377530578064ef"
+        }
+      ],
+      "runtime": {
+        "implementation": "CPython",
+        "python_version": "3.11.15"
+      }
+    },
+    "plugin": {
+      "sha256": "4478a262f814996adf0f66d12145b5ecf05b46094a564b61f292f3149d3c37c1",
+      "files_hashed": 102,
+      "scope": {
+        "strategy": "runtime allowlist plus referenced repository-local dependencies",
+        "included": [
+          ".claude-plugin",
+          "AGENTS.md",
+          "CLAUDE.md",
+          "README.md",
+          "agents",
+          "agents/principal-engineer.md",
+          "agents/prompt-engineer.md",
+          "agents/sde-fullstack.md",
+          "hooks",
+          "hooks/hooks.json",
+          "pyproject.toml",
+          "scripts/fleet_doctor.py",
+          "scripts/live-effect-gate.py",
+          "scripts/probe_plugin.py",
+          "scripts/readonly-guard.py",
+          "scripts/validate_fleet.py",
+          "skills",
+          "skills/backend-craft/SKILL.md",
+          "skills/ci-actions/SKILL.md",
+          "skills/code-craft/SKILL.md",
+          "skills/code-craft/references/typescript.md",
+          "skills/frontend-craft/SKILL.md",
+          "skills/lab-incident/SKILL.md",
+          "skills/observability/SKILL.md",
+          "skills/prompt-craft/SKILL.md",
+          "skills/prompt-craft/references/claude-code-frontmatter.md",
+          "skills/root-cause/SKILL.md",
+          "skills/self-improve-loop/SKILL.md",
+          "skills/service-onboard/SKILL.md",
+          "skills/sre-tool/SKILL.md",
+          "workflows"
+        ],
+        "excluded": [
+          ".git/**",
+          "evals/**",
+          "unreferenced docs/**",
+          "tests/**",
+          ".agents/**",
+          ".claude/**",
+          ".codex/**",
+          ".codex-plugin/**",
+          ".github/**",
+          ".probe-tmp/**",
+          ".superpowers/**",
+          "platforms/**",
+          "plugins/**",
+          "unreferenced repository-only root documents",
+          "all other top-level entries outside the runtime allowlist",
+          "**/__pycache__/**, **/*.pyc, editor and OS transient files"
+        ]
+      },
+      "git_head": "c40fa6238657ecddb566cbe15d94a6558c528712",
+      "git_dirty": false,
+      "git_scope": "containing worktree"
+    }
+  },
+  "summary": {
+    "passed": 6,
+    "total": 6
+  },
+  "cases": [
+    {
+      "id": "neg-undiagnosed-failure",
+      "polarity": "negative",
+      "tags": [
+        "near-miss",
+        "root-cause"
+      ],
+      "passed": true,
+      "inconclusive": false,
+      "runs_excluded": 0,
+      "cluster_fire_rate": 1.0,
+      "correct_rate": 1.0,
+      "detail": "['self-improve-loop'] fired in 0/3 runs (want 0)",
+      "also_fired": [],
+      "fired_per_run": [
+        [
+          "root-cause"
+        ],
+        [
+          "root-cause"
+        ],
+        [
+          "root-cause"
+        ]
+      ],
+      "notes": [
+        "run 1: graded despite 'exit 1: Reached maximum number of turns (6)'",
+        "run 2: graded despite 'exit 1: Reached maximum number of turns (6)'",
+        "run 3: graded despite 'exit 1: Reached maximum number of turns (6)'"
+      ],
+      "models_observed": [
+        "claude-sonnet-5"
+      ],
+      "runs_observed": 3,
+      "components_observed": {
+        "agents": [
+          "Explore",
+          "Plan",
+          "claude",
+          "claude-code-guide",
+          "general-purpose",
+          "sde-agents:application-security-auditor",
+          "sde-agents:code-reviewer",
+          "sde-agents:homelab-engineer",
+          "sde-agents:multi-agent-architect",
+          "sde-agents:principal-engineer",
+          "sde-agents:prompt-engineer",
+          "sde-agents:repository-investigator",
+          "sde-agents:researcher",
+          "sde-agents:sde-fullstack",
+          "sde-agents:verification-engineer",
+          "statusline-setup"
+        ],
+        "skills": [
+          "batch",
+          "claude-api",
+          "code-review",
+          "dataviz",
+          "debug",
+          "deep-research",
+          "doctor",
+          "fewer-permission-prompts",
+          "loop",
+          "run",
+          "run-skill-generator",
+          "schedule",
+          "sde-agents:backend-craft",
+          "sde-agents:ci-actions",
+          "sde-agents:code-craft",
+          "sde-agents:deep-review",
+          "sde-agents:eng-ladder",
+          "sde-agents:frontend-craft",
+          "sde-agents:host-onboard",
+          "sde-agents:lab-audit",
+          "sde-agents:lab-incident",
+          "sde-agents:observability",
+          "sde-agents:onboarding-map",
+          "sde-agents:postmortem",
+          "sde-agents:prompt-craft",
+          "sde-agents:restore-drill",
+          "sde-agents:root-cause",
+          "sde-agents:runbook",
+          "sde-agents:security-audit",
+          "sde-agents:self-improve-loop",
+          "sde-agents:service-onboard",
+          "sde-agents:sre-tool",
+          "sde-agents:upgrade-campaign",
+          "simplify",
+          "update-config",
+          "verify",
+          "workflow-authoring"
+        ]
+      },
+      "components_uniform": true
+    },
+    {
+      "id": "neg-direct-runbook",
+      "polarity": "negative",
+      "tags": [
+        "near-miss",
+        "runbook"
+      ],
+      "passed": true,
+      "inconclusive": false,
+      "runs_excluded": 0,
+      "cluster_fire_rate": 1.0,
+      "correct_rate": 1.0,
+      "detail": "['self-improve-loop'] fired in 0/3 runs (want 0)",
+      "also_fired": [],
+      "fired_per_run": [
+        [
+          "runbook"
+        ],
+        [
+          "runbook"
+        ],
+        [
+          "runbook"
+        ]
+      ],
+      "notes": [],
+      "models_observed": [
+        "claude-sonnet-5"
+      ],
+      "runs_observed": 3,
+      "components_observed": {
+        "agents": [
+          "Explore",
+          "Plan",
+          "claude",
+          "claude-code-guide",
+          "general-purpose",
+          "sde-agents:application-security-auditor",
+          "sde-agents:code-reviewer",
+          "sde-agents:homelab-engineer",
+          "sde-agents:multi-agent-architect",
+          "sde-agents:principal-engineer",
+          "sde-agents:prompt-engineer",
+          "sde-agents:repository-investigator",
+          "sde-agents:researcher",
+          "sde-agents:sde-fullstack",
+          "sde-agents:verification-engineer",
+          "statusline-setup"
+        ],
+        "skills": [
+          "batch",
+          "claude-api",
+          "code-review",
+          "dataviz",
+          "debug",
+          "deep-research",
+          "doctor",
+          "fewer-permission-prompts",
+          "loop",
+          "run",
+          "run-skill-generator",
+          "schedule",
+          "sde-agents:backend-craft",
+          "sde-agents:ci-actions",
+          "sde-agents:code-craft",
+          "sde-agents:deep-review",
+          "sde-agents:eng-ladder",
+          "sde-agents:frontend-craft",
+          "sde-agents:host-onboard",
+          "sde-agents:lab-audit",
+          "sde-agents:lab-incident",
+          "sde-agents:observability",
+          "sde-agents:onboarding-map",
+          "sde-agents:postmortem",
+          "sde-agents:prompt-craft",
+          "sde-agents:restore-drill",
+          "sde-agents:root-cause",
+          "sde-agents:runbook",
+          "sde-agents:security-audit",
+          "sde-agents:self-improve-loop",
+          "sde-agents:service-onboard",
+          "sde-agents:sre-tool",
+          "sde-agents:upgrade-campaign",
+          "simplify",
+          "update-config",
+          "verify",
+          "workflow-authoring"
+        ]
+      },
+      "components_uniform": true
+    },
+    {
+      "id": "neg-resolved-incident-writeup",
+      "polarity": "negative",
+      "tags": [
+        "near-miss",
+        "postmortem"
+      ],
+      "passed": true,
+      "inconclusive": false,
+      "runs_excluded": 0,
+      "cluster_fire_rate": 1.0,
+      "correct_rate": 1.0,
+      "detail": "['self-improve-loop'] fired in 0/3 runs (want 0)",
+      "also_fired": [],
+      "fired_per_run": [
+        [
+          "postmortem"
+        ],
+        [
+          "postmortem"
+        ],
+        [
+          "postmortem"
+        ]
+      ],
+      "notes": [],
+      "models_observed": [
+        "claude-sonnet-5"
+      ],
+      "runs_observed": 3,
+      "components_observed": {
+        "agents": [
+          "Explore",
+          "Plan",
+          "claude",
+          "claude-code-guide",
+          "general-purpose",
+          "sde-agents:application-security-auditor",
+          "sde-agents:code-reviewer",
+          "sde-agents:homelab-engineer",
+          "sde-agents:multi-agent-architect",
+          "sde-agents:principal-engineer",
+          "sde-agents:prompt-engineer",
+          "sde-agents:repository-investigator",
+          "sde-agents:researcher",
+          "sde-agents:sde-fullstack",
+          "sde-agents:verification-engineer",
+          "statusline-setup"
+        ],
+        "skills": [
+          "batch",
+          "claude-api",
+          "code-review",
+          "dataviz",
+          "debug",
+          "deep-research",
+          "doctor",
+          "fewer-permission-prompts",
+          "loop",
+          "run",
+          "run-skill-generator",
+          "schedule",
+          "sde-agents:backend-craft",
+          "sde-agents:ci-actions",
+          "sde-agents:code-craft",
+          "sde-agents:deep-review",
+          "sde-agents:eng-ladder",
+          "sde-agents:frontend-craft",
+          "sde-agents:host-onboard",
+          "sde-agents:lab-audit",
+          "sde-agents:lab-incident",
+          "sde-agents:observability",
+          "sde-agents:onboarding-map",
+          "sde-agents:postmortem",
+          "sde-agents:prompt-craft",
+          "sde-agents:restore-drill",
+          "sde-agents:root-cause",
+          "sde-agents:runbook",
+          "sde-agents:security-audit",
+          "sde-agents:self-improve-loop",
+          "sde-agents:service-onboard",
+          "sde-agents:sre-tool",
+          "sde-agents:upgrade-campaign",
+          "simplify",
+          "update-config",
+          "verify",
+          "workflow-authoring"
+        ]
+      },
+      "components_uniform": true
+    },
+    {
+      "id": "neg-one-shot-prompt-fix",
+      "polarity": "negative",
+      "tags": [
+        "near-miss",
+        "prompt-engineer"
+      ],
+      "passed": true,
+      "inconclusive": false,
+      "runs_excluded": 0,
+      "cluster_fire_rate": 1.0,
+      "correct_rate": 1.0,
+      "detail": "['self-improve-loop'] fired in 0/3 runs (want 0)",
+      "also_fired": [],
+      "fired_per_run": [
+        [
+          "prompt-craft"
+        ],
+        [
+          "prompt-craft"
+        ],
+        [
+          "prompt-craft"
+        ]
+      ],
+      "notes": [
+        "run 1: graded despite 'exit 1: Reached maximum number of turns (6)'",
+        "run 2: graded despite 'exit 1: Reached maximum number of turns (6)'",
+        "run 3: graded despite 'exit 1: Reached maximum number of turns (6)'"
+      ],
+      "models_observed": [
+        "claude-sonnet-5"
+      ],
+      "runs_observed": 3,
+      "components_observed": {
+        "agents": [
+          "Explore",
+          "Plan",
+          "claude",
+          "claude-code-guide",
+          "general-purpose",
+          "sde-agents:application-security-auditor",
+          "sde-agents:code-reviewer",
+          "sde-agents:homelab-engineer",
+          "sde-agents:multi-agent-architect",
+          "sde-agents:principal-engineer",
+          "sde-agents:prompt-engineer",
+          "sde-agents:repository-investigator",
+          "sde-agents:researcher",
+          "sde-agents:sde-fullstack",
+          "sde-agents:verification-engineer",
+          "statusline-setup"
+        ],
+        "skills": [
+          "batch",
+          "claude-api",
+          "code-review",
+          "dataviz",
+          "debug",
+          "deep-research",
+          "doctor",
+          "fewer-permission-prompts",
+          "loop",
+          "run",
+          "run-skill-generator",
+          "schedule",
+          "sde-agents:backend-craft",
+          "sde-agents:ci-actions",
+          "sde-agents:code-craft",
+          "sde-agents:deep-review",
+          "sde-agents:eng-ladder",
+          "sde-agents:frontend-craft",
+          "sde-agents:host-onboard",
+          "sde-agents:lab-audit",
+          "sde-agents:lab-incident",
+          "sde-agents:observability",
+          "sde-agents:onboarding-map",
+          "sde-agents:postmortem",
+          "sde-agents:prompt-craft",
+          "sde-agents:restore-drill",
+          "sde-agents:root-cause",
+          "sde-agents:runbook",
+          "sde-agents:security-audit",
+          "sde-agents:self-improve-loop",
+          "sde-agents:service-onboard",
+          "sde-agents:sre-tool",
+          "sde-agents:upgrade-campaign",
+          "simplify",
+          "update-config",
+          "verify",
+          "workflow-authoring"
+        ]
+      },
+      "components_uniform": true
+    },
+    {
+      "id": "neg-ordinary-build",
+      "polarity": "negative",
+      "tags": [
+        "near-miss",
+        "implementation"
+      ],
+      "passed": true,
+      "inconclusive": false,
+      "runs_excluded": 0,
+      "cluster_fire_rate": 0.0,
+      "correct_rate": 1.0,
+      "detail": "['self-improve-loop'] fired in 0/3 runs (want 0)",
+      "also_fired": [],
+      "fired_per_run": [
+        [],
+        [],
+        []
+      ],
+      "notes": [],
+      "models_observed": [
+        "claude-sonnet-5"
+      ],
+      "runs_observed": 3,
+      "components_observed": {
+        "agents": [
+          "Explore",
+          "Plan",
+          "claude",
+          "claude-code-guide",
+          "general-purpose",
+          "sde-agents:application-security-auditor",
+          "sde-agents:code-reviewer",
+          "sde-agents:homelab-engineer",
+          "sde-agents:multi-agent-architect",
+          "sde-agents:principal-engineer",
+          "sde-agents:prompt-engineer",
+          "sde-agents:repository-investigator",
+          "sde-agents:researcher",
+          "sde-agents:sde-fullstack",
+          "sde-agents:verification-engineer",
+          "statusline-setup"
+        ],
+        "skills": [
+          "batch",
+          "claude-api",
+          "code-review",
+          "dataviz",
+          "debug",
+          "deep-research",
+          "doctor",
+          "fewer-permission-prompts",
+          "loop",
+          "run",
+          "run-skill-generator",
+          "schedule",
+          "sde-agents:backend-craft",
+          "sde-agents:ci-actions",
+          "sde-agents:code-craft",
+          "sde-agents:deep-review",
+          "sde-agents:eng-ladder",
+          "sde-agents:frontend-craft",
+          "sde-agents:host-onboard",
+          "sde-agents:lab-audit",
+          "sde-agents:lab-incident",
+          "sde-agents:observability",
+          "sde-agents:onboarding-map",
+          "sde-agents:postmortem",
+          "sde-agents:prompt-craft",
+          "sde-agents:restore-drill",
+          "sde-agents:root-cause",
+          "sde-agents:runbook",
+          "sde-agents:security-audit",
+          "sde-agents:self-improve-loop",
+          "sde-agents:service-onboard",
+          "sde-agents:sre-tool",
+          "sde-agents:upgrade-campaign",
+          "simplify",
+          "update-config",
+          "verify",
+          "workflow-authoring"
+        ]
+      },
+      "components_uniform": true
+    },
+    {
+      "id": "neg-team-meeting-retro",
+      "polarity": "negative",
+      "tags": [
+        "near-miss",
+        "meeting-notes"
+      ],
+      "passed": true,
+      "inconclusive": false,
+      "runs_excluded": 0,
+      "cluster_fire_rate": 0.0,
+      "correct_rate": 1.0,
+      "detail": "['self-improve-loop'] fired in 0/3 runs (want 0)",
+      "also_fired": [],
+      "fired_per_run": [
+        [],
+        [],
+        []
+      ],
+      "notes": [],
+      "models_observed": [
+        "claude-sonnet-5"
+      ],
+      "runs_observed": 3,
+      "components_observed": {
+        "agents": [
+          "Explore",
+          "Plan",
+          "claude",
+          "claude-code-guide",
+          "general-purpose",
+          "sde-agents:application-security-auditor",
+          "sde-agents:code-reviewer",
+          "sde-agents:homelab-engineer",
+          "sde-agents:multi-agent-architect",
+          "sde-agents:principal-engineer",
+          "sde-agents:prompt-engineer",
+          "sde-agents:repository-investigator",
+          "sde-agents:researcher",
+          "sde-agents:sde-fullstack",
+          "sde-agents:verification-engineer",
+          "statusline-setup"
+        ],
+        "skills": [
+          "batch",
+          "claude-api",
+          "code-review",
+          "dataviz",
+          "debug",
+          "deep-research",
+          "doctor",
+          "fewer-permission-prompts",
+          "loop",
+          "run",
+          "run-skill-generator",
+          "schedule",
+          "sde-agents:backend-craft",
+          "sde-agents:ci-actions",
+          "sde-agents:code-craft",
+          "sde-agents:deep-review",
+          "sde-agents:eng-ladder",
+          "sde-agents:frontend-craft",
+          "sde-agents:host-onboard",
+          "sde-agents:lab-audit",
+          "sde-agents:lab-incident",
+          "sde-agents:observability",
+          "sde-agents:onboarding-map",
+          "sde-agents:postmortem",
+          "sde-agents:prompt-craft",
+          "sde-agents:restore-drill",
+          "sde-agents:root-cause",
+          "sde-agents:runbook",
+          "sde-agents:security-audit",
+          "sde-agents:self-improve-loop",
+          "sde-agents:service-onboard",
+          "sde-agents:sre-tool",
+          "sde-agents:upgrade-campaign",
+          "simplify",
+          "update-config",
+          "verify",
+          "workflow-authoring"
+        ]
+      },
+      "components_uniform": true
+    }
+  ]
+}

@@ -355,15 +355,13 @@ ignition.
 
 #### EVAL-003 — capture a comparable full routing anchor
 
-**Status:** `active` — a full capture exists but does **not** close this item. The 2026-09-14
-batch (`evals/baselines/2026-09-14-native-migration/`, 10 clusters, 101 cases, 303 runs, $39.42)
-is labelled **historical and non-reusable in its own README**: every review round on the migration
-PR moved the evaluator bytes, and `AGENTS.md`'s T3 reuse contract requires them unchanged, so no
-run made with the merged runner may use it as a before-side. Calling it the current anchor here
-would be this item's own acceptance clause violated — "no known-invalid artifact is called an
-anchor" — and would let the next description edit skip the fresh baseline it owes. **Two clauses
-remain open:** a capture taken on the shipped evaluator bytes, and the agent-member grading
-decision below.
+**Status:** `active` — clause 1 is closed; the grading decision below is not.
+`evals/baselines/2026-09-15-shipped-evaluator/` (10 clusters, 101 cases, 303 runs, $39.57) is the
+current anchor: evaluator `892f52b3dcaf` — the bytes merged in PR #193 — over plugin
+`4478a262f814` at `git_head c40fa6238657`, `git_dirty: false`, with one identical condition set
+across all ten clusters on every field the T3 reuse contract compares. It supersedes the
+2026-09-14 batch, which remains historical and non-reusable for the reason its own README gives.
+**One clause remains open:** the agent-member grading decision.
 
 **Outcome:** Establish one current, condition-complete routing baseline across all routing
 clusters.
@@ -377,31 +375,41 @@ numbers as description evidence.
 **Acceptance:** Every artifact records requested/observed model, timeout, CLI version,
 threshold, and per-run evidence; no known-invalid artifact is called an anchor.
 
-**Evidence disposition:** Acceptance is met on the recording clauses and better than specified:
-each artifact also carries `max_turns` and `components_observed` — the routing competition read
-off each session's own `init` event — because the flag that was supposed to control it
-(`--clean-room`) was measured the same day to change nothing under the native harness. Conditions
-are uniform across all ten clusters on the two conditions the artifacts can establish (one
-observed model, one CLI version); the component surface is recorded only as an equal UNION per
-cluster, and per-run uniformity is unknown for this batch because the field that records it was
-added after it ran. That unknown is one of the reasons this capture is **not** a
-condition-complete anchor: an earlier draft ended this sentence with "which is what makes them a
-single anchor rather than ten co-located measurements", a clause left stranded when the caveat was
-inserted in front of it, so the paragraph asserted the opposite of the status above. Zero
-INCONCLUSIVE; 6 of 303 runs excluded.
+**Evidence disposition:** Acceptance is met on every recording clause, and the unknown that
+disqualified the previous batch is closed: `components_uniform` reads `true` in all ten clusters,
+so per-run surface uniformity is established rather than inferred from equal unions. One observed
+model and one CLI version throughout. 89/101; negatives **60/60** over 178 usable negative runs;
+positives 29/41, and **no failure anywhere involves a wrong destination**. 5 of 303 runs excluded.
 
-**Next action:** Two, and the first gates the second's reuse rather than its evidence.
-(1) Decide whether to re-capture on the shipped evaluator bytes (~$40) or to leave the 2026-09-14
-batch historical and pay for a fresh before-side at the next description edit — an operator call,
-recorded here rather than taken.
-(2) Make the agent-member grading decision, now with evidence rather than a default. The capture
-splits cleanly: negatives **60/60**; positives 26/41, where **14 of the 15 failures involve no
-wrong destination** (11 routed nowhere, 3 fired only expected members below the 0.5 threshold) and
-the fifteenth dispatched a member its case does not expect in all three runs — ROUTE-001 below,
-which this record must not round off to under-firing. That is the shape the deferred default
-predicted, so decide whether routing positives for agent members stay graded, move to the
-behavioral suite, or are retired — and record the ruling here. Until then, read this capture's
-positive side as a reachability signal, not as description evidence.
+Two limits this record must carry rather than round off. (1) **One INCONCLUSIVE**:
+`craft-vs-fullstack/pos-typescript-branded-ids` lost all three runs, so the anchor holds no
+before-value for it and a later `code-craft` description edit must capture one. (2) **The +3
+against the 2026-09-14 batch is not attributable to routing.** No `description:` line changed
+between the two heads, so the routing inputs are identical, while the CLI, the plugin bytes and
+the evaluator all moved — the evaluator by roughly 1,058 lines across seven of its eight files,
+including the firing-detection and prompt-generation modules. A grading fix recognising firings
+the old instrument missed would produce exactly the observed 0/3 → 3/3 jumps. The two batches are
+not comparable case-for-case, and nothing here claims routing improved.
+
+**The case-design screen the prerequisite asks for was run, and found nothing to fix.** Every
+failing case was compared against the 2026-09-14 batch before the numbers were accepted: all four
+`ladder`/`prompt-tooling` positives reproduce that batch's verdicts, a day apart on different
+evaluator bytes, and each failing positive has a passing negative twin in its own cluster. They
+are stable description gaps, not malformed cases, so none was edited — patching a case to green an
+anchor would falsify the measurement the anchor exists to be.
+
+**The anchor ran on CLI 2.1.272 while CI's `claude-plugin-contract` job pins 2.1.270.** An
+after-side run on the pinned version does not match this capture's recorded conditions.
+
+**Next action:** Make the agent-member grading decision, now on the shipped evaluator's own
+evidence. The anchor splits cleanly: negatives **60/60** with no over-trigger in 178 usable
+negative runs; positives 29/41, where **every one of the twelve failures involves no wrong
+destination** — eleven routed nowhere or fired only expected members below the 0.5 threshold, and
+the twelfth produced no usable transcript. That is a cleaner split than the 2026-09-14 batch,
+whose one wrong-destination row (ROUTE-001) now clears the threshold without the disagreement
+changing. So decide whether routing positives for agent members stay graded, move to the
+behavioral suite, or are retired — and record the ruling here. Until then, read the positive side
+as a reachability signal, not as description evidence.
 
 #### ROUTE-001 — settle `pos-diagnose-idle-lab-failure`: `root-cause` or `homelab-engineer`
 
@@ -415,6 +423,13 @@ fired `homelab-engineer` in 3/3 runs and `root-cause` in 1/3, while asserting `r
 a silence failure like the other fourteen: the sessions routed somewhere, deliberately and
 repeatably. The archived 2026-08-18 native pilot recorded the same destination 6/6 under that
 agent's previous name (`homelab-platform`), so the behaviour long predates the harness migration.
+
+**The 2026-09-15 anchor does not close this, and its green row must not be read as closing it.**
+There the case **passes**: `root-cause` reached 2/3 and cleared the 0.5 threshold, leaving
+`investigation` at 7/7. The disagreement is unchanged — `homelab-engineer` still co-fires, and the
+case still asserts `root-cause`. Only the rate moved, across a capture whose deltas are not
+attributable to routing at all (see EVAL-003). A verdict that flips on a threshold while the
+behaviour holds is the reason this item tracks a ruling rather than a rate.
 
 **Prerequisites:** None.
 

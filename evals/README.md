@@ -391,12 +391,15 @@ LADDER-002 had pinned
 settling directories those items pinned in full, plus `2026-08-01-self-improve/final-live/` and
 `2026-08-18-ctx-002/disposition/` (the latter's own unconditional trigger, independent of the
 still-open LANE-001) — bringing the total to 11,440 lines across 12 top-level directories. The
-2026-09-14 native-migration anchor then added a thirteenth, and nearly doubled the tree on its own:
-**22,562 lines across 13 top-level directories**. Ten `benchmark.json` files account for 10,965 of
-those lines, because each records `fired_per_run` for every case — the audit trail that lets a
+2026-09-14 native-migration anchor then added a thirteenth and nearly doubled the tree on its own,
+and the 2026-09-15 shipped-evaluator anchor added a fourteenth at the same scale:
+**34,020 lines across 14 top-level directories**. The two anchors' twenty `benchmark.json` files
+account for 22,250 of those lines, because each records `fired_per_run` for every case — the audit trail that lets a
 surprising verdict be explained from the artifact instead of by paying for the batch again. That
 is the trade this directory exists to make, but it is also why a full anchor is captured
-deliberately rather than routinely.
+deliberately rather than routinely. Two full anchors now sit here because the first disqualified
+itself as a before-side; only the 2026-09-15 one is reusable, and
+`2026-09-15-shipped-evaluator/README.md` says on what terms.
 What remains: 1,369 lines of distilled record
 under `history/`, the raw of the partially-summarized directories, and
 the directories with no summary at all — the set is whatever `git ls-files evals/baselines`
