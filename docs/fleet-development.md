@@ -26,8 +26,8 @@ conventions, for the same reason: the **three-strikes rule** is owned by `skills
 `agents/code-reviewer.md`, and the live-activation gate it names is `agents/homelab-engineer.md`'s
 change-authority tiers; the **homelab task brief** contents and live-authority boundary are owned
 by `agents/homelab-engineer.md`; `agents/sde-fullstack.md` consumes those facts without requiring a
-work-order digest or receipt; the **shared material-risk matrix** is owned by
-`agents/code-reviewer.md` (verification-engineer carries it verbatim and defers on conflict); the
+work-order digest or receipt; the **approval-to-commit binding** is owned by
+`agents/code-reviewer.md` (verification-engineer checks it before testing an approved target); the
 **CLAUDE.md/`@AGENTS.md` bridge** and the **progress/plan-file layout** are owned by the root
 README's "Project context convention" section; the **engineering-program strands and the reading
 rule** are owned by `docs/engineering-program.md`, which `AGENTS.md` compresses; the canonical

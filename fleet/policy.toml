@@ -27,18 +27,19 @@ aliases = ["inherit", "haiku", "sonnet", "opus", "fable"]
 # it accurately; the frontmatter dialect refuses a nested mapping as malformed -- loudly.
 [agent_frontmatter]
 source = "code.claude.com/docs/en/sub-agents"
-checked = "2026-09-13"
+checked = "2026-09-23"
 known = [
     "name", "description", "tools", "disallowedTools", "model", "permissionMode", "maxTurns",
-    "skills", "mcpServers", "hooks", "memory", "background", "effort", "isolation", "color",
-    "initialPrompt", "experimental",
+    "skills", "mcpServers", "hooks", "memory", "background", "omitClaudeMd", "effort",
+    "isolation", "color", "initialPrompt", "experimental",
 ]
-# Claude Code SILENTLY IGNORES these three on a PLUGIN-SHIPPED agent ("For security reasons,
+# Claude Code SILENTLY IGNORES these on a PLUGIN-SHIPPED agent ("For security reasons,
 # `hooks`, `mcpServers`, and `permissionMode` are not supported for plugin-shipped agents";
-# probed on CLI 2.1.200: a plugin agent's frontmatter hook never fired). This fleet ships as a
-# plugin, so any of them is configuration that does not exist -- `hooks:` being the dangerous
-# one, since it once carried the read-only guard and would read as armor while providing none.
-plugin_inert = ["hooks", "mcpServers", "permissionMode"]
+# probed on CLI 2.1.200: a plugin agent's frontmatter hook never fired). `initialPrompt` is
+# documented as "Not supported" for plugin agents as well. This fleet ships as a plugin, so any
+# of them is configuration that does not exist -- `hooks:` being the dangerous one, since it once
+# carried the read-only guard and would read as armor while providing none.
+plugin_inert = ["hooks", "mcpServers", "permissionMode", "initialPrompt"]
 
 # Every documented SKILL.md frontmatter field, same rationale as the agent namespace: a
 # `disable-model-invocaton` slip would quietly turn a side-effect skill model-invocable.
@@ -105,17 +106,16 @@ evidence_mcp = [
     "mcp__plugin_context7_context7__resolve-library-id",
     "mcp__plugin_githits_githits__code_files",
     "mcp__plugin_githits_githits__code_grep",
-    "mcp__plugin_githits_githits__code_read",
     "mcp__plugin_githits_githits__docs_list",
-    "mcp__plugin_githits_githits__docs_read",
     "mcp__plugin_githits_githits__get_example",
     "mcp__plugin_githits_githits__pkg_changelog",
     "mcp__plugin_githits_githits__pkg_deps",
     "mcp__plugin_githits_githits__pkg_info",
     "mcp__plugin_githits_githits__pkg_upgrade_review",
     "mcp__plugin_githits_githits__pkg_vulns",
+    "mcp__plugin_githits_githits__quick_start",
+    "mcp__plugin_githits_githits__read",
     "mcp__plugin_githits_githits__search",
-    "mcp__plugin_githits_githits__search_language",
     "mcp__plugin_githits_githits__search_status",
 ]
 local_repository = ["Glob", "Grep", "Read"]
@@ -129,6 +129,10 @@ external_research = ["ToolSearch", "WebFetch", "WebSearch", "@evidence_mcp"]
 # allowlist's one network family (`gh`) away from it (PR #141). The application-security-auditor
 # keeps Bash forbidden: its mandate is to be safe against a HOSTILE repository, and the guard's
 # own docstring names the git-config ext-diff vector a shell opens against one.
+# The split binds these three roles only. `sde-fullstack`, `principal-engineer`,
+# `multi-agent-architect`, and `prompt-engineer` hold private source and fetched content together
+# as an accepted risk: their work needs both, and the main session that spawns them already holds
+# both. Route untrusted-content-heavy research to `researcher` rather than widening a builder.
 [[roles]]
 name = "application-security-auditor"
 required = ["@local_repository"]

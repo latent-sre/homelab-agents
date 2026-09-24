@@ -121,15 +121,15 @@ Building a **command-line** tool — the streams-and-exit-codes contract, `--jso
    cannot reach. Keep it independent of the correctness review. Only when that agent cannot be
    spawned, fall back to a second `sde-agents:code-reviewer` pass seeded with a security-only threat
    model (or the CLI's built-in `/security-review`), and say in the final report which gate
-   actually ran. A **confirmed critical or high** auditor finding is blocking, equivalent to the
+   actually ran. An auditor **P0 or P1 finding at high confidence** is blocking, equivalent to the
    reviewer's P0/P1 route: give the finding and acceptance test to the owning builder, then re-run
    the auditor on the affected source-to-sink path. Deploy artifacts do not ship while one remains
    open or contested; after one re-audit, a still-contested finding escalates to the user with both
-   evidence sets. A probable or possible critical/high candidate leaves the security gate
+   evidence sets. A P0 or P1 candidate at medium or low confidence leaves the security gate
    **inconclusive** and still blocks deploy until the auditor confirms or rejects it, or the user
    explicitly accepts the risk — note that acceptance, and what evidence would settle it, in the
    final report.
-   Apply Step 4's evidence-and-scope rule to medium and low findings too; record fixed defects and
+   Apply Step 4's evidence-and-scope rule to P2 and P3 auditor findings too; record fixed defects and
    remaining recommendations in the result.
 
 ## Phase 4 — Verify and hand over

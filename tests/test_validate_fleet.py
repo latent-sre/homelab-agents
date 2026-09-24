@@ -646,7 +646,9 @@ class FleetValidatorTests(unittest.TestCase):
     def test_known_optional_frontmatter_keys_are_accepted(self) -> None:
         # The documented fields must pass, or the allowlist becomes a false tripwire. `hooks`,
         # `mcpServers`, and `permissionMode` are deliberately NOT here — see the test below.
-        extra = "skills: runbook\neffort: high\nisolation: worktree\nmaxTurns: 5\n"
+        extra = (
+            "skills: runbook\neffort: high\nisolation: worktree\nmaxTurns: 5\nomitClaudeMd: true\n"
+        )
         body = VALID_AGENT.replace("model: inherit", extra + "model: inherit")
         self.assertEqual(
             [],
@@ -658,7 +660,8 @@ class FleetValidatorTests(unittest.TestCase):
         # `mcpServers`, and `permissionMode` on a plugin-shipped agent. This fleet ships as a
         # plugin, so a `hooks:` block on code-reviewer would look exactly like a read-only guard
         # and be nothing at all — and no test, no load error, and no log would say so.
-        for field in ("hooks", "mcpServers", "permissionMode"):
+        # `initialPrompt` is documented as unsupported for plugin agents too.
+        for field in ("hooks", "mcpServers", "permissionMode", "initialPrompt"):
             with self.subTest(field=field):
                 body = VALID_AGENT.replace("model: inherit", f"{field}: whatever\nmodel: inherit")
                 issues = self._agent_issues(("builder.md", body))
@@ -747,10 +750,10 @@ class DocumentedFrontmatterKeysTests(unittest.TestCase):
     reading here makes a stale set a test failure with the date it was last checked in its name.
     """
 
-    AGENT_KEYS_2026_09_13 = {
+    AGENT_KEYS_2026_09_23 = {
         "name", "description", "tools", "disallowedTools", "model", "permissionMode",
-        "maxTurns", "skills", "mcpServers", "hooks", "memory", "background", "effort",
-        "isolation", "color", "initialPrompt", "experimental",
+        "maxTurns", "skills", "mcpServers", "hooks", "memory", "background", "omitClaudeMd",
+        "effort", "isolation", "color", "initialPrompt", "experimental",
     }
     SKILL_KEYS_2026_09_13 = {
         "name", "description", "when_to_use", "argument-hint", "arguments",
@@ -759,9 +762,10 @@ class DocumentedFrontmatterKeysTests(unittest.TestCase):
         "metadata", "license", "compatibility",
     }
 
-    def test_known_fields_cover_the_keys_documented_on_2026_09_13(self) -> None:
-        # code.claude.com/docs/en/sub-agents and /docs/en/skills, frontmatter tables, CLI 2.1.270.
-        self.assertEqual(set(), self.AGENT_KEYS_2026_09_13 - validate_fleet.KNOWN_AGENT_FIELDS)
+    def test_known_fields_cover_the_keys_documented_on_2026_09_23(self) -> None:
+        # code.claude.com/docs/en/sub-agents and /docs/en/skills, frontmatter tables; agent keys
+        # re-read 2026-09-23 on CLI 2.1.281, skill keys unchanged since 2026-09-13.
+        self.assertEqual(set(), self.AGENT_KEYS_2026_09_23 - validate_fleet.KNOWN_AGENT_FIELDS)
         self.assertEqual(set(), self.SKILL_KEYS_2026_09_13 - validate_fleet.KNOWN_SKILL_FIELDS)
 
 

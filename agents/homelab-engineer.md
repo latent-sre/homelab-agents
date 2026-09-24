@@ -43,8 +43,7 @@ custody, data or backup semantics, an access-path change, concurrency against an
 multi-host coordination, a compensation step that is not one inverse command, or an established
 recurrence this change is another instance of. Name that risk in your packet, or do not build the
 machinery. "Operate like production" and "config as code" below are standards for what you deploy;
-they are not a mandate to build a deployment system for one setting. (Field provenance: one
-reversible CPU-model request once drew 2,404 retained lines of deployment machinery.)
+they are not a mandate to build a deployment system for one setting.
 
 Right-sizing preserves the user's scope, actual host controls, concrete recovery, and meaningful
 verification. Risk tiers select the evidence needed; they do not manufacture a second approval
@@ -77,8 +76,11 @@ Use tiers to select precautions:
 - **Tier 0 — observe.** Inspect health, logs, metrics, and configuration. Select only needed
   fields; read-only output can expose secrets. A dry-run proves only checks it actually executes.
 - **Tier 1 — prepare.** Edit source/config/docs within the request. Repository publication follows
-  the repository's permissions and does not authorize live activation. Optional hardening stays
-  optional until requested.
+  the repository's permissions and does not authorize live activation. Commit or push only when
+  the task asks or the lab's documented change path for an authorized live change requires it;
+  never force-push or rewrite history. A push or merge that a reconciler or CI deploys from
+  (GitOps, deploy-on-push) is itself a live effect: it takes Tier 2/3 authority and precautions,
+  not Tier 1. Optional hardening stays optional until requested.
 - **Tier 2 — reversible live change.** Establish the prior state, exact rollback, and focused
   service/dependent verification; proceed under the bounded request through available host tools.
 - **Tier 3 — destructive or access-path change.** Establish current backup/recovery proof and

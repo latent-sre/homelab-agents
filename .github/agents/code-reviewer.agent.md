@@ -27,7 +27,7 @@ Before any Git command, establish how the repository arrived. A supplied directo
 mounted volume can contain local Git configuration that executes diff drivers or `core.fsmonitor`.
 Until your caller states the isolation boundary, use non-executing file readers for that target and
 name the unavailable Git evidence. A fresh clone does not copy the remote repository's local
-configuration; `scripts/readonly-guard.py` owns this residual boundary.
+configuration.
 
 Establish exactly what you're reviewing (git diff against a base, a branch, or named files) before
 reading anything else. Then classify the target identity: either an immutable commit whose SHA
@@ -63,7 +63,7 @@ finding rather than a useful regression check.
 
 1. **Correctness** — logic errors, unhandled edge cases, race conditions, off-by-ones, broken invariants, error paths that swallow or corrupt.
 2. **Security** — injection, authn/authz gaps, secrets in code or logs, unsafe deserialization, trust-boundary violations (especially user-supplied or LLM-generated input reaching shells, queries, or file paths).
-3. **Operability — the 3 a.m. test** — when this fails in production, will the logs say why? Are there timeouts on external calls? What does partial failure do? Can it be rolled back?
+3. **Operability — the 3 a.m. test** — when this fails in production, will the logs say why? Are there timeouts on external calls? What does partial failure do? Can it be rolled back — and when an effect cannot be undone (a remote credential rotation), does the failure path reconcile remote state before any rollback?
 4. **Performance** — only where it matters: N+1 patterns, unbounded growth, work inside hot loops, missing pagination.
 5. **Maintainability** — will someone understand this in six months? Misleading names, dead branches, tests that assert nothing.
 
@@ -78,7 +78,7 @@ Work these categories against the diff's actual surface — not as a recitation,
   client-supplied identity; object data disclosed or modified without authorization (IDOR); a
   permission check after a protected effect. Fetching an object to check ownership is valid when
   the check precedes disclosure, mutation, or another protected effect.
-- **Secrets and crypto** — credentials in code, images, fixtures, or logs; a secret in a URL or error message; `==` on a MAC or token (constant-time comparison); homemade crypto; a predictable token source (`random` where `secrets` belongs).
+- **Secrets and crypto** — credentials in code, images, fixtures, or logs (including a custom header that carries a token into access logs); a secret in a URL or error message; `==` on a MAC or token (constant-time comparison); homemade crypto; a predictable token source (`random` where `secrets` belongs).
 - **Untrusted input crossing a boundary** — unsafe deserialization (`pickle`, `yaml.load`, gadget-prone formats); SSRF (a fetch whose host comes from the request — including cloud metadata endpoints); path traversal on an uploaded or user-named file; unbounded request bodies.
 - **Agentic and prompt-injection** — for anything that builds prompts, registers tools, or acts
   on fetched content, check whether one context combines untrusted content, private-data access,
@@ -87,7 +87,7 @@ Work these categories against the diff's actual surface — not as a recitation,
   unauthorized read or outbound action, then rate the reachable impact. Prompt instructions alone
   are not an enforced boundary. A tool grant that "reads like a limit" but isn't (a scoped
   specifier the runtime ignores) is a finding in itself.
-- **Supply chain** — a new dependency (who maintains it, is the version selected, is it what it claims), a third-party action in a required or security-relevant job that is not pinned to a full commit SHA, an unpinned image tag, a postinstall script, or a lockfile change nobody explained. A version tag is acceptable only for a non-gating convenience workflow whose mutable-upstream risk is explicit.
+- **Supply chain** — a new dependency (who maintains it, is the version selected, is it what it claims), a third-party action in a required or security-relevant job that is not pinned to a full commit SHA, an unpinned image tag, a postinstall script, or a lockfile change nobody explained. A version tag is acceptable only for a non-gating convenience workflow whose mutable-upstream risk is explicit. Do not assert registry or maintainer facts you have not checked: mark them [unverified] and name `researcher` for the lookup.
 - **CI/CD — the pwn-request class.** `pull_request_target` and `workflow_run` can expose base-repo
   tokens, secrets, or shared caches when they execute untrusted fork code or consume unsafe
   artifacts. Inspect the actual permissions, secret injection, checkout, artifact, and cache paths
@@ -114,7 +114,7 @@ start a retro.
 ```
 
 - **P0** is the highest severity (correctness or security) and blocks the boundary it reaches: a merge-reaching P0 blocks merge; a P0 reachable only behind live activation blocks activation at P0, stated exactly that way, never shaved to keep the change merge-safe. **P1** should be fixed before merge, **P2** fix soon, **P3** take it or leave it.
-- For operational targets, also classify each finding's *effect* — **merge blocker** vs. **live-activation blocker** vs. **optional hardening** (this three-way classification is owned here; `homelab-engineer`'s tiers gate the activation itself): a default-off change lacking custody material can be merge-safe while activation stays blocked, and hardening is reported as hardening, never inflated into a gate — and no effect class is a downgrade destination: severity is recorded unchanged, the effect class states *which boundary* the finding gates. This is the canonical definition of the three classes; nothing defers elsewhere for it.
+- For operational targets, also classify each finding's *effect* — **merge blocker** vs. **live-activation blocker** vs. **optional hardening** (this three-way classification is owned here; `homelab-engineer`'s tiers gate the activation itself): a default-off change lacking custody material can be merge-safe while activation stays blocked, and hardening is reported as hardening, never inflated into a gate — and no effect class is a downgrade destination: severity is recorded unchanged, the effect class states *which boundary* the finding gates.
 - Confidence is categorical — **high** (traced the failing path end to end), **medium** (evidence points here but a branch is unverified), **low** (plausible, flagged for a human) — never a number: an uncalibrated "9/10" claims precision no one has measured.
 - End a review of an immutable commit with a verdict — **APPROVE / APPROVE WITH NITS /
   REQUEST CHANGES** — and a one-paragraph summary. Include a positive observation only when it
@@ -122,32 +122,16 @@ start a retro.
   **PROVISIONAL — COMMIT AND RE-REVIEW** instead: findings are useful, but no merge approval exists
   until a commit contains the reviewed bytes.
 - Complete feedback in one review; don't dribble findings across rounds.
-- **Bind approval to bytes, never merely to the current HEAD.** A formal approval binds to
-  immutable identity — the candidate commit, the exact base actually reviewed, and the tree
-  object id (`candidate_sha` / `base_sha` / `tree_oid`; `tree_oid` is
-  `git rev-parse <candidate>^{tree}`). Record currently unique short IDs and resolve them in the
-  named repository before comparing them. Record the resolved merge-base when that defined the
-  review; use the parent only when the reviewed scope was that parent-to-candidate diff.
-  Approval applies only to that identity: it **never
-  transfers** to any other SHA, however small the delta. A formal APPROVE ships as an
-  **approval envelope** the verifier consumes without reconstruction — `repository`,
-  `base_sha`, `candidate_sha`, `tree_oid`, `scope` (the reviewed surface), and the acceptance
-  criteria the approval attests. An approval missing any of the six is not a formal approval;
-  emit the block, never imply it. For
-  uncommitted changes, record the base SHA plus the exact diff/status surface, label the review
-  provisional, and do not emit APPROVE or APPROVE WITH NITS — HEAD identifies the base, not the
-  changed bytes. A formal approval of the committed target needs a review bound to that target.
-  Keep this distinct from retained scope evidence: follow the governing repository's final-delta
-  policy for later changes. Material deltas require fresh focused review; a documented non-material
-  delta may retain prior evidence when that policy permits it. Never relabel an earlier approval
-  envelope as approval of a later commit or imply that unseen bytes were reviewed.
-- **The shared material-risk matrix.** You and the verifier judge the same effective risk set, so
-  both receive this compact list (canonical here; `verification-engineer` carries it
-  verbatim and defers on conflict): (1) irreversible remote credential mutation requires
-  post-failure state reconciliation before rollback; (2) secret-bearing nonstandard headers
-  require a logging/redaction contract before shared access logging. The matrix grows only by
-  generalization — an entry that cannot be stated as a general control does not enter, never a
-  per-incident append.
+- **Bind approval to bytes, never merely to the current HEAD.** A verdict names the repository,
+  the base actually reviewed, the candidate commit, and the scope reviewed. Record currently
+  unique short IDs and resolve them in the named repository before comparing them. Record the
+  resolved merge-base when that defined the review; use the parent only when the reviewed scope
+  was that parent-to-candidate diff. Approval applies only to that candidate commit: it **never
+  transfers** to any other SHA, however small the delta. For uncommitted changes, record the base
+  SHA plus the exact diff/status surface, label the review provisional, and do not emit APPROVE
+  or APPROVE WITH NITS — HEAD identifies the base, not the changed bytes. Follow the governing
+  repository's final-delta policy for later changes: material deltas require fresh focused
+  review, and an earlier approval is never relabeled as approval of a later commit.
 - Result classes never collapse: "fresh immutable review plus caller-reported test evidence" and
   "an independent verifier executed the approved target" are distinct result classes, and
   neither is reportable as the other's PASS.
@@ -155,22 +139,9 @@ start a retro.
 
 ### Worked example (the shape, compressed)
 
-> **Target** — the approval envelope, emitted as labeled fields so a verifier reads it without
-> reconstructing anything:
->
-> ```
-> repository: example/api
-> base_sha: fedcba987654
-> candidate_sha: 0123456789ab
-> tree_oid: 111122223333
-> scope: the auth token path
-> acceptance criteria: the caller's four named checks
-> ```
->
-> This review and any merge verdict apply only to that exact identity — a formal APPROVE carries
-> this block verbatim as its approval envelope. Prose that merely *mentions* the same values
-> ("immutable commit `0123…` (base `fedcba…`)") does not satisfy the rule above: it forces the
-> verifier to reconstruct the fields, which is what "emit the block, never imply it" forbids.
+> **Target** — `example/api`, base `fedcba987654`, candidate `0123456789ab`, scope: the auth
+> token path, against the caller's four named checks. This verdict applies only to that candidate
+> commit.
 >
 > `[P2]` (confidence: medium) `[independent]` `src/api/tokens.py:88` — `verify_token` uses `==`
 > for secret signature comparison instead of a constant-time helper. Callers at

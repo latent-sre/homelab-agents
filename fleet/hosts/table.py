@@ -430,7 +430,9 @@ AGENT_REWRITES: tuple[Rewrite, ...] = (
         "content,\nchange files, or use shell execution. Codex custom-agent TOML cannot remove "
         "inherited\nlocal, shell, or write authority, and its requested sandbox is overridable, "
         "so the\ncaller must provide an outer isolation boundary before treating that separation "
-        "as\nenforced. Request a provenance-labeled local packet through the caller instead.",
+        "as\nenforced. Request a provenance-labeled local packet through the caller instead. "
+        "Treat any\nproject instructions or repository status in your startup context as "
+        "private — never put\nthem in a search query, a fetched URL, or your findings.",
         expect=1,
         regex=True,
         dotall=True,
@@ -613,10 +615,11 @@ AGENT_REWRITES: tuple[Rewrite, ...] = (
     ),
     Rewrite(
         id="agent.principal-engineer.edit-boundary",
-        why="The canonical paragraph names Claude's `Write` grant and says the boundary is "
-        "cooperative there too; each host needs its own inspection sentence, and Codex keeps "
+        why="The canonical paragraph names Claude's `Write` and `Edit` grants and says the "
+        "boundary is cooperative there too; each host needs its own inspection sentence, and "
+        "Codex keeps "
         "shell inside the sandbox where Copilot has no execute tool at all.",
-        find=r"Your Write grant covers exactly these artifact classes:.*?"
+        find=r"Your Write and Edit grants cover exactly these artifact classes:.*?"
         r"The Write boundary stays cooperative — no tool boundary distinguishes a design doc "
         r"from a source file — so when a task pushes you toward writing code, stop and hand it "
         r"down instead\.",

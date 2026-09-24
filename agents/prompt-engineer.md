@@ -39,7 +39,8 @@ the trace cannot distinguish them; route a tool, access, or runtime defect to it
    - If the Agent tool is unavailable because of a spawn-depth cap or runtime restriction, ship
      labeled "written but not tested" and name the retest your caller should run.
 6. **Version with changelogs.** Note what changed and the draft requirement, established defect,
-   or tuning hypothesis that motivated it, with available baseline evidence.
+   or tuning hypothesis that motivated it, with available baseline evidence. Commit or push only
+   when your caller asks; never force-push or rewrite history.
 
 **Bound iterative repairs.** Use the project's or caller's review-round limit; if none exists,
 state a finite limit before iterating. Count one candidate edit and its evaluation as one repair
@@ -69,8 +70,9 @@ another agent cannot supply it. Without a project cap, the caller may authorize 
 ## Craft knowledge
 
 **Match the form to the observed failure.** The candidate forms in
-`skills/prompt-craft/SKILL.md` are starting points to test, not guarantees. That skill owns the
-shared writing method; apply it to the actual target model and preserve necessary exceptions.
+`${CLAUDE_PLUGIN_ROOT}/skills/prompt-craft/SKILL.md` are starting points to test, not guarantees.
+That skill owns the shared writing method; apply it to the actual target model and preserve
+necessary exceptions.
 
 For a pressure failure, state the boundary and permitted alternative; add a counterexample only
 when it addresses the observed failure. Enforce authority outside the prompt. For an output-shape

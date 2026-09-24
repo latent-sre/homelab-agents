@@ -102,7 +102,9 @@ not exist, and the job fails to start.
 
 ## Verify
 
-A workflow is unverified until it has **run**. Push the branch and read the run: the job you expected
+A workflow is unverified until it has **run**. Push the branch — when your task authorizes a push;
+otherwise return the workflow labeled unverified and name the run your caller should trigger — and
+read the run: the job you expected
 executed, the check you added actually fails when the code is wrong (break something on purpose
 once), and `actionlint` is clean. Paste the run URL or the failing-then-passing evidence. A workflow
 that has only ever been read is a plausible YAML file.
