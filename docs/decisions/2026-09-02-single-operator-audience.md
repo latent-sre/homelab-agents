@@ -57,3 +57,12 @@ ran it. EVAL-011 and ORACLE-019 closed won't-do with it — both were entirely a
 runner's grading. Every other roadmap item, decision, and doc that promised or cited a behavioral
 contract run was amended in the same pass to note the retirement and fall back to routing evals
 and the probe.
+
+## Amendment 2026-09-23
+
+The roster cut this ruling implies has not landed, and no roadmap item tracked it; the
+2026-09-07 design-agent merger went on to assume `eng-ladder` survives. CTX-002's closure above
+("met by construction") therefore does not hold: on 2026-09-23 the doctor estimated the Claude
+skill listing at ~9,174 characters for 18 entries against the 8,000-character assumption.
+`fleet-roadmap.md` item ROSTER-001 now tracks the cut, CTX-002's budget goal, and the
+`eng-ladder` reconciliation. The audience ruling itself is unchanged.

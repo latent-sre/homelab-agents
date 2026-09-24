@@ -14,8 +14,15 @@ Locations: `agents/*.md` in a plugin; `.claude/agents/*.md` project-level; `~/.c
 user-level. A project-level definition shadows a user-level one of the same name.
 
 Required: `name`, `description` (the trigger). Optional: `tools`, `disallowedTools`, `model`,
-`permissionMode`, `maxTurns`, `skills`, `mcpServers`, `hooks`, `memory`, `background`, `effort`,
-`isolation`, `color`, `initialPrompt`.
+`permissionMode`, `maxTurns`, `skills`, `mcpServers`, `hooks`, `memory`, `background`,
+`omitClaudeMd`, `effort`, `isolation`, `color`, `initialPrompt`, `experimental`.
+
+What a subagent starts with (doc-checked 2026-09-23, CLI 2.1.281): its body plus environment
+details as the system prompt — **not** Claude Code's system prompt, so none of its built-in git
+or safety guidance applies and a definition must state what its agent needs. It also loads every
+CLAUDE.md level (user, project, local, and `AGENTS.md` imports) unless `omitClaudeMd` is set, and
+always a git status snapshot. By default a subagent may spawn subagents of its own up to three
+layers below the main conversation.
 
 These fields affect authority where Claude honors them. Check scope and effective permissions;
 plugin exceptions below can make a field inert.
@@ -30,11 +37,14 @@ plugin exceptions below can make a field inert.
 | `model` | Aliases `haiku \| sonnet \| opus \| fable \| inherit`, or a full ID (`claude-opus-4-8`); defaults to `inherit`. Use an alias — this fleet rejects pins, which rot silently while an alias follows the upgrade. |
 | `memory` | `user \| project \| local`. **Setting it auto-enables Read, Write, and Edit** — never add it to a read-only agent (it would silently widen `sde-agents:code-reviewer`'s mandate). |
 
-Also: `maxTurns` (int), `background` (bool), `effort` (`low|medium|high|xhigh|max`), `isolation`
-(`worktree`), `color`, `initialPrompt` (main-session only).
+Also: `maxTurns` (int), `background` (bool), `omitClaudeMd` (bool, CLI 2.1.271+; withholds the
+user, project, and local CLAUDE.md files, not the git status snapshot — `sde-agents:researcher`
+sets it), `effort` (`low|medium|high|xhigh|max`), `isolation` (`worktree`; the worktree branches
+from the default branch, not the parent's `HEAD`, unless settings set `worktree.baseRef: "head"`),
+`color`, `initialPrompt` (main-session only), `experimental` (`cacheTtl`).
 
-Plugin-packaged agents **ignore** `hooks`, `mcpServers`, and `permissionMode` — a guard that works
-locally is silently absent once the agent ships in a plugin. Spell keys exactly: an unrecognized key
+Plugin-packaged agents **ignore** `hooks`, `mcpServers`, and `permissionMode`, and do not support
+`initialPrompt` — a guard that works locally is silently absent once the agent ships in a plugin. Spell keys exactly: an unrecognized key
 is not guaranteed to fail loudly, so a typo can silently drop what it configured
 (`validate_fleet.py` rejects unknown keys for that reason).
 
@@ -125,8 +135,9 @@ Fields the fleet deliberately does not use — considered, not overlooked. Reope
   (and one surface for the routing evals to measure). Both fields share the same 1,536-character
   listing cap, so splitting saves nothing.
 - **`maxTurns`** — loop bounds are task-shaped prose rules (three-strikes, two-round review caps),
-  which fail with a diagnosis; a turn cap fails mid-thought. Revisit if a runaway loop is ever
-  actually observed.
+  which fail with a diagnosis. A capped agent returns partial output that the caller can resume
+  (CLI 2.1.246+), so the cap is cheaper than it was, but no runaway loop has been observed to
+  justify one. Revisit if one is.
 - **`memory`** — agents are stateless by design; durable lab knowledge lives in the repo (runbooks,
   `CLAUDE.md`). And setting `memory` auto-enables Read/Write/Edit, so it must never be added to
   `sde-agents:code-reviewer`.

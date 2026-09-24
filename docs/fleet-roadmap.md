@@ -93,8 +93,8 @@ retired to native `claude plugin eval`; the hooks stay single-file and dependenc
 
 **Source:** [Machinery rewrite decision](decisions/2026-09-13-machinery-rewrite.md).
 
-**Prerequisites:** Phase order as the record states; phase 4 additionally needs the CI pin at
-≥ 2.1.269 with the probe re-run every pin bump owes, and one live native eval run.
+**Prerequisites:** Phase order as the record states; phase 4 additionally needs CI's CLI at
+≥ 2.1.269 (it now floats on latest) with a probe re-run on that CLI, and one live native eval run.
 
 **Constraints:** No runtime dependency in `fleet/`; hooks never import it; each phase keeps the
 generated adapters byte-identical and every existing verdict unchanged unless its PR records the
@@ -205,7 +205,7 @@ is fixed). **The probe is not run for this phase, and the reason is on the recor
 `hooks/hooks.json` is byte-identical to the file the last probe ran against (3,035 bytes), so a
 run would re-prove an existing fact, which proportionality forbids. What changed is where those
 bytes come from, and byte-identity is the stronger evidence for that than a live session would
-be. The next probe — owed at the next CLI pin bump — is the first to exercise a machine-produced
+be. The next probe — owed before the next release — is the first to exercise a machine-produced
 hook file, and that is the run to read carefully. Then the ratchet.
 
 #### LABFLOW-001 — simplify the homelab operating path
@@ -293,8 +293,9 @@ edit the explicit-only retro skill to reduce preload cost or treat an unrun chec
 
 #### CTX-004 — lock the context wins in: settings lines, validator promotion, Copilot cap
 
-**Status:** `ready` — pass 3 of three; CTX-002 closed 2026-09-02 (the roster cut fits the
-budget), so the promotion step is no longer gated.
+**Status:** `ready` — pass 3 of three. The validator-promotion step is gated on ROSTER-001: the
+roster cut that closed CTX-002 never landed, and the listing measures ~9,174 characters against
+the 8,000-character assumption, so a hard rule would fail today.
 
 **Outcome:** Three locks: a calibrated `skillListingBudgetFraction` in lab repositories'
 settings, the doctor's listing-budget warning promoted to a hard validator rule, and a
@@ -304,7 +305,8 @@ generated-adapter size tripwire ahead of GitHub's 30,000-char cap.
 [2026-08-16 skill-listing investigation](archive/2026-08/skill-listing-investigation-2026-08-16.md) ·
 [history](archive/2026-09/roadmap-history-2026-09-01.md#ctx-004-lock-the-context-wins-in-settings-lines-validator-promotion-copilot-cap)
 
-**Prerequisites:** None — CTX-002 closed 2026-09-02.
+**Prerequisites:** ROSTER-001 for the validator promotion; the settings lines and the
+Copilot-cap tripwire have none.
 
 **Acceptance:** Settings lines landed with each environment's live-probe calibration; the
 promoted validator rule with a failing fixture; the Copilot-cap tripwire with a firing test;
@@ -312,6 +314,33 @@ regenerated adapters; green tiers.
 
 **Next action:** Ship the Copilot-cap tripwire first — prerequisite-free, small, and its
 measurement is already committed evidence.
+
+#### ROSTER-001 — land or retire the 2026-09-02 roster cut
+
+**Status:** `decision-needed` — the audience ruling implies a 5-agent, 16-skill roster, but the
+cut was never tracked or landed, and the later design-agent merger assumes `eng-ladder` survives.
+CTX-002, closed on 2026-09-02 as met by construction, is reopened here: the construction never
+happened.
+
+**Outcome:** The shipped roster matches the audience ruling, or the ruling is amended to the
+roster that ships, and the Claude skill listing fits the 8,000-character budget at 200k context.
+
+**Source:** [Single-operator audience decision](decisions/2026-09-02-single-operator-audience.md) ·
+[design-agent merger](decisions/2026-09-07-design-agent-merge.md).
+
+**Prerequisites:** None.
+
+**Constraints:** The audience stays one home-lab operator. Reconcile `eng-ladder` with the
+design-agent merger before deleting it. If `eng-ladder` is kept, LADDER-002's won't-do reason
+("the roster cut deletes it") lapses: reopen LADDER-002 or re-justify it. A description edit in
+the surviving roster owes routing evals.
+
+**Acceptance:** `agents/` and `skills/` match the ruled roster; `fleet_doctor.py`'s
+`repository.skill-listing-budget` passes; routing clusters for removed components are retired;
+green tiers.
+
+**Next action:** Operator rules on `eng-ladder` (delete per the audience ruling, or keep it and
+amend that ruling's roster); then open the cut from main.
 
 #### LABSEC-002 — add a guard-enforced lab inspector
 

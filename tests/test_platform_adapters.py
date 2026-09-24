@@ -782,6 +782,10 @@ class PlatformAdapterTests(unittest.TestCase):
                     "Claude Code sandbox counts only",
                     "authoring suites of Claude Code agents",
                     "Before writing any frontmatter, read the fleet's single source",
+                    # A Claude CLI version guarantee or Claude-only frontmatter field describes a
+                    # control the other hosts do not have.
+                    "Claude Code 2.1",
+                    "omitClaudeMd",
                 ):
                     self.assertNotIn(false_control.casefold(), text.casefold())
 

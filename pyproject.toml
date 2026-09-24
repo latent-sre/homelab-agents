@@ -2,8 +2,9 @@
 # this: Claude Code loads `agents/`, `skills/`, and `hooks/hooks.json` directly, and the two hooks run
 # under `python -I -S` with the standard library only (AGENTS.md, "Keep isolated hooks
 # dependency-free"). Everything declared here serves the maintainer loop -- the validator, the
-# generator, the probes, and the tests -- and is installed with `uv sync` or the pinned `pip`
-# line in `.github/workflows/validate.yml`.
+# generator, the probes, and the tests -- and is installed with `uv sync --upgrade-package ruff`
+# (ruff floats and CI installs its latest release; plain `uv sync` keeps the locked one) or the
+# `pip` line in `.github/workflows/validate.yml`.
 [project]
 name = "homelab-agents-tooling"
 version = "0"
@@ -15,8 +16,9 @@ dependencies = []
 
 [dependency-groups]
 dev = [
-    # Lint and formatting gate; version pinned so CI and the edit loop agree byte-for-byte.
-    "ruff==0.16.7",
+    # Lint and formatting gate. Unpinned: CI installs the latest release, so upgrade locally
+    # before trusting a green edit loop (docs/decisions/2026-09-23-float-toolchain-versions.md).
+    "ruff",
     # Test runner that executes the existing unittest suite unchanged and adds -k, --durations
     # on every supported Python, and fixtures for the kernel tests.
     "pytest==9.1.1",

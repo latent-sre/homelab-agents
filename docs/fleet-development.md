@@ -26,8 +26,8 @@ conventions, for the same reason: the **three-strikes rule** is owned by `skills
 `agents/code-reviewer.md`, and the live-activation gate it names is `agents/homelab-engineer.md`'s
 change-authority tiers; the **homelab task brief** contents and live-authority boundary are owned
 by `agents/homelab-engineer.md`; `agents/sde-fullstack.md` consumes those facts without requiring a
-work-order digest or receipt; the **shared material-risk matrix** is owned by
-`agents/code-reviewer.md` (verification-engineer carries it verbatim and defers on conflict); the
+work-order digest or receipt; the **approval-to-commit binding** is owned by
+`agents/code-reviewer.md` (verification-engineer checks it before testing an approved target); the
 **CLAUDE.md/`@AGENTS.md` bridge** and the **progress/plan-file layout** are owned by the root
 README's "Project context convention" section; the **engineering-program strands and the reading
 rule** are owned by `docs/engineering-program.md`, which `AGENTS.md` compresses; the canonical
@@ -353,8 +353,8 @@ same omit-and-document convention as the Claude-only guard hook. Schema enums in
 scripts are pinned to the canonical evidence stems by the fleet validator; edit the agent's
 prose packet first and the schema second, never the reverse. Probe coverage:
 `scripts/probe_plugin.py` verifies the workflow platform contract (namespaced resolution,
-`agentType` spawns, guard delivery inside workflow-spawned agents) and is owed a re-run at every
-CLI pin bump.
+`agentType` spawns, guard delivery inside workflow-spawned agents) and is owed a re-run before
+every release and after a CLI-caused red run of CI's floating `claude-plugin-contract` job.
 
 ## Validation
 
@@ -363,7 +363,7 @@ instead of recomputing it. The edit loop runs the validator plus the test module
 touched artifact; a push owes the full offline suite, the platform contract check, and a local
 `scripts/fleet_doctor.py` run — its host-installation view is the one thing CI can never
 substitute for; CI runs the full three-OS matrix on pushes to main, weekly, and on dispatch;
-releases and CLI pin bumps owe the probe and the eval suites, checked by hand for whether a stored
+releases and CLI upgrades owe the probe and the eval suites, checked by hand for whether a stored
 routing benchmark — same bytes and the same recorded model, clean-room setting, threshold, and
 timeout — already covers the 'before' side of a paired run.
 The full tier recipe (T0–T3) lives in `AGENTS.md` under "Validate before you push"; this
@@ -385,7 +385,8 @@ in `fleet/policy.toml`; `scripts/validate_fleet.py` is the compatibility entry t
 same messages as before, and `python3 -m fleet validate --json` (or `--github` for Actions
 annotations) returns them with rule ids. The hook rosters are read as AST data, never by running
 the hook. `ruff` and the kernel's differential YAML
-tripwire come from the pinned dev group: `uv sync`, or the `pip install` line
+tripwire come from the dev group: `uv sync --upgrade-package ruff` (ruff floats, and CI installs
+its latest release; plain `uv sync` keeps the locked one), or the `pip install` line
 `.github/workflows/validate.yml` runs. The rewrite's design and phase plan are in
 `docs/decisions/2026-09-13-machinery-rewrite.md`.
 

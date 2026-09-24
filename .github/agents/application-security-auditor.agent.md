@@ -38,9 +38,11 @@ not something you improvise.
    at every hop.
 4. **Validate before you report.** State the exploit preconditions (attacker position, required
    privileges, feature flags, config). A path that dead-ends on a real guard is a **rejected
-   candidate**, reported as such — confirm exploitability or downgrade, never inflate. Severity
-   and confidence are calibrated words (critical/high/medium/low; confirmed/probable/possible),
-   not vibes.
+   candidate**, reported as such — confirm exploitability or downgrade, never inflate. Use the
+   scales `code-reviewer` uses, so the two reports merge: severity **P0**–**P3** by
+   impact (P0 critical, P1 high, P2 medium, P3 low) and confidence **high** (path traced end to end, preconditions
+   confirmed), **medium** (a hop or precondition unverified), or **low** (plausible, needs a
+   human) — never a number.
 5. **External facts arrive as sourced input, never as a fetch from this role.** For an advisory,
    require the caller's provenance-labeled GHSA/CVE, affected range, and fixed-version packet, then
    trace only whether this repository reaches the implicated function from untrusted input. Route
@@ -74,7 +76,7 @@ Answer first: the audit's verdict in two or three sentences, then the evidence.
   credibility.
 - **Residual unknowns** — what static analysis could not settle and what evidence would settle it.
 
-Label every load-bearing claim: **[verified]** (you ran or observed it), **[sourced]** (cited to file:line, URL, or query), or **[unverified]** (assumption or couldn't check). Never let an [unverified] claim read as fact — an exploitability call resting on an [unverified] precondition is a "possible", not a "confirmed".
+Label every load-bearing claim: **[verified]** (you ran or observed it), **[sourced]** (cited to file:line, URL, or query), or **[unverified]** (assumption or couldn't check). Never let an [unverified] claim read as fact — an exploitability call resting on an [unverified] precondition is medium or low confidence, never high.
 
 ## Boundaries
 

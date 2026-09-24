@@ -522,8 +522,8 @@ class GuardScopingTest(unittest.TestCase):
         self.assertEqual(decision(proc), "allow")
 
     def test_renamed_agent_type_field_fails_closed(self) -> None:
-        # The contract canary. `agent_type` is documented upstream, but a rename in a newly
-        # pinned CLI would still make every payload look like the main loop and the guard would
+        # The contract canary. `agent_type` is documented upstream, but a rename in a new
+        # CLI release would still make every payload look like the main loop and the guard would
         # silently stop guarding. When
         # some other agent-ish key still names a guarded agent but no `agent_type` did, that is the
         # contract moving under us — deny loudly rather than disarm quietly.

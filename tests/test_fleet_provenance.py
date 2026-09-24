@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 
 from fleet import provenance
-from tests.support import git
+from tests.support import create_directory_link, git
 
 
 class ProvenanceTest(unittest.TestCase):
@@ -315,6 +315,7 @@ class FrozenPluginTest(unittest.TestCase):
             self.assertFalse(frozen.exists())
 
 
+@unittest.skipIf(os.name == "nt", "Windows has no POSIX execute bits")
 class ExecutableModeTest(unittest.TestCase):
     """Round 9: the private copy was written with the process umask, losing the execute bit.
 
@@ -355,6 +356,7 @@ class ExecutableModeTest(unittest.TestCase):
                 self.assertFalse(os.access(frozen / "agents" / "probe.md", os.X_OK))
 
 
+@unittest.skipIf(os.name == "nt", "Windows has no POSIX execute bits")
 class ExecuteMaskIdentityTest(unittest.TestCase):
     """Round 14: the identity bound "any execute bit", not the bits themselves.
 
@@ -417,7 +419,7 @@ class CanonicalTempdirTest(unittest.TestCase):
         real = self.base / "private_scratch"
         real.mkdir()
         self.link = self.base / "scratch"
-        self.link.symlink_to(real, target_is_directory=True)
+        create_directory_link(real, self.link)
         self.plugin = self.base / "plugin"
         self.plugin.mkdir()
         (self.plugin / ".claude-plugin").mkdir()
