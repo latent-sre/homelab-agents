@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -22,7 +23,7 @@ from unittest import mock
 
 from fleet import fs as fs_module
 from scripts import eval_clean_room, eval_routing
-from tests.support import REPO
+from tests.support import REPO, create_directory_link
 
 # The `conditions` keys `scripts/eval_routing.py` writes. Pinned here so the reuse-rule checks
 # below are about the real artifact; `CodexThirteenthRoundTest` proves this list matches a run.
@@ -1748,8 +1749,11 @@ class CodexEighthRoundTest(MainIntegrationTest):
         genuine.mkdir(parents=True)
         (genuine / "trace.jsonl").write_text("{}", encoding="utf-8")
 
+        # The harness trusts `$TMPDIR` as well as `gettempdir()`. macOS always sets it, and
+        # `self.tmp` lives under it, so leaving it unpinned makes the impostor genuinely in-root.
         with (
             mock.patch.object(eval_routing.tempfile, "gettempdir", return_value=str(temp_root)),
+            mock.patch.dict(eval_routing.os.environ, {"TMPDIR": str(temp_root)}, clear=False),
             contextlib.redirect_stderr(io.StringIO()),
         ):
             eval_routing._remove_kept_temp_dirs({"c": [
@@ -1818,7 +1822,7 @@ class CodexNinthRoundTest(MainIntegrationTest):
         victim.mkdir(parents=True)
         (victim / "trace.jsonl").write_text("{}", encoding="utf-8")
         (outside / "claude-eval-victim" / "keep.txt").write_text("theirs", encoding="utf-8")
-        (temp_root / "link").symlink_to(outside, target_is_directory=True)
+        create_directory_link(outside, temp_root / "link")
 
         with contextlib.redirect_stderr(io.StringIO()), mock.patch.object(
             eval_routing.tempfile, "gettempdir", return_value=str(temp_root)
@@ -2006,6 +2010,7 @@ class CodexTenthRoundTest(MainIntegrationTest):
         self.assertIn("incomplete routing competition", stderr)
         self.assertFalse((self.out / "benchmark.json").exists())
 
+    @unittest.skipIf(os.name == "nt", "Windows has no POSIX execute bits")
     def test_the_executable_bit_is_part_of_the_plugin_identity(self) -> None:
         """P2, and created by round 9's own fix: carrying the bit into the frozen copy made a mode
         change behaviour while the hash still ignored it, so two plugins that execute differently
@@ -2033,6 +2038,7 @@ class CodexTenthRoundTest(MainIntegrationTest):
         )
         self.assertEqual("sde-agents/eval-provenance/v5", provenance.PROVENANCE_SCHEMA)
 
+    @unittest.skipIf(os.name == "nt", "Windows has no POSIX execute bits")
     def test_a_chmod_between_identity_and_freeze_is_refused(self) -> None:
         """The second half of the same finding: the frozen snapshot is compared to the identity
         recorded before it, so a mode change in between must break that comparison."""
@@ -2063,7 +2069,7 @@ class CodexTenthRoundTest(MainIntegrationTest):
         real = self.tmp / "private" / "scratch"
         real.mkdir(parents=True)
         link = self.tmp / "scratch"          # stands in for macOS `/var` -> `/private/var`
-        link.symlink_to(real, target_is_directory=True)
+        create_directory_link(real, link)
         kept = real / "claude-eval-child" / "run-1"
         kept.mkdir(parents=True)
         (kept / "trace.jsonl").write_text("{}", encoding="utf-8")
@@ -2158,7 +2164,7 @@ class CodexEleventhRoundTest(MainIntegrationTest):
 
     def test_the_reuse_checklist_requires_the_cli_version_and_a_uniform_surface(self) -> None:
         """P2 x2. The CLI version decides harness behaviour and the bundled competition, and this
-        procedure runs at pin bumps; `components_uniform: false` says the capture's own runs saw
+        procedure runs at CLI upgrades; `components_uniform: false` says the capture's own runs saw
         different competitors, which no equal union repairs.
 
         Both are still required after round 13 turned the checklist into a rule: the CLI version
