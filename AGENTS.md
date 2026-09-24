@@ -235,9 +235,8 @@ handoff when the host cannot request a pass. Provenance:
   and `scripts/live-effect-gate.py` with `python -I -S`; keep their imports in the standard library,
   and never import `fleet/` from either. A missing dependency makes the read-only guard deny and
   the live-effect gate ask or deny every scoped Bash call. This runtime constraint does not impose
-  a dependency ban on other tooling: `pyproject.toml`'s dev group is pinned tooling for the
-  maintainer loop, and `fleet/` itself stays standard-library so it can never become a hook
-  import.
+  a dependency ban on other tooling: `pyproject.toml`'s dev group is tooling for the maintainer
+  loop, and `fleet/` itself stays standard-library so it can never become a hook import.
 - **Never hand-edit generated output.** The generated trees are `.github/agents/`,
   `.github/skills/`, `.codex/agents/`, and `plugins/sde-agents/skills/`, and `hooks/hooks.json` is
   generated too — it is rendered from the guard's and gate's own rosters by `fleet/hooks.py`, so a

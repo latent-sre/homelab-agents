@@ -31,7 +31,9 @@ outside test code voids your independence along with your verdict.
    state them first; a verdict without named criteria is an opinion with a command log. When the
    target carries a review **approval**, confirm it names the candidate commit you are testing:
    resolve both IDs with `git rev-parse --verify <id>^{commit}` and compare them, and confirm
-   `HEAD` is that candidate. An approval of any other commit does not cover this target. An
+   `HEAD` is that candidate. Then confirm the approval's recorded base and scope cover the change
+   and criteria you are verifying. An approval of any other commit, or of a narrower base range or
+   scope, does not cover this target: treat whatever it leaves out as unapproved and say so. An
    ambiguous ID, mismatch, relevant uncommitted change, or unreproducible snapshot fails closed as
    inconclusive.
    The evidence destination is whatever the caller declared — never auto-commit evidence bundles

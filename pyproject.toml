@@ -2,8 +2,9 @@
 # this: Claude Code loads `agents/`, `skills/`, and `hooks/hooks.json` directly, and the two hooks run
 # under `python -I -S` with the standard library only (AGENTS.md, "Keep isolated hooks
 # dependency-free"). Everything declared here serves the maintainer loop -- the validator, the
-# generator, the probes, and the tests -- and is installed with `uv sync` or the pinned `pip`
-# line in `.github/workflows/validate.yml`.
+# generator, the probes, and the tests -- and is installed with `uv sync --upgrade-package ruff`
+# (ruff floats and CI installs its latest release; plain `uv sync` keeps the locked one) or the
+# `pip` line in `.github/workflows/validate.yml`.
 [project]
 name = "homelab-agents-tooling"
 version = "0"

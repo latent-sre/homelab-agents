@@ -385,7 +385,8 @@ in `fleet/policy.toml`; `scripts/validate_fleet.py` is the compatibility entry t
 same messages as before, and `python3 -m fleet validate --json` (or `--github` for Actions
 annotations) returns them with rule ids. The hook rosters are read as AST data, never by running
 the hook. `ruff` and the kernel's differential YAML
-tripwire come from the pinned dev group: `uv sync`, or the `pip install` line
+tripwire come from the dev group: `uv sync --upgrade-package ruff` (ruff floats, and CI installs
+its latest release; plain `uv sync` keeps the locked one), or the `pip install` line
 `.github/workflows/validate.yml` runs. The rewrite's design and phase plan are in
 `docs/decisions/2026-09-13-machinery-rewrite.md`.
 
