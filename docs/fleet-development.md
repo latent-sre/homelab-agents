@@ -353,8 +353,8 @@ same omit-and-document convention as the Claude-only guard hook. Schema enums in
 scripts are pinned to the canonical evidence stems by the fleet validator; edit the agent's
 prose packet first and the schema second, never the reverse. Probe coverage:
 `scripts/probe_plugin.py` verifies the workflow platform contract (namespaced resolution,
-`agentType` spawns, guard delivery inside workflow-spawned agents) and is owed a re-run at every
-CLI pin bump.
+`agentType` spawns, guard delivery inside workflow-spawned agents) and is owed a re-run before
+every release and after a CLI-caused red run of CI's floating `claude-plugin-contract` job.
 
 ## Validation
 
@@ -363,7 +363,7 @@ instead of recomputing it. The edit loop runs the validator plus the test module
 touched artifact; a push owes the full offline suite, the platform contract check, and a local
 `scripts/fleet_doctor.py` run — its host-installation view is the one thing CI can never
 substitute for; CI runs the full three-OS matrix on pushes to main, weekly, and on dispatch;
-releases and CLI pin bumps owe the probe and the eval suites, checked by hand for whether a stored
+releases and CLI upgrades owe the probe and the eval suites, checked by hand for whether a stored
 routing benchmark — same bytes and the same recorded model, clean-room setting, threshold, and
 timeout — already covers the 'before' side of a paired run.
 The full tier recipe (T0–T3) lives in `AGENTS.md` under "Validate before you push"; this

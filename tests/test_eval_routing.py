@@ -1412,7 +1412,7 @@ class CopilotReviewTest(MainIntegrationTest):
         assert_compared_by_the_reuse_rule(self, "components_observed", "max_turns",
                                           "models_observed")
         agents = " ".join((REPO / "AGENTS.md").read_text(encoding="utf-8").split())
-        bullet = agents[agents.index("T3 — release/CLI pin bump"):][:1300]
+        bullet = agents[agents.index("T3 — release/CLI upgrade"):][:1300]
         self.assertIn("the artifact, not a list restated here", bullet)
         self.assertNotIn("clean_room_requested` is NOT one of them", bullet)
 

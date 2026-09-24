@@ -93,8 +93,8 @@ retired to native `claude plugin eval`; the hooks stay single-file and dependenc
 
 **Source:** [Machinery rewrite decision](decisions/2026-09-13-machinery-rewrite.md).
 
-**Prerequisites:** Phase order as the record states; phase 4 additionally needs the CI pin at
-≥ 2.1.269 with the probe re-run every pin bump owes, and one live native eval run.
+**Prerequisites:** Phase order as the record states; phase 4 additionally needs CI's CLI at
+≥ 2.1.269 (it now floats on latest) with a probe re-run on that CLI, and one live native eval run.
 
 **Constraints:** No runtime dependency in `fleet/`; hooks never import it; each phase keeps the
 generated adapters byte-identical and every existing verdict unchanged unless its PR records the
@@ -205,7 +205,7 @@ is fixed). **The probe is not run for this phase, and the reason is on the recor
 `hooks/hooks.json` is byte-identical to the file the last probe ran against (3,035 bytes), so a
 run would re-prove an existing fact, which proportionality forbids. What changed is where those
 bytes come from, and byte-identity is the stronger evidence for that than a live session would
-be. The next probe — owed at the next CLI pin bump — is the first to exercise a machine-produced
+be. The next probe — owed before the next release — is the first to exercise a machine-produced
 hook file, and that is the run to read carefully. Then the ratchet.
 
 #### LABFLOW-001 — simplify the homelab operating path

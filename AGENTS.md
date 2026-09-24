@@ -55,8 +55,8 @@ red check is fixed if trivial, else recorded in `docs/fleet-roadmap.md`.
   `ruff format --check fleet` (the lint gate; `pyproject.toml` owns its rule set and the per-file
   ratchet for legacy findings). Run BOTH — CI runs both, and `ruff check` passes on code the
   formatter would rewrite, so running only the first sends a red commit to CI that was green
-  locally. Use the pinned `ruff` version (`pyproject.toml`'s dev group): the formatter's output
-  moves between releases, so formatting with another version can still fail the pinned check.
+  locally. CI installs the latest `ruff`, and the formatter's output moves between releases, so
+  run the latest locally too (`uvx ruff@latest`); an older local ruff can pass what CI fails.
   After **any** canonical agent or skill edit, regenerate the host adapters with
   `python3 scripts/generate_platform_adapters.py --write`; after adding, renaming, or removing a
   component, also refresh the README inventory with
@@ -69,7 +69,7 @@ red check is fixed if trivial, else recorded in `docs/fleet-roadmap.md`.
 - **T2 — merge/weekly** (CI-owned, nothing to run locally): three-OS matrix on push to
   main, weekly, or dispatch — see the matrix comment in
   `.github/workflows/validate.yml`.
-- **T3 — release/CLI pin bump** (manual, real API): `scripts/probe_plugin.py` + every routing
+- **T3 — release/CLI upgrade** (manual, real API): `scripts/probe_plugin.py` + every routing
   cluster — no affected-only subset. Before a paired routing run, check by hand
   that a stored capture's cluster, cases, evaluator, and plugin bytes are unchanged **and** its
   recorded conditions equal the run you are about to make. The condition list is **the artifact,
@@ -102,10 +102,10 @@ Two checks are manual and on demand, deliberately not CI gates (both drive real 
 
 - `python3 scripts/probe_plugin.py` — proves the fleet *loads*, `${CLAUDE_PLUGIN_ROOT}` expands,
   the guard fires for the guarded agents and only them, and the live-effect gate denies the gated
-  agent under suppressed prompts and only it. Owed at every CLI pin bump (the pin
-  lives in CI's `claude-plugin-contract` job): the probe is the only runtime proof the pinned
-  binary still honors the guard's payload contract (owner: the `scripts/readonly-guard.py`
-  docstring).
+  agent under suppressed prompts and only it. Owed before every release and after a CLI-caused
+  red run of CI's `claude-plugin-contract` job, which floats on the latest CLI: the probe is the
+  only runtime proof the current binary still honors the guard's payload contract (owner: the
+  `scripts/readonly-guard.py` docstring).
 - `python3 scripts/eval_routing.py evals/routing/<cluster>.json --runs 3` — routing evals, owed
   before **and** after any description edit (the description playbook owns the recipe).
   `claude plugin eval` runs the sessions; the fleet computes the verdict from their traces, because
@@ -283,9 +283,9 @@ handoff when the host cannot request a pass. Provenance:
   updates and summaries. Include an unambiguous short object ID only when an exact revision matters
   — for example, in a review packet, evidence-bound handoff, history claim, or permalink. Resolve it
   in the named repository (`git rev-parse --short=12 <rev>`); an ambiguous ID is not evidence.
-  A third-party GitHub Action in a required or security-relevant
-  CI job executes before the repository can validate it, so pin it to a full SHA-1; use a version
-  tag only in a non-gating convenience workflow whose mutable-upstream risk is explicitly accepted.
+  This repository's workflows reference third-party GitHub Actions by major version tag, an
+  accepted mutable-upstream risk (`docs/decisions/2026-09-23-float-toolchain-versions.md`); keep
+  workflow `permissions:` at `contents: read` so a moved tag cannot write with the job token.
   File and image digests are cryptographic values, not commit IDs; retain full values in machine
   evidence and omit them from routine human-facing reports.
 - **The source wins on drift.** Fix the paraphrase, not its owner; fix a real defect at the source

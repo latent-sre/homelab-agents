@@ -10,7 +10,7 @@ This is a validation view, not a new distribution or an execution sandbox.
 
 Requires an installed Claude CLI; never installs it or starts a model. Exit 0 means both checks
 passed, 1 means validation failed, and 2 means a check could not complete. Temporary files are
-cleaned up and the checkout is not changed. CLI pin changes still owe the native plugin probe.
+cleaned up and the checkout is not changed. CLI upgrades still owe the native plugin probe.
 """
 from __future__ import annotations
 

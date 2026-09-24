@@ -46,23 +46,24 @@ jobs:
       matrix: ${{ fromJSON(github.event_name == 'pull_request' && '{"include":[{"os":"ubuntu-latest","py":"python3"}]}' || '{"include":[{"os":"ubuntu-latest","py":"python3"},{"os":"macos-latest","py":"python3"},{"os":"windows-latest","py":"python"}]}') }}
     runs-on: ${{ matrix.os }}
     steps:
+      # Actions float on their major tag (docs/decisions/2026-09-23-float-toolchain-versions.md);
+      # `permissions: contents: read` above caps what a moved tag can do with the job token.
       - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
 
       # Exercise the fleet on the current stable language line rather than letting each runner
       # image choose an older interpreter. This is the forward-compatibility lane and guarantees
       # unittest's `--durations` flag.
       - name: Set up current stable Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@v7
         with:
           python-version: '3.14'
 
-      # The dev group from pyproject.toml, installed by pinned version rather than through a
-      # third-party action (a required job's action would need a full-SHA pin the operator has
-      # verified). PyYAML is here so the frontmatter dialect's differential tripwire never skips
-      # in CI; ruff is the lint gate the T0 recipe names.
-      - name: Install the pinned maintainer tooling
-        run: ${{ matrix.py }} -m pip install --disable-pip-version-check "ruff==0.16.7" "pyyaml==6.0.3" "hypothesis==6.168.0"
+      # The dev group from pyproject.toml. ruff floats on its latest release, so a new lint or
+      # format rule can turn this job red with no change in the PR: the version line below names
+      # it. PyYAML is here so the frontmatter dialect's differential tripwire never skips in CI.
+      - name: Install the maintainer tooling
+        run: ${{ matrix.py }} -m pip install --disable-pip-version-check "ruff" "pyyaml==6.0.3" "hypothesis==6.168.0" && ${{ matrix.py }} -m ruff --version
 
       - name: Lint the maintainer tooling
         run: ${{ matrix.py }} -m ruff check . && ${{ matrix.py }} -m ruff format --check fleet
@@ -80,7 +81,7 @@ jobs:
       # support silently. This shares the existing job instead of adding another billed runner.
       - name: Set up minimum supported Python
         if: matrix.os == 'ubuntu-latest'
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -106,18 +107,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
 
-      # PINNED, deliberately, and this repo would be hypocritical otherwise: it ships a skill whose
-      # first rule is that an unpinned dependency lets someone else decide what your CI runs.
-      # The obvious objection is that a pin stops this job noticing NEW platform requirements — but
-      # catching upstream drift was never this job's role. `scripts/probe_plugin.py` is the fleet's
-      # drift detector — the runtime proof that an upstream rename has not silently disarmed the
-      # guard — and it is manual on purpose because it drives real API sessions. So: bumping this pin is exactly
-      # the moment to re-run the probe, and the two are a pair — deliberate upgrade, deliberate
-      # re-verification, rather than a silent change arriving mid-PR on someone else's release day.
+      # LATEST, by operator ruling (docs/decisions/2026-09-23-float-toolchain-versions.md): this
+      # job tests the CLI the plugin's users actually run. A new release can turn it red with no
+      # change in the PR, so the version line below names the CLI that was tested — read it before
+      # debugging the diff. This job checks the static platform contract only;
+      # `scripts/probe_plugin.py` remains the runtime proof that a release has not silently
+      # disarmed the guard, and is owed before every release and after a CLI-caused red run here.
       - name: Install the Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code@2.1.270
+        run: npm install -g @anthropic-ai/claude-code@latest && claude --version
 
       # Naming the repository selects marketplace validation and skips component files.
       # The wrapper checks that manifest and an unchanged canonical plugin copy separately.
@@ -125,6 +124,6 @@ jobs:
         run: python3 scripts/validate_claude_plugin.py
 
       # The general unit-test job has no Claude CLI, so its native malformed-input case skips.
-      # Run that negative contract here, where the pinned CLI is available.
+      # Run that negative contract here, where the CLI is installed.
       - name: Verify malformed plugin contents are rejected
         run: python3 -m unittest tests.test_validate_claude_plugin.NativeClaudeContentsTests -v
