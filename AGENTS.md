@@ -18,7 +18,8 @@ or run it. Why the fleet's disciplines exist is in `docs/engineering-program.md`
   `python3 scripts/validate_claude_plugin.py` (needs the Claude CLI; exits 2 without it), and
   `python3 scripts/fleet_doctor.py`, which CI never runs. Exit codes: 1 failed, 2 not computed,
   3 warnings. Repair Codex agent drift with `python3 scripts/install_codex_agents.py --user`.
-- **T2:** CI's three-OS matrix (`.github/workflows/validate.yml`); nothing to run locally.
+- **T2:** CI on Windows (`.github/workflows/validate.yml`) runs on every PR, push to main, and
+  weekly; nothing to run locally.
 - **T3 — before a release or after a Claude CLI upgrade:** `python3 scripts/probe_plugin.py` and
   every routing cluster in `evals/routing/`, before and after.
 

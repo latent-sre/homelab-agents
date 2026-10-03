@@ -5,9 +5,9 @@ on:
   push:
     branches:
       - main
-  # The Windows and macOS legs run on pushes to main but not on PRs (see the matrix comment).
-  # The weekly sweep guarantees they still execute in a week with no merges, and manual
-  # dispatch makes "is the full matrix alive?" a ten-second question.
+  # The toolchain floats (ruff, the Claude CLI, Actions major tags), so a release can turn this
+  # red with no change here. The weekly sweep surfaces that in a week with no merges, and manual
+  # dispatch makes "is CI alive?" a ten-second question.
   schedule:
     - cron: '17 8 * * 1' # Mondays 08:17 UTC
   workflow_dispatch:
@@ -15,43 +15,27 @@ on:
 permissions:
   contents: read
 
-# A rapid push train to one PR bills every superseded run against the private-repo minute
-# pool. Cancel superseded PR runs only — a main push or scheduled sweep is never cancelled,
-# so the full-matrix legs always run to completion.
+# Cancel superseded PR runs only; a main push or scheduled sweep always runs to completion.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:
-    # The guard and hook carry Windows-specific code: the hook's interpreter-probe
-    # exists because the Microsoft Store python3 stub wins `command -v` on Windows,
-    # and the guard's allowlist default must hold across OSes (a PowerShell cmdlet is
-    # denied by not being a listed reader, not by any denylist — the guard was
-    # inverted to a pure allowlist). Run the matrix so those paths are actually
-    # exercised, not just the Linux happy path. `py` is the working interpreter per
-    # OS (GitHub's Windows runner ships real Python on PATH as `python`, so we avoid
-    # the `python3` Store stub there).
-    #
-    # But this is a private repo, and Actions bills per job, rounded UP to the whole
-    # minute, then multiplied: Windows 2x, macOS 10x. A full-matrix run bills ~21
-    # minutes, ~86% of it the Windows and macOS legs — and PRs are the high-frequency
-    # event. The failure class the matrix exists to catch (a platform-specific silent
-    # disable, like the Store-stub incident) needs eventual execution, not per-PR
-    # frequency. So: PRs run the ubuntu leg only; pushes to main, the weekly schedule,
-    # and manual dispatch run all three OSes. Nothing merged goes more than a week
-    # without full-matrix coverage.
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(github.event_name == 'pull_request' && '{"include":[{"os":"ubuntu-latest","py":"python3"}]}' || '{"include":[{"os":"ubuntu-latest","py":"python3"},{"os":"macos-latest","py":"python3"},{"os":"windows-latest","py":"python"}]}') }}
-    runs-on: ${{ matrix.os }}
+    # Windows only: it is the operator's platform, and every platform-specific failure this repo
+    # has hit was a Windows or macOS test leg, never Linux. The guard and hook carry Windows-specific
+    # code: the hook's interpreter probe exists because the Microsoft Store python3 stub wins
+    # `command -v` on Windows, so the runner's real `python` is used here. Git Bash supplies the
+    # POSIX `sh` the hook's behavioural tests run under. Tests of POSIX execute bits and file modes
+    # skip on Windows.
+    runs-on: windows-latest
     steps:
       # Actions float on their major tag (docs/decisions/2026-09-23-float-toolchain-versions.md);
       # `permissions: contents: read` above caps what a moved tag can do with the job token.
       - name: Check out repository
         uses: actions/checkout@v7
 
-      # Exercise the fleet on the current stable language line rather than letting each runner
+      # Exercise the fleet on the current stable language line rather than letting the runner
       # image choose an older interpreter. This is the forward-compatibility lane and guarantees
       # unittest's `--durations` flag.
       - name: Set up current stable Python
@@ -63,39 +47,34 @@ jobs:
       # format rule can turn this job red with no change in the PR: the version line below names
       # it. PyYAML is here so the frontmatter dialect's differential tripwire never skips in CI.
       - name: Install the maintainer tooling
-        run: ${{ matrix.py }} -m pip install --disable-pip-version-check "ruff" "pyyaml==6.0.3" "hypothesis==6.168.0" && ${{ matrix.py }} -m ruff --version
+        run: python -m pip install --disable-pip-version-check "ruff" "pyyaml==6.0.3" "hypothesis==6.168.0" && python -m ruff --version
 
       - name: Lint the maintainer tooling
-        run: ${{ matrix.py }} -m ruff check . && ${{ matrix.py }} -m ruff format --check fleet
+        run: python -m ruff check . && python -m ruff format --check fleet
 
       - name: Validate canonical fleet and generated host adapters
-        run: ${{ matrix.py }} scripts/validate_fleet.py
+        run: python scripts/validate_fleet.py
 
       - name: Run repository unit tests
         # --durations 10 surfaces the slowest tests in the log so the suite's slow-creep gets
         # rediscovered by reading CI instead of a profiling session.
-        run: ${{ matrix.py }} -m unittest discover -s tests -v --durations 10
+        run: python -m unittest discover -s tests -v --durations 10
 
       # `tomllib` makes 3.11 the shipped floor. Re-run the complete offline gate at that exact
-      # boundary on Ubuntu (the PR leg) so a newer syntax or standard-library import cannot lower
-      # support silently. This shares the existing job instead of adding another billed runner.
+      # boundary so a newer syntax or standard-library import cannot lower support silently.
       - name: Set up minimum supported Python
-        if: matrix.os == 'ubuntu-latest'
         uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
       - name: Install the pinned maintainer tooling on Python 3.11
-        if: matrix.os == 'ubuntu-latest'
-        run: python3 -m pip install --disable-pip-version-check "pyyaml==6.0.3" "hypothesis==6.168.0"
+        run: python -m pip install --disable-pip-version-check "pyyaml==6.0.3" "hypothesis==6.168.0"
 
       - name: Validate the fleet on Python 3.11
-        if: matrix.os == 'ubuntu-latest'
-        run: python3 scripts/validate_fleet.py
+        run: python scripts/validate_fleet.py
 
       - name: Run repository unit tests on Python 3.11
-        if: matrix.os == 'ubuntu-latest'
-        run: python3 -m unittest discover -s tests -v
+        run: python -m unittest discover -s tests -v
 
   claude-plugin-contract:
     # validate_fleet.py enforces THIS FLEET's rules. It cannot see the PLATFORM
@@ -104,7 +83,7 @@ jobs:
     # blind spot is precisely how this repo came to advertise a canonical `agents/`
     # and `skills/` layout that Claude Code never actually discovered. `--strict`
     # turns warnings into errors. No API key needed: validation is local and offline.
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -121,9 +100,9 @@ jobs:
       # Naming the repository selects marketplace validation and skips component files.
       # The wrapper checks that manifest and an unchanged canonical plugin copy separately.
       - name: Validate the marketplace and canonical plugin contents
-        run: python3 scripts/validate_claude_plugin.py
+        run: python scripts/validate_claude_plugin.py
 
       # The general unit-test job has no Claude CLI, so its native malformed-input case skips.
       # Run that negative contract here, where the CLI is installed.
       - name: Verify malformed plugin contents are rejected
-        run: python3 -m unittest tests.test_validate_claude_plugin.NativeClaudeContentsTests -v
+        run: python -m unittest tests.test_validate_claude_plugin.NativeClaudeContentsTests -v
