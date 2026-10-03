@@ -11,13 +11,9 @@ Validation tiers, change playbooks, and the hard rules are owned by `AGENTS.md`.
 
 ## Branches
 
-Conventional branch names: `<type>/<kebab-slug>`, using the commit types below
-(`fix/guard-exec-holes`), so the branch list reads as a change inventory.
-
-A branch an AI session creates goes under `ai/` with the same form inside it
-(`ai/fix/guard-exec-holes`), never a vendor prefix such as `claude/`, `codex/`, or `copilot/`, so
-the list shows who did the work without tying it to a tool. `main` is the only other exception;
-older branches predate the convention.
+Branch names use the expanded conventional form `<type>/<kebab-slug>`, so the branch list reads as a
+change inventory. The types are `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`, `perf`, and
+`build`. Older branches in this repository predate the convention; new work follows it.
 
 ## Commits
 
