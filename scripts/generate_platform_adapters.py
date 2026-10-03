@@ -581,13 +581,17 @@ def _raise_directory_walk_error(error: OSError) -> None:
 def _assert_canonical_source_path(path: Path, repository_root: Path) -> None:
     """Reject a canonical resource that escapes through any link-like path component."""
 
+    # Compare lexical with lexical and resolved with resolved: `resolve()` expands a Windows 8.3
+    # short name (`RUNNER~1`) that `abspath` keeps, so a mixed comparison calls a path inside
+    # the repository "outside" whenever the checkout sits under a short-named directory.
+    lexical_root = Path(os.path.abspath(repository_root))
     resolved_root = repository_root.resolve()
     lexical_path = Path(os.path.abspath(path))
-    if not lexical_path.is_relative_to(resolved_root):
+    if not lexical_path.is_relative_to(lexical_root):
         raise ValueError(f"canonical source path is outside repository: {lexical_path}")
 
-    current = resolved_root
-    for part in lexical_path.relative_to(resolved_root).parts:
+    current = lexical_root
+    for part in lexical_path.relative_to(lexical_root).parts:
         current /= part
         if _is_link_or_reparse_point(current):
             raise ValueError(

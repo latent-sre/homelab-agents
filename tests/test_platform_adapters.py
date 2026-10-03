@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tempfile
 import tomllib
@@ -324,6 +325,25 @@ class PlatformAdapterTests(unittest.TestCase):
                     )
                 finally:
                     _remove_directory_link(link)
+
+    @unittest.skipUnless(os.name == "nt", "8.3 short names are a Windows filesystem feature")
+    def test_a_repository_reached_through_its_short_name_contains_its_own_files(self) -> None:
+        # CI runners put the temp directory under `RUNNER~1`; comparing an abspath against a
+        # resolve()d root there called the guard script "outside the repository".
+        import ctypes
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "a-repository-with-a-long-name"
+            (root / "scripts").mkdir(parents=True)
+            (root / "scripts" / "readonly-guard.py").write_text("x = 1\n", encoding="utf-8")
+            buffer = ctypes.create_unicode_buffer(1024)
+            ctypes.windll.kernel32.GetShortPathNameW(str(root), buffer, 1024)
+            if "~" not in buffer.value:
+                self.skipTest("8.3 short names are disabled on this volume")
+            short_root = Path(buffer.value)
+            generate_platform_adapters._assert_canonical_source_path(
+                short_root / "scripts" / "readonly-guard.py", short_root
+            )
 
     def test_canonical_source_links_are_rejected_before_resource_copy(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
