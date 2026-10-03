@@ -62,7 +62,6 @@ REPO_GROUP_ORDER: tuple[str, ...] = (
     "plugin",
     "adapters",
     "guide",
-    "routing",
     "references",
     "inventory",
 )
@@ -183,7 +182,6 @@ from fleet.rules import (  # noqa: E402,F401
     inventory,
     plugin,
     references,
-    routing,
     scalars,
     skills,
 )

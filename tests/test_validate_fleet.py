@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from scripts import validate_fleet
-from tests.support import REPO
+from tests.support import REPO, repo_copy
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -595,6 +595,34 @@ class DocumentedFrontmatterKeysTests(unittest.TestCase):
         self.assertEqual(set(), self.AGENT_KEYS_2026_09_23 - validate_fleet.KNOWN_AGENT_FIELDS)
         self.assertEqual(set(), self.SKILL_KEYS_2026_09_13 - validate_fleet.KNOWN_SKILL_FIELDS)
 
+
+
+class AdapterCheckTierTests(unittest.TestCase):
+    """The T0/T1 tier boundary for adapter byte-drift.
+
+    check_adapters=False exists so the wiring mutation tests stop re-generating and
+    byte-comparing every host adapter to check one unrelated breakage. False must genuinely skip
+    it, so a future adapter test that forgets to pass True fails loudly instead of passing
+    vacuously; True reporting drift is pinned by the wiring runtime tests."""
+
+    def _drift_adapter(self, dst: Path) -> None:
+        adapter = sorted((dst / ".github" / "agents").glob("*.md"))[0]
+        adapter.write_text(
+            adapter.read_text(encoding="utf-8") + "\nhand edit\n", encoding="utf-8"
+        )
+
+    def test_flag_off_skips_only_the_adapter_check(self) -> None:
+        with repo_copy() as dst:
+            self._drift_adapter(dst)
+            issues, _, _ = validate_fleet.validate_repo(
+                dst, check_inventory=False, check_adapters=False
+            )
+        self.assertEqual(
+            [],
+            issues,
+            "the only defect is adapter drift; skipping the adapter check must leave a clean "
+            "report",
+        )
 
 
 if __name__ == "__main__":

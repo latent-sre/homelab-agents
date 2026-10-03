@@ -28,9 +28,8 @@ covers the VS Code and Codex loops).
 
 ## Change playbooks
 
-**Editing a description** — descriptions drive routing, so run the overlapping cluster before and
-after with `python3 scripts/eval_routing.py evals/routing/<cluster>.json --model sonnet` and
-compare; `evals/README.md` owns how to read the rates.
+**Editing a description** — descriptions drive routing and nothing measures it: try the requests
+the edit should and should not catch in a fresh `claude --plugin-dir .` session before and after.
 
 **Touching a Claude hook** (`scripts/readonly-guard.py`, or the shell template in
 `fleet/hooks.py`) — read the guard's docstring first, then run the tests and the probe. The roster

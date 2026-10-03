@@ -28,7 +28,3 @@ probe-transcript.jsonl
 .venv/
 .ruff_cache/
 .pytest_cache/
-
-# Routing cases generated per run by scripts/eval_routing.py, with the `claude plugin eval`
-# results and report written beneath them.
-evals/generated/

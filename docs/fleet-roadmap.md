@@ -7,7 +7,9 @@
 
 This file will contain only unfinished, blocked, or explicitly deferred work for the current
 fleet. Landed history lives in Git. Paths under `docs/archive/` and `docs/decisions/` below name
-files removed on 2026-10-03; read one with `git show 690f28f:<path>`.
+files removed on 2026-10-03; read one with `git show 690f28f:<path>`. Routing evals were
+removed the same day: where an item below asks for a routing run or round, a by-hand check
+of the affected requests before and after replaces it.
 
 ## Item contract
 
@@ -186,10 +188,7 @@ recorded as not transferring.
 AI graph engineering decision (`docs/decisions/2026-07-31-ai-graph-engineering.md`) ·
 2026-07-31 independent review (`docs/archive/2026-07/graph-decision-independent-review-2026-07-31.md`)
 
-**Prerequisites:** EVAL-003's agent-member grading decision; one pilot definition before any
-fleet-wide edit. EVAL-003 itself still describes a pinned behavioral suite as part of that
-design — the behavioral harness retired 2026-09-02, so this item's acceptance below no longer
-requires one.
+**Prerequisites:** One pilot definition before any fleet-wide edit.
 
 **Acceptance:** For every edited definition: paired before/after routing runs under identical
 recorded conditions, no negative-case regression, a written stop rule if the pilot regresses,
@@ -449,56 +448,6 @@ canonical files.
 
 **Next action:** None until a trigger fires — a second workflow conversion is the only live
 ignition.
-
-#### EVAL-003 — decide how agent-member routing positives are graded
-
-**Status:** `active` — narrowed 2026-10-03. Stored captures and their reuse contract were removed
-with `evals/baselines/`, and every before-side is now a fresh run, so the comparable anchor this
-item was opened for is no longer needed; the grading decision below remains.
-
-**Outcome:** One recorded ruling on whether routing positives for agent members stay graded or
-are retired.
-
-**Source:** this roadmap; earlier detail is in Git history.
-
-**Prerequisites:** Run small watched foreground batches; fix case-design defects before treating
-numbers as description evidence.
-
-**Acceptance:** The ruling is recorded here and the affected cases are changed to match it.
-
-**Next action:** Make the agent-member grading decision, now with evidence rather than a default.
-The full 2026-09-14 capture (10 clusters, 101 cases, 303 runs, since deleted) split cleanly:
-negatives **60/60**; positives 26/41, where **14 of the 15 failures involve no
-wrong destination** (11 routed nowhere, 3 fired only expected members below the 0.5 threshold) and
-the fifteenth dispatched a member its case does not expect in all three runs — ROUTE-001 below,
-which this record must not round off to under-firing. That is the shape the deferred default
-predicted, so decide whether routing positives for agent members stay graded or are retired
-(the behavioral suite that was a third option retired 2026-09-02) — and record the ruling here. Until then, read this capture's
-positive side as a reachability signal, not as description evidence.
-
-#### ROUTE-001 — settle `pos-diagnose-idle-lab-failure`: `root-cause` or `homelab-engineer`
-
-**Status:** `active` — a case and the fleet disagree about a destination, consistently.
-
-**Outcome:** One recorded ruling on where "monitoring found a stopped container, nobody affected,
-find out why it exited" belongs, and the case or the description changed to match it.
-
-**Source:** the 2026-09-14 full routing capture (since deleted) — the case fired
-`homelab-engineer` in 3/3 runs and `root-cause` in 1/3, while asserting `root-cause`. Not a
-silence failure like the other fourteen: the sessions routed somewhere, deliberately and
-repeatably. A 2026-08-18 native pilot recorded the same destination 6/6 under that agent's
-previous name (`homelab-platform`), so the behaviour long predates the harness migration.
-
-**Prerequisites:** None.
-
-**Acceptance:** Either the case's `expect_fires` names the destination the fleet actually chooses
-and says why in `expected_output`, or `root-cause`'s description is changed to win this prompt and
-the overlapping cluster is re-run before and after per the description playbook. A rate that moves
-because the case was rewritten to match observed behaviour is not evidence of improved routing,
-and the ruling must say which of the two happened.
-
-**Next action:** Read the prompt against both descriptions and decide which is wrong — the
-assertion or the description. Do not treat this as a rate to improve until that is settled.
 
 #### RELEASE-001 — add repository release discipline
 

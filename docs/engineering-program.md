@@ -46,8 +46,6 @@ must converge even though every iteration starts amnesiac.
 - **Status transitions gate authority.** Incident handling holds mitigate-first authority only
   while the situation is an outage; the explicit downgrade to follow-up
   (`skills/lab-incident/SKILL.md`) is the edge that ends the emergency regime.
-- **Paired measurement.** A loop that edits graded text owes fresh before/after runs on the same
-  model (`scripts/eval_routing.py`); `evals/README.md` owns how to read the rates.
 
 ## Graph engineering — authority is typed edges
 

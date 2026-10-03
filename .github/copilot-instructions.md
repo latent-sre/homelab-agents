@@ -22,8 +22,8 @@ the highest-value findings in this repo:
 - **An unknown frontmatter key does not error** — it silently drops whatever it configured. Any new
   key must be a real Claude Code field.
 - **`memory:` auto-enables Read/Write/Edit**, so it must never appear on a read-only agent.
-- **Descriptions drive routing.** A `description:` edit changes which component fires; it owes a
-  before/after run of the overlapping cluster in `evals/routing/`, not an eyeball.
+- **Descriptions drive routing.** A `description:` edit changes which component fires; try the
+  requests it should and should not catch before and after.
 - **Canonical cross-references must be namespaced** (`sde-agents:code-reviewer`) and must resolve.
   Generated hosts use bare names; the generator owns that translation.
 - **Every file under a skill's `references/` must be linked from its `SKILL.md`** by a

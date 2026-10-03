@@ -69,8 +69,7 @@ needs one. `AGENTS.md` names each trigger and points here. The rules are unchang
 - Holding `Bash` with no write tool (`Write`/`Edit`/`NotebookEdit`) makes it a read-only agent, and
   it **must** be added to `GUARDED_AGENT_NAMES` in `scripts/readonly-guard.py` or the validator
   fails: unguarded, its "read-only" is a promise, not a control.
-- Regenerate every host adapter and refresh the README inventory; seed or extend a routing cluster
-  if the remit overlaps an existing member (overlap is fine — unmeasured overlap is not).
+- Regenerate every host adapter and refresh the README inventory.
 
 **Adding a skill** — directory name equals `name:` and is kebab-case; every path a SKILL.md
 mentions under `references/`, `assets/`, or `scripts/` must exist, and every file under
@@ -121,8 +120,8 @@ always-visible routing tokens on something that never routes — the roadmap's c
 4. **Provenance is recorded twice**: the dated adaptation record pins the donor, reviewed
    revision, and license, and the implementation commit repeats them in an `adapted from` line.
    Adapted code also names its source and license in the owning file.
-5. **The normal gates close it**: validator and tests always; the overlapping routing cluster
-   before and after if any `description:` changed.
+5. **The normal gates close it**: validator and tests always; a by-hand routing check if any
+   `description:` changed.
 
 ## Host-specific authority
 
@@ -323,8 +322,7 @@ instead of recomputing it. The edit loop runs the validator plus the test module
 touched artifact; a push owes the full offline suite, the platform contract check, and a hand
 check of the installed copies (`claude plugin list`, `codex plugin list`,
 `install_codex_agents.py --user --check`), which CI can never substitute for; CI runs on Windows for every PR, push to main, weekly sweep, and dispatch;
-releases and CLI upgrades owe the probe; a description edit owes a before/after routing run
-(`evals/README.md`).
+releases and CLI upgrades owe the probe.
 The full tier recipe (T0–T3) lives in `AGENTS.md` under "Validate before you push"; this
 paragraph is its summary and loses to it on conflict.
 

@@ -38,7 +38,6 @@ from fleet.fs import read_text  # noqa: E402
 from fleet.policy import POLICY  # noqa: E402
 from fleet.references import parse_frontmatter  # noqa: E402,F401
 from fleet.rules import inventory as _inventory  # noqa: E402
-from fleet.rules import routing as _routing  # noqa: E402
 from fleet.rules import skills as _skills  # noqa: E402
 from fleet.snapshot import Fleet  # noqa: E402
 
@@ -72,14 +71,6 @@ def validate_skills(root: Path) -> tuple[list[str], list[str]]:
 
 def validate_yaml_scalar_quoting(root: Path) -> list[str]:
     return _run(root, "scalars")
-
-
-def validate_routing_clusters(
-    root: Path, agent_names: list[str], skill_names: list[str]
-) -> list[str]:
-    # Honors the caller's component names, as the legacy signature promised: a test may grade a
-    # synthetic cluster against names the tree under validation does not carry.
-    return [text for text, _ in _routing._routing_issues(root, agent_names, skill_names)]
 
 
 def validate_inventory(root: Path, expected: str) -> list[str]:

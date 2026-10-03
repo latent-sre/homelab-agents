@@ -129,8 +129,8 @@ truncate, taking its routing with it.
 
 Fields the fleet deliberately does not use — considered, not overlooked. Reopen only with a reason:
 
-- **`when_to_use`** — trigger phrasings live in `description` so routing has one surface to tune
-  (and one surface for the routing evals to measure). Both fields share the same 1,536-character
+- **`when_to_use`** — trigger phrasings live in `description` so routing has one surface to tune.
+  Both fields share the same 1,536-character
   listing cap, so splitting saves nothing.
 - **`maxTurns`** — loop bounds are task-shaped prose rules (three-strikes, two-round review caps),
   which fail with a diagnosis. A capped agent returns partial output that the caller can resume

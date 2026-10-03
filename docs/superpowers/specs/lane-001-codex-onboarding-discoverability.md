@@ -48,7 +48,8 @@ fixes, lane limits codified, no Codex eval harness.
 3. **Decision-record amendment** to the 2026-07-30 packaging decision: a reopen trigger for
    "a real workload on a generated lane contradicts a consequence of this record", plus a
    consequence line codifying supported-but-limited. Operator approves via PR review.
-4. **Routing-cluster extension** of `evals/routing/homelab-ops.json`: positive discovery-question
+4. **Routing-cluster extension** (routing evals were removed 2026-10-03; check these by hand)
+   of the homelab-ops cluster: positive discovery-question
    cases for the new skill, with the existing onboarding positives serving as the
    no-displacement guard (below).
 
