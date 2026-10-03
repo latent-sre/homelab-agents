@@ -9,11 +9,12 @@ the fleet's checks (`README.md` owns the install detail). Every script under `sc
 contract in its docstring — read it before touching or invoking one.
 
 Where this file paraphrases `README.md`, `docs/engineering-program.md`, or a script's docstring,
-the source wins — fix the paraphrase here, never the source. The validator pins the checkable facts
+the source wins (see "The source wins on drift"). The validator pins the checkable facts
 (the `@AGENTS.md` bridge in `CLAUDE.md`, concrete multi-segment repo paths, the model-alias list)
 and fails them on drift. This file is written for the LLM session that loads it on every task: when
-editing it, lead each rule with its trigger and imperative, compress rationale to a clause or a
-citation, and keep incident narration in its archive or decision record — never here.
+editing it, lead each rule with its trigger and imperative, state each rule once, compress
+rationale to a clause, and cite a file only when it owns something the reader must act on.
+Incident narration and provenance stay in the archive or decision record — never here.
 
 ## The engineering program
 
@@ -31,10 +32,9 @@ mechanisms and checks — read it before touching a discipline.
 - **Graph engineering — authority is typed edges.** Who may write what, who hands to whom, where
   approval sits: declared per definition, enforced per host, never inferred from prose. Owner:
   `docs/decisions/2026-07-31-ai-graph-engineering.md`.
-- **Self-learning — explicit maintainer work.** Invoke `/sde-agents:self-improve-loop` for a
-  requested fleet retro. Routine agents preserve useful discoveries in the existing owned
-  artifact when authorized, or report the evidence, destination, and owner. They do not emit an
-  empty Learning form or start a promotion lifecycle merely to finish a task.
+- **Self-learning — explicit maintainer work.** A fleet retro (`/sde-agents:self-improve-loop`)
+  runs only on request. Routine agents carry no Learning form or promotion lifecycle; they route a
+  discovery as "Closing a task that surfaced a discovery" below says.
 
 **When reviewing fleet prose, identify the reader or consumer and the decision, action, recovery,
 or check that needs each detail.** Preserve those facts and boundaries; remove repetition or link
@@ -58,14 +58,15 @@ red check is fixed if trivial, else recorded in `docs/fleet-roadmap.md`.
   locally. CI installs the latest `ruff`, and the formatter's output moves between releases, so
   run the latest locally too (`uvx ruff@latest`); an older local ruff can pass what CI fails.
   After **any** canonical agent or skill edit, regenerate the host adapters with
-  `python3 scripts/generate_platform_adapters.py --write`; after adding, renaming, or removing a
-  component, also refresh the README inventory with
+  `python3 scripts/generate_platform_adapters.py --write` (`--diff` previews it); after adding,
+  renaming, or removing a component, also refresh the README inventory with
   `python3 scripts/validate_fleet.py --write-inventory`.
 - **T1 — before push/PR**: `python3 -m unittest discover -s tests` +
-  `python3 scripts/validate_claude_plugin.py` (both strict platform checks; missing CLI defers to CI) +
+  `python3 scripts/validate_claude_plugin.py` (`claude plugin validate --strict` on the marketplace
+  and the canonical plugin; with no Claude CLI it exits 2 and CI's run supplies the result) +
   `python3 scripts/fleet_doctor.py`. CI reruns the first two, never fleet_doctor (host drift stays
   invisible). Exit 1 failed, 2 not computed (a clean report isn't evidence), 3 warnings. Repair via
-  `python3 scripts/install_codex_agents.py --user`; clear warnings before measuring (issue #126).
+  `python3 scripts/install_codex_agents.py --user`; clear warnings before measuring.
 - **T2 — merge/weekly** (CI-owned, nothing to run locally): three-OS matrix on push to
   main, weekly, or dispatch — see the matrix comment in
   `.github/workflows/validate.yml`.
@@ -76,14 +77,7 @@ red check is fixed if trivial, else recorded in `docs/fleet-roadmap.md`.
   not a list restated here**: `runs_per_case` plus every key of the capture's own `conditions`
   block, minus three exceptions, with `models_observed` holding exactly one model and
   `components_uniform` true on **both** sides — `evals/README.md` owns the exceptions and the
-  reasons, and enumerating the fields anywhere else kept coming up one short as the harness
-  gained levers. Only then is the before-side reusable. The after-side stays fresh.
-
-Limit new broad static reviews to two rounds for prose-behavior changes (agent/skill text), three
-for other fleet prose. These caps bound repeated broad reviews, not focused checks and corrections
-of demonstrated defects within scope. Stop oscillation or repeated failed corrections without
-new evidence; retain the unresolved defect. Close with a behavioral instrument or executed
-verification. Another broad round beyond the cap requires an explicit operator ruling.
+  reasons. Only then is the before-side reusable. The after-side stays fresh.
 
 ## Development loop
 
@@ -112,13 +106,9 @@ Two checks are manual and on demand, deliberately not CI gates (both drive real 
   a native `tool_used` grader counts a dispatch that errored and cannot express a positive's
   agent-or-skill disjunction. Read `evals/README.md` first — it owns the negative-case and
   narrowing semantics, the headless caveat, and why a baseline's routing competition is read from
-  `components_observed` rather than from `--clean-room`, which was measured to change nothing
-  under the native harness.
+  `components_observed` rather than from `--clean-room`.
 
 ## Change playbooks
-
-**Any edit** — run T0. If you touched text that paraphrases another file,
-find the declared owner and fix in the right direction (see "The source wins on drift" below).
 
 **Adding an agent or skill · editing a workflow · changing a validated on-disk record shape ·
 retiring a tripwire whose risk is structurally gone** — these fire rarely, so
@@ -129,22 +119,18 @@ section before starting one; the validator holds you to the component contracts 
 `fable`). A full model ID is a valid runtime value but banned: it goes stale silently while an
 alias follows the model upgrade.
 
-**Editing any canonical agent or skill** — run
-`python3 scripts/generate_platform_adapters.py --write` after the canonical edit (`--diff` shows
-what that would change first). Generated copies are consequences, never edit targets. The
-validator compares every generated byte and rejects missing, stale, extra, or hand-edited output.
-**When generation fails naming a rewrite id, a host projection's count moved** — the correction it
-carries is the only thing keeping a Claude-only authority claim out of a host that cannot honour
-it, so never regenerate past the message. The failure says which direction: **landed fewer** means
-a sentence it anchors on was reworded or removed, so re-anchor it in `fleet/hosts/table.py` (or
-delete it, if what it corrected is gone); **landed more** usually means a new canonical occurrence
-that needs the same projection, so read each one and raise its `expect` to the new total.
+**When adapter generation fails naming a rewrite id, a host projection's count moved** — the
+correction it carries is the only thing keeping a Claude-only authority claim out of a host that
+cannot honour it, so never regenerate past the message. The failure says which direction:
+**landed fewer** means a sentence it anchors on was reworded or removed, so re-anchor it in
+`fleet/hosts/table.py` (or delete it, if what it corrected is gone); **landed more** usually means
+a new canonical occurrence that needs the same projection, so read each one and raise its
+`expect` to the new total.
 
 **Editing a description** (agent or skill) — descriptions drive routing. Run the overlapping
-cluster in `evals/routing/` before and after, and diff the rates. The 'before' side may be
-satisfied by a stored benchmark whose cluster, cases, evaluator, and plugin bytes are unchanged
-since capture and whose recorded conditions equal the planned run — the list is the T3 one above,
-and `evals/README.md` owns it; the 'after' side is always a fresh run. Cross-references to other
+cluster in `evals/routing/` before and after, and diff the rates. The 'before' side may reuse a
+stored benchmark only when it passes the T3 reuse check — the list is the T3 one above, and
+`evals/README.md` owns it; the 'after' side is always a fresh run. Cross-references to other
 fleet members must use the plugin namespace (`sde-agents:code-reviewer`,
 `/sde-agents:backend-craft`); a bare backticked name is only for content already in context, such
 as a preloaded skill.
@@ -164,12 +150,10 @@ agents; in `prompt` policy the optional gate falls back to `ask` (or `deny` when
 for the gated agent, and both no-op for everyone else; and the 42/43/44/45 exit-code contract
 between the scripts and the hook shell strings stays intact — it is how the hook tells a script's
 answer from a stand-in interpreter that merely exits 0. An agent is on one roster or neither,
-never both. Do not port either hook to Codex or VS Code: their `PreToolUse` payload does not
-supply the active-agent identity used for scoping. Preserve the host-specific tool or sandbox
-controls instead. Keep a non-Claude host away from the hooks **structurally** — no file at that
-host's own hook-config path, which is why `plugins/sde-agents/` has no `hooks/`. A manifest field
-naming an empty override does not do it
-(`docs/superpowers/specs/2026-08-18-multi-host-plugin-architecture-design.md`).
+never both. Beyond never porting either hook ("Authority is the host's own control"), keep a
+non-Claude host away from them **structurally** — no file at that host's own hook-config path,
+which is why `plugins/sde-agents/` has no `hooks/`. A manifest field naming an empty override does
+not do it.
 
 **Changing validator behavior** — a rule is a pure function over the snapshot in `fleet/rules/`,
 registered with a stable id and a one-sentence why; a vocabulary it judges against lives in
@@ -188,10 +172,9 @@ validator rules exist to catch, and it will pass every existing check because no
 branch is there. The doc-side twin is equally binding: prose that calls an invariant "validated"
 or "enforced" lands with the reader check and its firing test, or it is reworded as writer
 behavior — a prose claim of enforcement with no guard behind it survives every check for the
-same reason an untested guard does (executed-verification finding, 2026-08-10). A diagnostic
-that names an external authority as the source of truth compares against a value independently
-obtained from that authority — captured once and reused is fine — never against a copy the
-compared party authored itself.
+same reason an untested guard does. A diagnostic that names an external authority as the source
+of truth compares against a value independently obtained from that authority — captured once and
+reused is fine — never against a copy the compared party authored itself.
 
 **Closing a task that surfaced a discovery** — update the existing owned artifact within the
 current scope, report the evidence and owner of a remaining gap, or drop the lead with its reason.
@@ -217,17 +200,19 @@ focused independent review of affected behavior and interfaces; unchanged scope 
 earlier evidence. Record non-material final deltas and why they need no additional review.
 Never describe an earlier review as having examined later bytes.
 
-Limit new broad PR review rounds to three. This bounds repeated broad reviews and speculative
-redesign, not bounded corrections to demonstrated in-scope defects. Make those corrections, run
-affected checks, and obtain focused review when needed under existing authorization. Stop an
-oscillating correction loop or repeated failures without new evidence; report the unresolved
-issue. Exhausting a review budget never makes a material defect merge-safe. Another broad round
-beyond the cap or material scope expansion requires an explicit operator ruling.
+Cap new broad review rounds: static reviews at two for prose-behavior changes (agent or skill
+text) and three for other fleet prose; PR reviews at three. A cap bounds repeated broad review and
+speculative redesign, never focused checks or corrections of demonstrated in-scope defects — make
+those, run the affected checks, and get focused review when needed under existing authorization.
+Stop an oscillating correction loop or repeated failures that bring no new evidence; keep the
+unresolved defect on record and report it. Close a prose change with a behavioral instrument or
+executed verification. Exhausting a review budget never makes a material defect merge-safe;
+another broad round beyond a cap, or material scope expansion, requires an explicit operator
+ruling.
 
 `CONTRIBUTING.md` owns the procedure and is read before opening or updating a PR: branch naming,
 the pull-request template and its conditional gates, and supported reviewer triggers, with operator
-handoff when the host cannot request a pass. Provenance:
-`docs/decisions/2026-08-16-pr-review-gate.md`.
+handoff when the host cannot request a pass.
 
 ## Hard rules with no playbook exceptions
 
@@ -238,10 +223,9 @@ handoff when the host cannot request a pass. Provenance:
   a dependency ban on other tooling: `pyproject.toml`'s dev group is tooling for the maintainer
   loop, and `fleet/` itself stays standard-library so it can never become a hook import.
 - **Never hand-edit generated output.** The generated trees are `.github/agents/`,
-  `.github/skills/`, `.codex/agents/`, and `plugins/sde-agents/skills/`, and `hooks/hooks.json` is
-  generated too — it is rendered from the guard's and gate's own rosters by `fleet/hooks.py`, so a
-  roster edit reaches the armed hook only through `--write`. Edit the canonical file or the
-  generator, because byte-drift validation erases anything else. Adding a tree edits
+  `.github/skills/`, `.codex/agents/`, and `plugins/sde-agents/skills/`, plus `hooks/hooks.json`
+  (rendered from the hook rosters; the hook playbook owns roster edits). Edit the canonical file or
+  the generator, because byte-drift validation erases anything else. Adding a tree edits
   `generate_platform_adapters.py`'s `GENERATED_ROOTS`; retiring one **moves** it to
   `RETIRED_GENERATED_ROOTS`, because only a still-declared root makes `--write` delete the obsolete
   copies instead of leaving a second plausible fleet. A generated file that is **not** the whole
@@ -254,12 +238,12 @@ handoff when the host cannot request a pass. Provenance:
   fixed, and lets two reports about the same tree disagree with nothing able to arbitrate them.
   The same rule covers every primitive in `fleet/` (link checks, the subprocess runner, stream
   decoding, digests, the exit ladder, the host prose projections and the Codex TOML emitter): an
-  instrument imports the kernel's copy, never keeps its own
-  (`docs/decisions/2026-09-13-machinery-rewrite.md`).
+  instrument imports the kernel's copy, never keeps its own.
 - **Authority is the host's own control, never prose.** Claude's guard, VS Code's omitted
   `execute`, and Codex's `sandbox_mode` are distinct controls; use the target host's. Never port a
-  Claude hook — its payload cannot be scoped elsewhere — and never reference `workflows/` from
-  another host, where no runtime exists and the reference fails silently.
+  Claude hook — another host's `PreToolUse` payload lacks the active-agent identity it scopes on —
+  and never reference `workflows/` from another host, where no runtime exists and the reference
+  fails silently.
 - **Never put `hooks:`, `mcpServers:`, or `permissionMode:` in a plugin agent's frontmatter.**
   Claude Code silently ignores all three there, so a guard declared in frontmatter is armor that
   is not — worse than none, because nobody checks it. They belong at the plugin level, where
@@ -282,19 +266,20 @@ handoff when the host cannot request a pass. Provenance:
   updates and summaries. Include an unambiguous short object ID only when an exact revision matters
   — for example, in a review packet, evidence-bound handoff, history claim, or permalink. Resolve it
   in the named repository (`git rev-parse --short=12 <rev>`); an ambiguous ID is not evidence.
-  This repository's workflows reference third-party GitHub Actions by major version tag, an
-  accepted mutable-upstream risk (`docs/decisions/2026-09-23-float-toolchain-versions.md`); keep
-  workflow `permissions:` at `contents: read` so a moved tag cannot write with the job token.
   File and image digests are cryptographic values, not commit IDs; retain full values in machine
   evidence and omit them from routine human-facing reports.
+- **Keep workflow `permissions:` at `contents: read`.** Workflows reference third-party GitHub
+  Actions by major version tag, an accepted mutable-upstream risk (owner:
+  `docs/decisions/2026-09-23-float-toolchain-versions.md`), so a moved tag must never be able to
+  write with the job token.
 - **The source wins on drift.** Fix the paraphrase, not its owner; fix a real defect at the source
   and re-propagate it. The ownership list is in `docs/fleet-development.md` under "Working on the
   fleet itself".
 
 ## Style
 
-- Wrap new or edited Markdown prose at roughly 100 columns where practical. Existing files contain
-  legacy longer lines, so this is a forward-looking target rather than a current-tree invariant.
+- Wrap new or edited Markdown prose at roughly 100 columns where practical; leave untouched legacy
+  lines as they are.
 - Comments in the scripts explain *why* an invariant exists, not what the next line does — match
   that register when editing them.
 - Descriptions lead with capability, then triggers, then negative routing.
