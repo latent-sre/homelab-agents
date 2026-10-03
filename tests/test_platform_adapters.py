@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tempfile
 import tomllib
@@ -14,6 +15,7 @@ from tests.support import (
     REPO,
     create_directory_link,
     git,
+    load_guard,
     remove_directory_link,
     repo_copy,
 )
@@ -25,13 +27,10 @@ WRITE_TOOLS = {"Edit", "NotebookEdit", "Write"}
 _create_directory_link = create_directory_link
 _remove_directory_link = remove_directory_link
 
-# A synthetic two-file tree ships no hook scripts, so the rosters `expected_outputs` renders the
-# hook file from cannot be read there. Standing them in keeps those tests about the one thing
-# they are about; a real tree's rosters are pinned by tests/test_fleet_hooks.py.
-STAND_IN_ROSTERS = (
-    hooks.Roster(frozenset({"stand-in-guarded"}), "stand-in"),
-    hooks.Roster(frozenset({"stand-in-gated"}), "stand-in"),
-)
+# A synthetic two-file tree ships no hook script, so the roster `expected_outputs` renders the
+# hook file from cannot be read there. Standing it in keeps those tests about the one thing
+# they are about; a real tree's roster is pinned by tests/test_fleet_hooks.py.
+STAND_IN_ROSTER = hooks.Roster(frozenset({"stand-in-guarded"}), "stand-in")
 
 
 # Canonical forms that a host rewrite used to translate and no longer does, because the sentence
@@ -53,47 +52,6 @@ RETIRED_CLAUDE_ONLY_FORMS = (
 
 
 class PlatformAdapterTests(unittest.TestCase):
-    def test_vscode_skill_relocation_reports_and_removes_the_retired_root(self) -> None:
-        # VS Code discovers `.github/skills` without repository-specific settings. The former
-        # Copilot CLI output root had no consumer, and regeneration must remove that stale tree
-        # instead of leaving two plausible skill fleets behind.
-        old_relative = Path("platforms/copilot/skills")
-        new_relative = Path(".github/skills")
-        self.assertEqual(new_relative, generate_platform_adapters.COPILOT_SKILLS)
-        self.assertIn(old_relative, generate_platform_adapters.RETIRED_GENERATED_ROOTS)
-
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "repo"
-            manifest = root / ".claude-plugin" / "plugin.json"
-            manifest.parent.mkdir(parents=True)
-            manifest.write_text("{}\n", encoding="utf-8")
-            old_skill = root / old_relative / "probe" / "SKILL.md"
-            old_skill.parent.mkdir(parents=True)
-            old_skill.write_text("stale generated skill\n", encoding="utf-8")
-            expected = {new_relative / "probe" / "SKILL.md": b"generated skill\n"}
-
-            with mock.patch.object(
-                generate_platform_adapters,
-                "expected_outputs",
-                return_value=expected,
-            ):
-                issues = generate_platform_adapters.validate_generated_outputs(root)
-                self.assertTrue(
-                    any(
-                        str(root / old_relative) in issue
-                        and "retired generated adapter root still exists" in issue
-                        for issue in issues
-                    ),
-                    issues,
-                )
-                generate_platform_adapters.write_generated_outputs(root)
-
-            self.assertFalse((root / old_relative).exists())
-            self.assertEqual(
-                b"generated skill\n",
-                (root / new_relative / "probe" / "SKILL.md").read_bytes(),
-            )
-
     def test_definition_parts_uses_one_coherent_source_snapshot(self) -> None:
         first = "---\nname: first\ndescription: First\n---\n\nfirst body\n"
         second = "---\nname: second\ndescription: Second\n---\n\nsecond body"
@@ -137,8 +95,8 @@ class PlatformAdapterTests(unittest.TestCase):
 
             with mock.patch.object(
                 generate_platform_adapters,
-                "_hook_rosters",
-                return_value=STAND_IN_ROSTERS,
+                "_guard_roster",
+                return_value=STAND_IN_ROSTER,
             ):
                 # A synthetic two-file tree is not the fleet, so the rewrite-count
                 # contract (calibrated to the canonical corpus) says nothing here.
@@ -170,8 +128,8 @@ class PlatformAdapterTests(unittest.TestCase):
 
             with mock.patch.object(
                 generate_platform_adapters,
-                "_hook_rosters",
-                return_value=STAND_IN_ROSTERS,
+                "_guard_roster",
+                return_value=STAND_IN_ROSTER,
             ):
                 with self.assertRaisesRegex(
                     ValueError,
@@ -340,48 +298,6 @@ class PlatformAdapterTests(unittest.TestCase):
                 finally:
                     _remove_directory_link(link)
 
-    def test_validation_rejects_dangling_links_at_every_retired_root_depth(self) -> None:
-        """PR #149: target existence cannot stand in for lexical link existence."""
-        for name, link_relative in (
-            ("leaf", Path(".claude") / "agents"),
-            ("parent", Path(".claude")),
-        ):
-            with self.subTest(placement=name), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary) / "repo"
-                (root / ".claude-plugin").mkdir(parents=True)
-                (root / ".claude-plugin" / "plugin.json").write_text(
-                    "{}\n", encoding="utf-8"
-                )
-                retired = root / ".claude" / "agents"
-                linked = root / link_relative
-
-                def is_link(path: Path, linked: Path = linked) -> bool:
-                    return path == linked
-
-                with (
-                    mock.patch.object(
-                        generate_platform_adapters, "expected_outputs", return_value={}
-                    ),
-                    mock.patch.object(
-                        generate_platform_adapters,
-                        "_repository_tracked_files",
-                        return_value=set(),
-                    ),
-                    mock.patch.object(
-                        generate_platform_adapters,
-                        "_is_link_or_reparse_point",
-                        side_effect=is_link,
-                    ),
-                ):
-                    issues = generate_platform_adapters.validate_generated_outputs(root)
-
-                matching = [issue for issue in issues if str(retired) in issue]
-                self.assertEqual(1, len(matching), issues)
-                self.assertIn("link, junction, or reparse point", matching[0])
-                self.assertIn(str(linked), matching[0])
-                self.assertIn("remove the offending link", matching[0])
-                self.assertNotIn("generate_platform_adapters.py --write", matching[0])
-
     def test_write_rejects_links_at_every_generated_tree_ancestor(self) -> None:
         placements = (
             ("root", generate_platform_adapters.COPILOT_SKILLS, Path(".")),
@@ -410,6 +326,25 @@ class PlatformAdapterTests(unittest.TestCase):
                 finally:
                     _remove_directory_link(link)
 
+    @unittest.skipUnless(os.name == "nt", "8.3 short names are a Windows filesystem feature")
+    def test_a_repository_reached_through_its_short_name_contains_its_own_files(self) -> None:
+        # CI runners put the temp directory under `RUNNER~1`; comparing an abspath against a
+        # resolve()d root there called the guard script "outside the repository".
+        import ctypes
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "a-repository-with-a-long-name"
+            (root / "scripts").mkdir(parents=True)
+            (root / "scripts" / "readonly-guard.py").write_text("x = 1\n", encoding="utf-8")
+            buffer = ctypes.create_unicode_buffer(1024)
+            ctypes.windll.kernel32.GetShortPathNameW(str(root), buffer, 1024)
+            if "~" not in buffer.value:
+                self.skipTest("8.3 short names are disabled on this volume")
+            short_root = Path(buffer.value)
+            generate_platform_adapters._assert_canonical_source_path(
+                short_root / "scripts" / "readonly-guard.py", short_root
+            )
+
     def test_canonical_source_links_are_rejected_before_resource_copy(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
@@ -425,8 +360,8 @@ class PlatformAdapterTests(unittest.TestCase):
             try:
                 with mock.patch.object(
                     generate_platform_adapters,
-                    "_hook_rosters",
-                    return_value=STAND_IN_ROSTERS,
+                    "_guard_roster",
+                    return_value=STAND_IN_ROSTER,
                 ):
                     with self.assertRaisesRegex(
                         ValueError,
@@ -467,66 +402,6 @@ class PlatformAdapterTests(unittest.TestCase):
         self.assertIn(old, text, "the fixture must start from an anchor that exists")
         path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
-    def test_investigator_host_rewrite_fails_loudly_when_its_anchor_is_missing(self) -> None:
-        # A zero-match rewrite would regenerate "clean" adapters that keep the Claude-only
-        # guard claim on hosts that cannot load the guard, and byte-drift validation cannot
-        # see it — the committed adapter carries the same silent miss. So a missed anchor must
-        # be a generation error, not a no-op.
-        self._generation_refuses(
-            lambda destination: self._rewrite_canonical(
-                destination,
-                "repository-investigator",
-                "Your context is deliberately local-only:",
-                "Your context is local:",
-            ),
-            rewrite_id="agent.repository-investigator.local-only",
-        )
-        # A missing method anchor must also fail after the boundary rewrite succeeds;
-        # otherwise the no-shell host could retain an instruction to execute Git.
-        for index, anchor in enumerate(
-            (
-                "Name the repository root and the revision",
-                "For revision-bound claims, read the named revision's bytes",
-                'When the question is "how did it get this way"',
-            ),
-            start=1,
-        ):
-            with self.subTest(anchor=anchor):
-                self._generation_refuses(
-                    lambda destination, anchor=anchor: self._rewrite_canonical(
-                        destination,
-                        "repository-investigator",
-                        anchor,
-                        "missing method anchor",
-                    ),
-                    rewrite_id=f"agent.repository-investigator.method-step.{index}",
-                )
-
-    def test_homelab_host_rewrite_fails_loudly_when_its_anchor_is_missing(self) -> None:
-        # Same rule for the live-effect gate (GATE-006): the canonical transport bullet names a
-        # Claude-only hook, and a silent zero-match rewrite would ship that claim to a host that
-        # cannot load it. The real canonical body must rewrite cleanly on both hosts.
-        for label, rewrite_id in (
-            ("Managed gate", "agent.homelab-engineer.managed-gate"),
-            ("Standing policy", "agent.homelab-engineer.standing-policy"),
-        ):
-            with self.subTest(label=label):
-                self._generation_refuses(
-                    lambda destination, label=label: self._rewrite_canonical(
-                        destination, "homelab-engineer", f"- **{label}:**", f"- **{label} note:**"
-                    ),
-                    rewrite_id=rewrite_id,
-                )
-        canonical = (REPO / "agents" / "homelab-engineer.md").read_text(encoding="utf-8")
-        for host, marker in (("copilot", "operator handoff"), ("codex", "codex execpolicy check")):
-            with self.subTest(host=host):
-                rewritten = generate_platform_adapters.adapt_agent_contract(
-                    canonical, name="homelab-engineer", host=host
-                )
-                self.assertNotIn("hooks/hooks.json", rewritten)
-                self.assertNotIn("live-effect gate — matched rule `docker compose up`", rewritten)
-                self.assertIn(marker, rewritten)
-
     def test_homelab_codex_allows_authorized_native_execution_without_fake_gate(self) -> None:
         """Host adaptation must not restore the retired prompt-only execution policy."""
         canonical = (REPO / "agents" / "homelab-engineer.md").read_text(encoding="utf-8")
@@ -539,29 +414,30 @@ class PlatformAdapterTests(unittest.TestCase):
         self.assertIn("respect denials", rewritten)
         self.assertNotIn("sandbox and command-approval prompt must interpose", rewritten)
         self.assertNotIn("only an exec-policy rule under a root-owned path", rewritten)
-        self.assertNotIn("live-effect hook asks", rewritten)
 
-    def test_homelab_copilot_handoff_tracks_missing_capability_not_missing_consent(self) -> None:
-        """The native-execution path cannot accidentally grant the no-shell host a tool."""
+    def test_homelab_copilot_executes_under_the_hosts_own_prompts(self) -> None:
+        """VS Code/Copilot homelab-engineer holds execute, and its contract names the host's
+        approval prompts as the control it must not change to escape a restriction."""
         canonical = (REPO / "agents" / "homelab-engineer.md").read_text(encoding="utf-8")
-        rewritten = generate_platform_adapters.adapt_agent_contract(
-            canonical, name="homelab-engineer", host="copilot"
+        rewritten = " ".join(
+            generate_platform_adapters.adapt_agent_contract(
+                canonical, name="homelab-engineer", host="copilot"
+            ).split()
         )
-        self.assertIn("has no execute tool", rewritten)
-        self.assertIn("mark execution pending", rewritten)
-        self.assertIn("not a missing user decision", rewritten)
-        self.assertIn("Do not substitute another tool", " ".join(rewritten.split()))
+        self.assertIn("run under the host's own approval prompts", rewritten)
+        self.assertIn("Never change those settings", rewritten)
+        self.assertNotIn("no execute tool", rewritten)
         fields = validate_fleet.parse_frontmatter(
             REPO / ".github" / "agents" / "homelab-engineer.agent.md"
         )
         self.assertIsNotNone(fields)
-        self.assertNotIn("execute", validate_fleet.split_tools(fields["tools"]))
+        self.assertIn("execute", validate_fleet.split_tools(fields["tools"]))
 
     def test_homelab_duplicate_transport_policy_is_rejected(self) -> None:
         """Two competing transport bullets must not yield a plausible generated control."""
         canonical = (REPO / "agents" / "homelab-engineer.md").read_text(encoding="utf-8")
         for label, rewrite_id in (
-            ("Managed gate", "agent.homelab-engineer.managed-gate"),
+            ("Host controls", "agent.homelab-engineer.host-controls"),
             ("Standing policy", "agent.homelab-engineer.standing-policy"),
         ):
             start = canonical.index(f"- **{label}:**")
@@ -581,7 +457,7 @@ class PlatformAdapterTests(unittest.TestCase):
                 self._generation_refuses(duplicate, rewrite_id=rewrite_id)
 
     def test_guarded_copilot_agents_have_no_shell_tool(self) -> None:
-        guard = validate_fleet.load_guard(REPO)
+        guard = load_guard(REPO)
         for name in sorted(guard.GUARDED_AGENT_NAMES):
             with self.subTest(agent=name):
                 fields = validate_fleet.parse_frontmatter(
@@ -654,26 +530,6 @@ class PlatformAdapterTests(unittest.TestCase):
                     path = f"{root}/{name}/SKILL.md"
                     self.assertIn(f"`{path}`", text)
                     self.assertTrue((REPO / path).is_file())
-
-    def test_builder_loading_rewrite_rejects_missing_or_duplicate_routes(self) -> None:
-        # The builder's conditional routes are the one place an adapter must name a real
-        # on-disk path; a dropped or duplicated route makes the table ambiguous either way.
-        canonical = "apply. Load other guidance before the work it governs, using the Read tool"
-        self._generation_refuses(
-            lambda destination: self._rewrite_canonical(
-                destination, "sde-fullstack", canonical, "apply. Load other guidance"
-            ),
-            rewrite_id="agent.sde-fullstack.conditional-loading",
-        )
-        for name in ("backend-craft", "frontend-craft", "root-cause", "ci-actions"):
-            route = f"| `${{CLAUDE_PLUGIN_ROOT}}/skills/{name}/SKILL.md` |"
-            with self.subTest(route=name):
-                self._generation_refuses(
-                    lambda destination, route=route: self._rewrite_canonical(
-                        destination, "sde-fullstack", route, "| removed route |"
-                    ),
-                    rewrite_id=f"agent.sde-fullstack.route.{name}",
-                )
 
     def test_investigator_provenance_boundary_survives_every_host_rewrite(self) -> None:
         # The canonical untrusted-provenance paragraph is REPLACED wholesale on both non-Claude
@@ -786,6 +642,8 @@ class PlatformAdapterTests(unittest.TestCase):
                     # control the other hosts do not have.
                     "Claude Code 2.1",
                     "omitClaudeMd",
+                    # An Agent-tool option, and Claude's default-branch base for it.
+                    'isolation: "worktree"',
                 ):
                     self.assertNotIn(false_control.casefold(), text.casefold())
 
@@ -859,7 +717,7 @@ class PlatformAdapterTests(unittest.TestCase):
     def test_onboarding_map_stays_model_visible_and_keeps_pointing_at_both_workflows(
         self,
     ) -> None:
-        """The discovery half of the onboarding lane, whose loss is silent (LANE-001, issue #61).
+        """The discovery half of the onboarding lane, whose loss is silent (issue #61).
 
         `service-onboard` and `host-onboard` are deliberately explicit-only, which on Codex means
         the model cannot enumerate or recommend them at all -- plain-language onboarding intent had

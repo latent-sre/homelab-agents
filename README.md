@@ -3,8 +3,8 @@
 A Claude Code plugin for one person who runs a home lab and wants AI agents that behave like a
 careful operator: inspect before changing, finish an explicitly delegated task within its scope,
 keep recovery ready, and record the result. It ships agents for running the lab and for writing the
-scripts and services that live on it, skills that carry the operating knowledge, and two hooks
-that enforce their scoped read-only and live-command policies.
+scripts and services that live on it, skills that carry the operating knowledge, and a hook that
+keeps the read-only agents read-only.
 
 ## Fleet
 
@@ -20,7 +20,7 @@ that enforce their scoped read-only and live-command policies.
 /plugin install sde-agents@latent-sre
 ```
 
-That installs the agents, the skills, and the two hooks together. Nothing is copied into the
+That installs the agents, the skills, and the read-only guard hook together. Nothing is copied into the
 `~/.claude/agents` or `~/.claude/skills` discovery roots — Claude Code keeps its own cached copy of
 the plugin, which a reinstall replaces, so the fleet you edit here is never the fleet a normal
 session loads. Components are namespaced by the plugin: `sde-agents:homelab-engineer`,
@@ -28,6 +28,10 @@ session loads. Components are namespaced by the plugin: `sde-agents:homelab-engi
 
 To load the plugin from a checkout instead of the marketplace copy, run `claude --plugin-dir .`
 from the repository root.
+
+To check what is installed: `claude plugin list` and `codex plugin list` show whether sde-agents is
+installed and enabled, and `python3 scripts/install_codex_agents.py --user --check` reports whether
+your Codex agents match this checkout.
 
 ## What you get
 
@@ -62,15 +66,8 @@ agent making the call and does nothing for anyone else, so your own shell is nev
   of read-only commands (`git diff`, `rg`, `cat`, and their kin) and denies everything else,
   including any interpreter. If the guard cannot run, those agents lose Bash rather than gaining
   it.
-- **The optional live-effect gate.** Default `host` policy leaves decisions to the host's actual
-  permissions. To retain the extra command-level prompt, the operator sets
-  `SDE_AGENTS_LIVE_EFFECT_POLICY=prompt` in the environment launching Claude before the session.
-  In that policy, listed live commands from `homelab-engineer` and unparseable forms ask, or deny
-  when prompts are suppressed. Unset or `host` adds no decision; invalid values fail closed for
-  that agent. This setting grants no task authority and agents must not change it to authorize
-  their own work. Existing host prompts and denials always apply.
 
-Both hooks run from the installed plugin copy, never from a repository under review. Neither is a
+The hook runs from the installed plugin copy, never from a repository under review. It is not a
 sandbox: a reviewer that can read files can read secrets, and the load-bearing control remains the
 least privilege you give the session. The wiring, the reasoning, and the honest limits are in
 `docs/fleet-development.md`.
@@ -139,16 +136,13 @@ Name the hosts/services and maintenance window. The campaign reuses existing inv
 procedures, release guidance, and applicable restore evidence; it verifies each deployment and
 recovers failures within the delegated scope. A major version alone does not require a new session.
 After recovery, independent authorized upgrades can continue; unresolved shared failures stop
-related work. The [bounded-campaign decision](docs/decisions/2026-09-11-bounded-upgrade-campaign.md)
-records the behavior and host limits.
+related work.
 
-Claude's shipped live-effect hook still prompts for listed commands and denies them when prompts
-are suppressed; unbound/unparseable forms also ask/deny. The hook is a partial filter: only when
-it returns no decision does execution proceed under the host's own permission flow. Skills cooperatively route Claude live work to the engineer; that routing does
-not remove main-loop tools. Direct Copilot skills also hand live commands to the operator.
-Codex uses its effective permissions without a fleet-invented prompt; required native prompts
-and denials still apply. The Copilot profile has no execution tool and hands live commands to
-the operator. Changing prose
+Live commands run under each host's own permission flow; the plugin adds no live-effect check of
+its own. On Claude Code that is the session's permission mode and rules; on VS Code and Copilot,
+homelab-engineer holds the `execute` tool and each command goes through the host's approval
+prompts; Codex applies its sandbox and approval policy. Skills cooperatively route live work to
+homelab-engineer on every host; that routing does not remove main-loop tools. Changing prose
 neither removes a host gate nor supplies a missing tool.
 
 ## Working on the fleet

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import importlib.util
 import io
 import os
 import shutil
@@ -226,8 +227,8 @@ def repo_copy() -> Iterator[Path]:
     """A disposable copy of the real repository, for mutation tests.
 
     Wiring invariants are proven against a copy of the actual repo, not a synthetic fixture
-    that could drift away from it. tests/ stays in the copy: AGENTS.md names `tests/fixtures/`,
-    and the guide drift check resolves every multi-segment path it asserts. Exclusions are
+    that could drift away from it. tests/ stays in the copy, because the guide drift check
+    resolves every multi-segment path AGENTS.md asserts. Exclusions are
     exactly `_IGNORED_DIRS` — see its comment for why each entry is not part of the tree under
     validation.
 
@@ -270,3 +271,18 @@ def run_main(main: Callable[[list[str]], int], *argv: str) -> tuple[int, str]:
 def git(root: Path, *args: str) -> None:
     """Run git against a test repo, capturing output and failing on a nonzero exit."""
     subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+
+
+def load_guard(root: Path = REPO):
+    """Import scripts/readonly-guard.py by path -- the hyphen makes it un-importable by name.
+
+    This EXECUTES the guard, which is why it lives with the tests: nothing in the validator or
+    the generator runs it; both read its roster as data (fleet/roster.py).
+    """
+    source = Path(root) / "scripts" / "readonly-guard.py"
+    spec = importlib.util.spec_from_file_location("readonly_guard", source)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {source}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module

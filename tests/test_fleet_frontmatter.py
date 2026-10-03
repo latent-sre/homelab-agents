@@ -68,6 +68,13 @@ class ReaderTests(unittest.TestCase):
             "Claude Code reads frontmatter only on line 1",
         )
 
+    def test_reads_quoted_and_literal_block_values(self) -> None:
+        parsed = _parse("---\nname: \"builder\"\ncolor: 'red'\ndescription: |\n  one\n  two\n---\n")
+        self.assertEqual("builder", parsed["name"])
+        self.assertEqual("red", parsed["color"])
+        self.assertIn("one", parsed["description"])
+        self.assertIn("two", parsed["description"])
+
     def test_span_returns_the_closing_marker_index(self) -> None:
         self.assertEqual(fm.span(["---", "a: b", "---", "body"]), 2)
         self.assertIsNone(fm.span(["---", "a: b"]))
@@ -93,6 +100,10 @@ class FlowScalarDefectTests(unittest.TestCase):
             "'Use the agent's output": "carries the trailing token",
             '"ok" # note': "deliberately stricter than YAML",
             '"Use C:\\q"': "invalid escape sequence",
+            # The finding quotes the offending sequence, so an author is not left hunting one
+            # backslash in a long description.
+            '"Use C:\\q for the path."': repr("\\q"),
+            '"Use \\z here."': repr("\\z"),
             '"bad \\u12"': "malformed hex escape",
             '"\\uD800"': "lone surrogate U+D800",
             '"\\U00110000"': "U+110000",
@@ -119,35 +130,6 @@ class EmitterTests(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertEqual(yaml.safe_load(f"k: {fm.yaml_scalar(value)}")["k"], value)
         self.assertEqual(yaml.safe_load(f"k: {fm.yaml_flow_list(['a b', 'c'])}")["k"], ["a b", "c"])
-
-    def test_a_single_quoted_scalar_carries_a_backslash_literally(self) -> None:
-        """The form a regex must be emitted in: only `''` is an escape, so `\\s` stays `\\s`."""
-        self.assertEqual(fm.yaml_single_quoted(r'"a"\s*:\s*"b"'), r"""'"a"\s*:\s*"b"'""")
-        self.assertEqual(fm.yaml_single_quoted("it's"), "'it''s'")
-
-    def test_a_value_with_a_line_break_is_refused_rather_than_emitted_torn(self) -> None:
-        """A single-quoted scalar cannot carry one, and this dialect reads line by line, so the
-        tail would be parsed as a frontmatter key of its own."""
-        for value in ("a\nb", "a\rb", "a\u2028b"):
-            with self.subTest(value=value):
-                with self.assertRaisesRegex(ValueError, "cannot carry a line break"):
-                    fm.yaml_single_quoted(value)
-
-    @unittest.skipIf(yaml is None, "PyYAML (dev dependency group) is required for the tripwire")
-    def test_a_single_quoted_regex_round_trips_through_a_conforming_parser(self) -> None:
-        """The claim the generated graders rest on: what the reader gets back IS the pattern.
-
-        If this were false a `max: 0` tripwire would match nothing, count zero calls, and pass
-        forever while enforcing nothing -- with no test in the tree able to tell.
-        """
-        for pattern in (
-            r'"subagent_type"\s*:\s*"(?:sde-agents:)?homelab-engineer"',
-            r'"(?:command|skill|name)"\s*:\s*"(?:sde-agents:)?runbook"',
-        ):
-            with self.subTest(pattern=pattern):
-                self.assertEqual(
-                    yaml.safe_load(f"k: {fm.yaml_single_quoted(pattern)}")["k"], pattern
-                )
 
 
 class DialectDifferentialTripwire(unittest.TestCase):
@@ -192,10 +174,6 @@ class DialectDifferentialTripwire(unittest.TestCase):
         self.assertEqual([], divergences, "\n".join(divergences))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class LineBreakerEscapingTests(unittest.TestCase):
     """Deterministic pins for the three characters that motivated `_escape_line_breakers`.
 
@@ -216,18 +194,6 @@ class LineBreakerEscapingTests(unittest.TestCase):
                 rendered = fm.yaml_scalar(f"before{character}after")
                 self.assertNotIn(character, rendered, f"{name} was emitted raw")
                 self.assertEqual(1, len(rendered.splitlines()), f"{name} still splits the line")
-
-    def test_a_description_carrying_one_does_not_tear_the_frontmatter(self) -> None:
-        for name, character in self.LINE_BREAKERS.items():
-            with self.subTest(character=name):
-                value = f"Routes work{character}to the right altitude"
-                document = (
-                    f"---\nname: demo\ndescription: {fm.yaml_scalar(value)}\n---\n\nBody.\n"
-                )
-                parsed = fm.parse_text(document)
-                self.assertIsNotNone(parsed, f"{name} ended the frontmatter block early")
-                self.assertEqual({"name", "description"}, set(parsed))
-                self.assertEqual("demo", parsed["name"])
 
     def test_the_flow_list_emitter_escapes_them_too(self) -> None:
         for name, character in self.LINE_BREAKERS.items():

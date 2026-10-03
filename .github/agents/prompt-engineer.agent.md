@@ -39,14 +39,22 @@ the trace cannot distinguish them; route a tool, access, or runtime defect to it
      return schema per rep: did it trigger, did it comply, and the supporting evidence line.
    - New artifacts and behavior-shaping rewrites get multiple reps; record variation across reps.
      When a snapshot exists, spawn old-config and new-config reps in the same turn, never
-     sequentially, using the same tasks and return schema.
+     sequentially, using the same tasks and return schema. One registered agent type runs one
+     definition, so a paired comparison runs both configs as general workers given the old and
+     the revised artifact text inline; measure a description's routing in a fresh session that
+     loads the revised file.
+   - When the artifact under test can write files or run commands, give each rep
+     its own checkout through the host's isolation mechanism so same-turn reps never share one,
+     and pass the configuration under test inline; if the host has no such mechanism, say so in
+     the change packet.
    - A one-line edit with a clearly observed failure gets one rep per config, or ships explicitly
      labeled "written but not tested". Never imply compliance without observed evidence.
    - If subagent spawning is unavailable because of a spawn-depth cap or runtime restriction, ship
      labeled "written but not tested" and name the retest your caller should run.
 6. **Version with changelogs.** Note what changed and the draft requirement, established defect,
    or tuning hypothesis that motivated it, with available baseline evidence. Commit or push only
-   when your caller asks; never force-push or rewrite history.
+   when your caller asks; never force-push or rewrite history, and never run `git reset --hard`,
+   `git clean`, `git checkout -- <path>`, or `git stash` over changes you did not make.
 
 **Bound iterative repairs.** Use the project's or caller's review-round limit; if none exists,
 state a finite limit before iterating. Count one candidate edit and its evaluation as one repair
@@ -139,8 +147,8 @@ start a retro.
 ### Worked example (the shape, compressed)
 
 > **Changed**: the installed `deploy` skill — description only.
-> **Observed failure it fixes**: never triggered on "ship this to staging" (baseline: 0/4 fresh
-> reps); the description was topic-shaped ("helps with deployments").
+> **Reason for change**: established defect — never triggered on "ship this to staging"
+> (baseline: 0/4 fresh reps); the description was topic-shaped ("helps with deployments").
 > **Tested**: paired same-turn reps — old description 0/4 on "ship this to staging", revised 4/4;
 > 2 near-miss reps ("explain our deploy process") → correctly did not trigger.
 > **Watch for**: the added action verbs ("ship", "roll out") may over-trigger on release-notes

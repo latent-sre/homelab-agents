@@ -195,10 +195,10 @@ class RepoPoolRestoreTests(unittest.TestCase):
     def test_deleted_directory_contents_are_restored(self) -> None:
         # A borrower that removes a whole subtree (files and all) must not leave the next
         # borrower a hollowed-out repo the validator would judge incorrectly.
-        victim = Path("evals") / "routing"
+        victim = Path("skills") / "code-craft"
         with repo_copy() as dst:
             files = sorted(p.relative_to(dst) for p in (dst / victim).rglob("*") if p.is_file())
-            self.assertTrue(files, "fixture assumption: evals/routing ships files")
+            self.assertTrue(files, "fixture assumption: skills/code-craft ships files")
             for rel in files:
                 (dst / rel).unlink()
         with repo_copy() as dst:

@@ -5,7 +5,7 @@ Claude-only authority claim with what the target host can actually enforce. The 
 module exists to close is **the silent no-op**. When a canonical sentence is reworded, a rewrite
 that targeted it stops matching, the generator still succeeds, the adapter is regenerated without
 the correction, and byte-drift validation cannot see it -- because the committed adapter was
-produced with the same miss (PR #141 finding, recorded again in the machinery-rewrite decision).
+produced with the same miss (PR #141 finding).
 Anchoring one rewrite at a time was the old fix; a count on every rewrite closes the class.
 
 Two expectations, and no third:

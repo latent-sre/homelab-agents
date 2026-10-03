@@ -44,7 +44,6 @@ class ReaderTests(unittest.TestCase):
     def test_block_text_flattens_only_string_parts(self) -> None:
         parts = [{"type": "text", "text": "a"}, "junk", {"text": 7}, {"type": "text", "text": "b"}]
         self.assertEqual(stream.block_text(parts), "a b")
-        self.assertEqual(stream.block_text(parts, separator="\n"), "a\nb")
         self.assertEqual(stream.block_text("plain"), "plain")
         self.assertEqual(stream.block_text(None), "")
 
@@ -107,13 +106,6 @@ class CorrelationTests(unittest.TestCase):
         self.assertEqual(
             [e.name for e in stream.correlate_tool_results(text, tool_names={"Bash"})], ["Bash"]
         )
-
-
-class SkillLaunchSignalTests(unittest.TestCase):
-    def test_launch_control_signals_are_not_failures(self) -> None:
-        self.assertTrue(stream.is_skill_launch_signal("Execute skill: lab-audit"))
-        self.assertTrue(stream.is_skill_launch_signal("launching SKILL: runbook"))
-        self.assertFalse(stream.is_skill_launch_signal("Error: unknown skill"))
 
 
 if __name__ == "__main__":

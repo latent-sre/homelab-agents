@@ -1,7 +1,7 @@
 # Contributing
 
 This repository is a tooling kit for one home-lab operator, packaged well enough to hand to
-strangers who run the same kind of lab (`docs/decisions/2026-09-02-single-operator-audience.md`).
+strangers who run the same kind of lab.
 Most contributors here are agent sessions, so this file states the procedure a session cannot infer
 from the diff. The binding rules — what a PR must not do — stay in `AGENTS.md` under "Opening a pull
 request"; read both before opening or updating one.
@@ -17,8 +17,20 @@ change inventory. The types are `feat`, `fix`, `docs`, `refactor`, `test`, `chor
 
 ## Commits
 
-Write every line — commit messages included — in the claim-plus-consequence register: what changed
-*and* what it means, because a reviewer can only disagree with a decision they can see.
+[Conventional Commits](https://www.conventionalcommits.org/): `<type>(<scope>): <summary>`, with
+the scope optional and the summary in the imperative.
+
+- **Types:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`, `perf`, `build`, `revert`.
+- **Scopes** name the area touched: `agents`, `skills`, `guard`, `generator`, `validator`, `probe`,
+  `docs`, `ci`. Omit the scope when a commit spans several.
+- **Breaking changes** for someone who already installed the plugin — a renamed or removed
+  component, a tightened tool grant, a new gate — get a `!` (`feat(agents)!: ...`) and a
+  `BREAKING CHANGE:` footer saying what they will notice.
+- **The body** says what changed *and* what it means, because a reviewer can only disagree with a
+  decision they can see.
+
+Exceptions: the merge commit GitHub writes for a PR, and the message `git revert` generates, keep
+their default form.
 
 Merge commits keep branch history on the default branch, which is why a canonical edit and
 everything it makes necessary land together rather than in a follow-up.
@@ -34,8 +46,7 @@ honest and the whole template short.
 
 Choose the independent review coverage required by `AGENTS.md`, then inspect actual activity,
 scope, and reviewed commit before requesting or waiting. Codex and Copilot are available request
-paths, not two obligatory passes. The explicitly invoked two-lane deep-review workflow is an
-optional workflow, not the default PR requirement.
+paths, not two obligatory passes.
 
 **Codex — you may request it.** `@codex review` and the separate `@codex security review` are
 supported triggers, and an enabled Codex review can start automatically on open or ready. Request it
@@ -52,6 +63,5 @@ empty while running; a missing Copilot request leaves it empty because nobody as
 opposite meanings — which is why the inspection above precedes the wait. Never report a PR as
 "awaiting review" when nothing was requested.
 
-Historical Copilot API failures do not establish a universal request ban; see
-`docs/decisions/2026-08-16-pr-review-gate.md`, which records provenance and reopen triggers.
-`AGENTS.md` owns the current policy.
+Historical Copilot API failures do not establish a universal request ban. `AGENTS.md` owns the
+current policy.

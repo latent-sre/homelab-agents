@@ -1,7 +1,7 @@
 <!--
-Title: one imperative sentence that stands alone in a log — "Close two exec holes in the
-read-only guard", not "guard fixes". Someone skimming history a year from now should not have to
-open the PR to know what it did.
+Title: a Conventional Commit header that stands alone in a log — "fix(guard): close two exec
+holes in the read-only guard", not "guard fixes". Someone skimming history a year from now should
+not have to open the PR to know what it did.
 
 Keep the problem, result, verification, and any material risks or gaps. Delete inapplicable
 sections and fields without explaining their removal. An applicable check that did not run stays
@@ -36,28 +36,29 @@ visible with its reason; it is not an inapplicable section.
 
 <!-- Show evidence, don't assert it. Paste the command and the result. Label load-bearing claims
      [verified] (you ran it), [sourced] (cited), or [unverified] (couldn't check) — the same rule
-     the fleet's own agents follow. An unevidenced "tests pass" is a review finding now, not a
-     linter catch — the packet linter that once flagged it retired 2026-09-02.
-     Every box below is checkable in well under a minute; if a box needs a paragraph, it belongs
-     above instead. -->
+     the fleet's own agents follow. CI already runs the validator, the tests, and the plugin
+     contract, so the boxes below cover what it cannot see. Each is checkable in well under a
+     minute; if a box needs a paragraph, it belongs above instead. -->
 
-- [ ] `python3 scripts/validate_fleet.py` — clean
-- [ ] `python3 -m unittest discover -s tests` — all passing (count: )
-- [ ] `python3 scripts/validate_claude_plugin.py` — marketplace and plugin contents passing
+- [ ] CI is green on this PR's head commit
+- [ ] Tried in a live `claude --plugin-dir .` session — or says why it can't be tried
+- [ ] Every generated file in the diff came from `--write`; none was edited by hand
+- [ ] No hostnames, IPs, credentials, or other details of a real lab in the diff (the repo is public)
+- [ ] Docs that describe this behavior are updated (README, AGENTS.md, a roadmap item closed or moved)
 
-<!-- Independent review: reviewer, reviewed commit and scope; why a second review applies;
-     material final delta and its focused follow-up, or why a non-material delta needs none. -->
+<!-- Independent review: reviewer and reviewed commit; a second reviewer when the PR touches the
+     guard or another authority boundary. -->
 
 **Conditional gates — fill only the rows this PR trips, and delete the rest:**
 
 | If this PR touched… | It must show |
 |---|---|
-| a `description:` on any agent or skill | the overlapping routing cluster run **before and after**, with the rate diff (a near-miss firing against its `expect_not_fires` set is a defect at any rate — `evals/README.md` owns that set's narrowing semantics) |
+| a `description:` on any agent or skill | the requests you tried by hand before and after, and where each routed |
 | `scripts/readonly-guard.py` or `hooks/hooks.json` | `python3 scripts/probe_plugin.py` re-run — the guard's contract rests on the `agent_type` payload field, and only the probe proves the current CLI still honors it |
 | Codex agent adoption behavior (`scripts/install_codex_agents.py`) | a disposable run against the installed Codex version with adopted/refused/pruned counts and semantic parity result |
-| a validator rule | a fixture or mutation test that **fails without the change** (state that you checked it fails) |
+| a validator check | a test in `tests/test_validate_fleet.py` that **fails without the change** (state that you checked it fails) |
 | any canonical agent or skill | host adapters regenerated; no generated copy edited as the source |
-| an added, renamed, or removed component | `--write-inventory` re-run, host adapters regenerated, and a routing cluster seeded or extended |
+| an added, renamed, or removed component | `--write-inventory` re-run and host adapters regenerated |
 | a new mechanism (abstraction, config surface, component, gate, or CI job) | its demonstrated consumer — the real task that needs it now; its tier and measured cost if it's a check; and the smaller alternative that lost, with the reason |
 | text another file declares itself the owner of | which side you fixed — the paraphrase, never the source |
 | work that a doc tracks as open | that doc updated — a landed item still listed as pending sends the next session to redo it |

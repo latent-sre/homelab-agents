@@ -2,40 +2,22 @@
 __pycache__/
 *.pyc
 
-# Transient routing-eval console logs; distilled results live in the baseline summary
-# and the machine-readable benchmark.json anchors.
-evals/baselines/**/*.log
-
 # Probe leftovers. scripts/probe_plugin.py removes its workspace only when the run PASSES —
 # a failing probe deliberately keeps both of these for debugging, which is exactly when a
 # maintainer is least likely to notice them in `git status`.
 .probe-tmp/
 probe-transcript.jsonl
 
-# Acceptance-evidence run logs (probe and pilot-workflow sessions). Raw session streams can
+# Acceptance-evidence run logs (probe sessions). Raw session streams can
 # carry repository content and belong beside the round's other transient evidence, never in
-# the tree; the distilled numbers live in the archived evidence note.
+# the tree.
 .probe-run.log
-.pilot-run.jsonl
-.pilot-run.err
-
-# Failing-run model text from scripts/eval_behavioral.py. Same rule as the run logs above, and the
-# reason this artifact was made separable from benchmark.json in the first place: it exists so a
-# grammar-versus-text call can be made offline from the batch that already ran, which is a local
-# diagnosis, not a committed measurement. A round's conclusions reach the tree as reviewed quotes
-# in its decisions note; the raw dump does not. benchmark.json cannot be ignored the same way — it
-# IS the artifact — which is why retaining every run's text inside it stays opt-in and warned.
-evals/baselines/**/failing-run-evidence.json
 
 .claude/worktrees/
 
 # Codex writes this install marker into a marketplace snapshot when `codex plugin add` runs. On a
-# host whose only copy of the fleet IS that snapshot, the marker sits in the tree permanently, so
-# an unignored one makes `repository.worktree` warn on every run — and a warning is now a non-zero
-# fleet-doctor exit, so the health check would report non-zero forever on that host. A status that
-# is always non-zero teaches an operator to ignore it, which is the same silence the exit code was
-# changed to break. Found on a Linux Codex host within an hour of shipping that change
-# (2026-08-13). Anchored with a leading slash: Codex writes the marker only at the snapshot root,
+# host whose only copy of the fleet IS that snapshot, the marker sits in the tree permanently and
+# would show as an untracked change on every `git status`. Anchored with a leading slash: Codex writes the marker only at the snapshot root,
 # and a slashless pattern matches the basename at EVERY depth — measured, a nested
 # `tests/fixtures/.codex-marketplace-install.json` is reported with the anchor and silently hidden
 # without it. A nested occurrence is somebody's real local addition and must still reach the
@@ -46,12 +28,3 @@ evals/baselines/**/failing-run-evidence.json
 .venv/
 .ruff_cache/
 .pytest_cache/
-
-# Native `claude plugin eval` output. Each run writes aggregate-result.json and report.html under
-# <eval dir>/results/<timestamp>/; the distilled verdicts live in the archived pilot note, and the
-# decision record's phase-4 precondition names this ignore explicitly.
-# `--eval-dir` can point at a single case directory, so results land one level deeper than the
-# suite root; both shapes are ignored.
-evals/native-pilot/results/
-evals/native-pilot/*/results/
-evals/generated/

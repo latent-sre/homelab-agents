@@ -2,11 +2,10 @@
 
 What this repository is building, mapped to the machinery that implements it. This document is
 deliberately mechanism-anchored so it cannot rot into folklore: it names no live roadmap item, no
-count, and no measurement — episodes belong to the dated records under `docs/archive/` — and the
+count, and no measurement — episodes belong in Git history — and the
 fleet validator resolves every concrete path named here against the tree, so a renamed or deleted
-mechanism fails T0 instead of quietly outliving its documentation. `AGENTS.md` carries the
-compressed form every session loads; this file is what a session reads when it needs to know *why*
-a discipline exists before touching it.
+mechanism fails T0 instead of quietly outliving its documentation. `AGENTS.md` links here; this
+file is what a session reads when it needs to know *why* a discipline exists before touching it.
 
 The premise all four strands share: **a session is stateless.** Whatever it learned, decided, or
 verified dies at exit unless it lands in an artifact, and the next session will read that artifact
@@ -17,10 +16,10 @@ consequence of that premise, engineered.
 
 A handoff is complete when the receiving session can act correctly with nothing but the artifact.
 
-- **End-of-task packets.** Every agent definition carries a packet contract — the validator
-  requires the section and pins the `[verified]/[sourced]/[unverified]` evidence stems exactly, so
-  the triad cannot drift file by file. Evidence labels exist because the reader cannot interrogate
-  the writer: a claim's strength must travel with the claim.
+- **End-of-task packets.** Every agent definition carries a packet contract and the
+  `[verified]/[sourced]/[unverified]` evidence labels, by convention — no check enforces either,
+  so review holds the triad to one phrasing. Evidence labels exist because the reader cannot
+  interrogate the writer: a claim's strength must travel with the claim.
 - **Task briefs.** `agents/homelab-engineer.md` supplies the objective, fixed decisions,
   constraints, acceptance, authority, and remaining work when application development crosses to
   `agents/sde-fullstack.md`. The receiver checks substance rather than a digest or receipt shape;
@@ -47,10 +46,6 @@ must converge even though every iteration starts amnesiac.
 - **Status transitions gate authority.** Incident handling holds mitigate-first authority only
   while the situation is an outage; the explicit downgrade to follow-up
   (`skills/lab-incident/SKILL.md`) is the edge that ends the emergency regime.
-- **Paired measurement.** A loop that edits graded text owes before/after runs under identical
-  recorded conditions; the automated reuse check that once answered whether the before side already
-  existed, scripts/eval_baseline.py, was retired 2026-09-01 — a stored capture is now reusable only
-  when a session manually confirms cluster, cases, evaluator, and plugin bytes are unchanged.
 
 ## Graph engineering — authority is typed edges
 
@@ -64,19 +59,11 @@ enforced per host, never inferred from prose.
   `scripts/readonly-guard.py`'s roster; unguarded, "read-only" is a promise, not a control. The
   emitter/consumer splits this creates — an auditor that cannot flip its own findings — are
   deliberate edges, not indirection.
-- **Optional interposition.** `scripts/live-effect-gate.py` defaults to no decision (`host`
-  policy), preserving the host's actual permission flow. Operator-selected `prompt` policy adds
-  `ask` for listed or unparseable live-effect commands from `homelab-engineer`, and `deny` when
-  prompts are suppressed. This is a partial command filter, not a sandbox or a grant of task
-  authority. The guard's agent-identity scoping and structural exclusion from unsupported hosts
-  still apply; its own read-only enforcement is unchanged.
 - **Separated layers.** Authored edges, per-host authority projections, and the routing overlay
   stay three layers kept deliberately apart, because co-membership is not behavioral coverage; the
   offline report that once rendered them together, scripts/capability_graph.py, was retired
   2026-09-01 with no replacement — the separation is now a reviewer discipline, not a generated
   diagram.
-- **The boundary decision.** `docs/decisions/2026-07-31-ai-graph-engineering.md` (accepted) owns
-  what the graph layer is allowed to become and what evidence reopens it.
 
 ## Self-learning — explicit maintainer work
 
@@ -87,8 +74,7 @@ remaining gap, and owner. An unverified observation stays unverified.
 
 The maintainer's retro owns candidate evaluation and promotion when that work is requested. Its
 record vocabulary is writer discipline, not a claim that a retired ledger or packet checker still
-persists or validates state. The scoped retirement and handoff compatibility decision is recorded
-in `docs/decisions/2026-09-07-homelab-operating-flow.md`.
+persists or validates state.
 
 ## The reading rule
 
@@ -104,6 +90,5 @@ do not delete it as prose cleanup. Check the resulting artifact against its actu
 representative task, and state what was not exercised.
 
 Prefer fewer handoffs, one writer per artifact, and one owned record for each fact. Add structure
-only where a remaining handoff, recovery step, or check needs it. The dated records under
-`docs/archive/` retain prior decisions and evidence; consult the relevant record when a proposed
-trim would change that decision.
+only where a remaining handoff, recovery step, or check needs it. Git history retains prior
+decisions and evidence; consult it when a proposed trim would change that decision.

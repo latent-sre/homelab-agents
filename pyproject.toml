@@ -17,7 +17,7 @@ dependencies = []
 [dependency-groups]
 dev = [
     # Lint and formatting gate. Unpinned: CI installs the latest release, so upgrade locally
-    # before trusting a green edit loop (docs/decisions/2026-09-23-float-toolchain-versions.md).
+    # before trusting a green edit loop.
     "ruff",
     # Test runner that executes the existing unittest suite unchanged and adds -k, --durations
     # on every supported Python, and fixtures for the kernel tests.
@@ -50,22 +50,19 @@ select = ["E", "F", "W", "I", "B", "UP"]
 # migrated onto the kernel and cleaned in the same change. Never widen an entry to keep a new
 # finding quiet -- fix the finding or move the module here with the code it actually violates.
 #
-# What is left is no longer a backlog. Each of the three is exempted for a stated reason:
+# What is left is no longer a backlog. Each entry is exempted for a stated reason:
 #
-# * probe_plugin holds the probe's live-model stimulus -- a prompt and a workflow source -- in
+# * probe_plugin holds the probe's live-model stimulus -- its prompts -- in
 #   triple-quoted constants whose long physical lines cannot carry a `noqa`, and cannot be
 #   rewrapped without changing what the probe measures and breaking comparability with the
 #   recorded probe evidence. Reflowing a measurement to satisfy a formatter is the wrong trade.
-# * The two hook scripts' long lines ARE reflowable -- they are comments and code, not output
-#   bytes -- but editing either is a hook change under AGENTS.md's hook playbook and owes a
+# * The hook script's long lines ARE reflowable -- they are comments and code, not output
+#   bytes -- but editing it is a hook change under AGENTS.md's hook playbook and owes a
 #   `probe_plugin.py` run. Spending a live probe to rewrap comments in the fleet's security
 #   boundary is the wrong trade, for the same reason `[tool.ruff.format]` below excludes them.
 #
-# Operator ruling, 2026-09-14: all three exemptions are PERMANENT, and MACH-001's acceptance
-# criterion is amended from "the table is empty" to "every entry states why it is exempt". Adding
-# a fourth entry still requires the same justification -- this is not a reopened backlog.
+# The exemptions are permanent; adding another entry requires the same stated reason.
 [tool.ruff.lint.per-file-ignores]
-"scripts/live-effect-gate.py" = ["E501"]
 "scripts/probe_plugin.py" = ["E501"]
 "scripts/readonly-guard.py" = ["E501"]
 
@@ -74,7 +71,7 @@ known-first-party = ["fleet", "scripts", "tests"]
 
 [tool.ruff.format]
 # Formatting is enforced on the kernel package only until the legacy modules migrate; a
-# whole-tree reformat would bury the migration diffs and touch the two hook scripts for no
+# whole-tree reformat would bury the migration diffs and touch the hook script for no
 # behavioral reason.
 exclude = ["scripts/*", "tests/*"]
 

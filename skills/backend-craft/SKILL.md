@@ -15,9 +15,6 @@ This skill is general-purpose — any backend or API, not just ops tooling — h
 - The API contract (OpenAPI or equivalent) is written/generated before the frontend consumes anything; it is the single source of truth for shapes — and it is **living**: if your implementation diverges, update the contract in the same change. A stale contract is worse than none; parallel builders trust it. Starting fresh? Copy [`assets/openapi.starter.yaml`](assets/openapi.starter.yaml) — problem+json errors, cursor pagination, and Idempotency-Key already worked in.
 - **One error shape everywhere — RFC 9457 `application/problem+json`** — a client should never parse two error formats. Problem details live at the **top level** of the body; never wrap them in a nested `{"error": {...}}` envelope. The shape, worked:
 
-  <!-- The request_id is BACKEND_CANARY in scripts/probe_plugin.py: the probe requires it in
-       both the successful on-demand Read result and the builder's answer. Edit the example
-       freely, but keep the exact request_id value. -->
   ```json
   { "type": "https://example.lab/problems/upstream-timeout",
     "title": "Upstream timeout", "status": 504,

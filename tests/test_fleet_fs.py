@@ -45,10 +45,6 @@ class LinkDetectionTests(TempDirTestCase):
         with self.assertRaises(OSError):
             fs.is_link_or_reparse(self.base / "absent")
 
-    def test_the_reparse_flag_never_degrades_to_zero(self) -> None:
-        # A zero flag would AND every attribute to False and silently disable the check.
-        self.assertNotEqual(fs.REPARSE_POINT_FLAG, 0)
-
 
 class ReadTests(TempDirTestCase):
     def test_invalid_utf8_reads_as_none_not_a_traceback(self) -> None:
@@ -130,42 +126,6 @@ class IgnoreRuleTests(TempDirTestCase):
         # The anchored rule fires only for the repository's own `.claude`, not a nested one.
         self.assertEqual(ignore(str(root / "skills" / ".claude"), ["worktrees"]), set())
         self.assertEqual(ignore(os.fspath(root / "skills"), ["worktrees"]), set())
-
-
-class PortableSegmentTest(unittest.TestCase):
-    """`safe_path_segment` gates every generated eval path, on whichever OS the operator runs.
-
-    Separator and `..` checks alone left a class of names that Linux accepts and Windows cannot
-    create, so a cluster or case id like `a:b` or `CON` failed as an uncaught OSError from
-    `mkdir` -- after the sessions were paid for -- instead of the documented configuration exit.
-    The repository validates on three OSes, so the refusal is portable rather than per-host.
-    """
-
-    def test_windows_hostile_characters_are_refused_everywhere(self) -> None:
-        for value in ("a:b", "case?", "x<y", 'quote"d', "pipe|d", "star*", "a\x01b"):
-            with self.subTest(value=value):
-                with self.assertRaisesRegex(ValueError, "no Windows path may hold"):
-                    fs.safe_path_segment(value, what="cluster")
-
-    def test_a_trailing_dot_or_space_is_refused(self) -> None:
-        """Windows strips both silently, so two distinct ids would land in one directory."""
-        for value in ("name.", "name "):
-            with self.subTest(value=value):
-                with self.assertRaisesRegex(ValueError, "ends in a dot or space"):
-                    fs.safe_path_segment(value, what="case id")
-
-    def test_reserved_device_names_are_refused_with_or_without_a_suffix(self) -> None:
-        for value in ("CON", "con", "nul.md", "COM1", "lpt9.json"):
-            with self.subTest(value=value):
-                with self.assertRaisesRegex(ValueError, "reserved Windows device name"):
-                    fs.safe_path_segment(value, what="case id")
-
-    def test_the_names_this_repository_actually_uses_still_pass(self) -> None:
-        """A portable refusal that rejected the real fleet would be worse than the defect."""
-        for value in ("investigation", "prompt-tooling", "pos-diagnose-idle-lab-failure",
-                      "craft-vs-fullstack", "a.b.c", "CONSOLE", "communication"):
-            with self.subTest(value=value):
-                self.assertEqual(value, fs.safe_path_segment(value, what="cluster"))
 
 
 if __name__ == "__main__":

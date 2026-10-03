@@ -11,7 +11,7 @@ and the file would validate).
 
 Three pieces, kept together on purpose because they used to live in two files and drift:
 
-* `span` / `parse_lines` -- the reader (moved verbatim from `scripts/fleet_records.py`).
+* `span` / `parse_lines` -- the reader.
 * `flow_scalar_defect` -- the strict check a reader that reads to end of line cannot make on its
   own (moved verbatim from `scripts/validate_fleet.py`). It names why a quoted scalar the reader
   accepted would be refused by a conforming parser, or mangled by THIS one.
@@ -292,27 +292,3 @@ def _escape_line_breakers(rendered: str) -> str:
 def yaml_flow_list(values: Iterable[str]) -> str:
     """Emit strings as a YAML flow sequence of double-quoted scalars, by the same argument."""
     return _escape_line_breakers(json.dumps(list(values), ensure_ascii=False))
-
-
-def yaml_single_quoted(value: str) -> str:
-    """Emit a string as a single-quoted YAML scalar, where a backslash is a literal backslash.
-
-    The double-quoted form `yaml_scalar` emits is right for prose, and wrong for a regular
-    expression: a double-quoted YAML scalar processes escapes, so `\\s` must be written `\\\\s` and
-    reaches the pattern only if the reader decodes it. A single-quoted scalar processes nothing
-    but `''`, so the bytes between the quotes ARE the pattern.
-
-    That is not a preference, it is the only form proven to work here: the pilot grader that
-    matched a live dispatch 3/3 used single quotes
-    (`docs/archive/2026-09/native-grader-errored-spawn-2026-09-14.md`). A grader whose pattern the
-    reader mangles does not fail loudly -- it matches nothing, counts zero calls, and a
-    `max: 0` tripwire passes forever while enforcing nothing.
-
-    Refuses a value this form cannot carry rather than emitting one that reads back different.
-    """
-    if "\n" in value or "\r" in value or any(ch in value for ch in _LINE_BREAKERS):
-        raise ValueError(
-            "a single-quoted YAML scalar cannot carry a line break; this value would read back "
-            f"torn in half: {value!r}"
-        )
-    return "'" + value.replace("'", "''") + "'"

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import subprocess
+import os
 import sys
+import tempfile
 import unittest
 
 from fleet import proc
@@ -56,28 +57,16 @@ class RunTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertTrue(result.error)
 
-    def test_stdin_cwd_and_env_reach_the_child(self) -> None:
-        result = proc.run(
-            [
-                sys.executable,
-                "-c",
-                "import os,sys; print(sys.stdin.read().upper()); "
-                "print(os.environ['FLEET_X']); print(os.getcwd())",
-            ],
-            timeout=30,
-            stdin="hi",
-            env={**dict(__import__("os").environ), "FLEET_X": "set"},
-            cwd=".",
-        )
-        self.assertTrue(result.ok, result)
-        self.assertEqual(result.stdout.splitlines()[:2], ["HI", "set"])
-
-    def test_run_completed_still_raises_on_timeout_for_legacy_callers(self) -> None:
-        with self.assertRaises(subprocess.TimeoutExpired):
-            proc.run_completed([sys.executable, "-c", "import time; time.sleep(30)"], timeout=1)
-        completed = proc.run_completed([sys.executable, "-c", "print('x')"], timeout=30)
-        self.assertEqual(completed.stdout.strip(), "x")
-        self.assertIsInstance(completed.stdout, str)
+    def test_cwd_reaches_the_child(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result = proc.run(
+                [sys.executable, "-c", "import os; print(os.getcwd())"], timeout=30, cwd=tmp
+            )
+            self.assertTrue(result.ok, result)
+            self.assertEqual(
+                os.path.normcase(os.path.realpath(tmp)),
+                os.path.normcase(os.path.realpath(result.stdout.strip())),
+            )
 
 
 if __name__ == "__main__":

@@ -43,10 +43,6 @@ def _installed_agent(match: re.Match[str]) -> str:
     return f"the installed `{match.group('name')}` agent definition"
 
 
-def _trusted_fleet_control(match: re.Match[str]) -> str:
-    return f"an operator-provided trusted copy of the fleet's `{match.group('name')}` control"
-
-
 # The namespace is the plugin's, and only Claude resolves it. There is exactly one matcher for
 # a namespaced reference in this repository (`fleet.references`), and the host projection uses
 # it rather than a second grammar: a looser one rewrites the namespace inside a URL or path, and
@@ -181,14 +177,29 @@ TEXT_REWRITES: Final[tuple[Rewrite, ...]] = (
         expect=4,
     ),
     Rewrite(
+        id="text.agent-tool.worktree-isolation",
+        why='`isolation: "worktree"` is an option of Claude\'s Agent tool, and branching from the '
+        "default branch is Claude's behavior for it; another host isolates reps through its own "
+        "mechanism, or not at all.",
+        find='spawn each rep with\n     `isolation: "worktree"` so same-turn reps never share a '
+        "checkout. That worktree branches from\n     the default branch, not your uncommitted "
+        "revision, so the configuration under test reaches a\n     rep only inline.",
+        replace="give each rep\n     its own checkout through the host's isolation mechanism so "
+        "same-turn reps never share one,\n     and pass the configuration under test inline; if "
+        "the host has no such mechanism, say so in\n     the change packet.",
+        expect=2,
+    ),
+    Rewrite(
         id="text.worker-context-inheritance",
         why="Claude's worker isolation is a runtime guarantee; elsewhere the context a worker "
         "receives depends on the host's fork or context mode, so the guarantee becomes an "
         "instruction to choose that mode explicitly.",
         find=r"- \*\*Workers never see the parent conversation\.\*\* A spawned worker gets its "
-        r"definition, the project context, the skills supplied to it, and your prompt — nothing "
-        r"else unless you explicitly fork, resume, or supply it\. Construct exactly the context "
-        r"each one needs; underspecified handoffs are the #1 multi-agent bug\.",
+        r"definition, the project context, the skills supplied to it, and your prompt, plus what "
+        r"the host injects at startup \(the frontmatter reference below lists it, including a git "
+        r"status snapshot no prompt can withhold\) — nothing else unless you explicitly fork, "
+        r"resume, or supply it\. Construct exactly the context each one needs; underspecified "
+        r"handoffs are the #1 multi-agent bug\.",
         replace="- **Never rely on implicit context inheritance.** A spawned worker receives only "
         "what the host's selected context or fork mode supplies. Choose that mode explicitly "
         "when available, and construct exactly the prompt and context the worker needs; "
@@ -454,24 +465,23 @@ AGENT_REWRITES: tuple[Rewrite, ...] = (
         agents=("homelab-engineer",),
     ),
     Rewrite(
-        id="agent.homelab-engineer.managed-gate",
-        why="The canonical gate is Claude's scoped live-effect hook. Codex has a real sandbox "
-        "and approval policy; Copilot has neither and no execute tool, so live effects there "
-        "become an operator handoff. A missing bullet must stop generation rather than promise "
-        "a hook the host cannot install.",
-        find=r"^- \*\*Managed gate:\*\*.*?(?=\n- \*\*|\n\n)",
+        id="agent.homelab-engineer.host-controls",
+        why="The canonical bullet describes Claude Code's permission mode. Codex has a sandbox "
+        "and approval policy; Copilot and VS Code run the execute tool under their own "
+        "approval prompts and settings. A missing bullet must stop generation rather than "
+        "describe a control the host does not have.",
+        find=r"^- \*\*Host controls:\*\*.*?(?=\n- \*\*|\n\n)",
         replace={
-            "codex": "- **Managed gate:** use Codex's actual sandbox and approval policy. "
+            "codex": "- **Host controls:** use Codex's actual sandbox and approval policy. "
             "Traverse any required\n  prompt and respect denials. An available "
             "`codex execpolicy check` may clarify a rule;\n  it is not a mandatory extra gate. "
             "When effective host permissions allow the authorized\n  action without prompting, "
             "execute normally. Do not invent a prompt requirement or\n  route around an actual "
             "restriction.",
-            "copilot": "- **Managed gate:** this generated profile has no execute tool and "
-            "cannot install a scoped\n  live-effect hook on Copilot or VS Code. Live effects "
-            "therefore require operator handoff: give\n  the prepared command and mark execution "
-            "pending. Do not substitute another tool to evade\n  the profile's execution "
-            "restriction.",
+            "copilot": "- **Host controls:** on Copilot and VS Code your terminal commands run "
+            "under the host's\n  own approval prompts and settings; the fleet adds no check of "
+            "its own. Traverse actual\n  prompts without duplicating them in chat. Never change "
+            "those settings or substitute another\n  tool to escape a restriction.",
         },
         expect=2,
         regex=True,
@@ -481,9 +491,8 @@ AGENT_REWRITES: tuple[Rewrite, ...] = (
     ),
     Rewrite(
         id="agent.homelab-engineer.standing-policy",
-        why="The standing-policy bullet describes Claude's allow rules. Codex has operator/host "
-        "rules of its own; on Copilot no permission rule can add the execute tool this profile "
-        "lacks, so the handoff must report a missing capability, not a missing decision.",
+        why="The standing-policy bullet describes Claude's allow rules; Codex has operator/host "
+        "rules of its own. On Copilot the canonical bullet already holds as written.",
         find=r"^- \*\*Standing policy:\*\*.*?(?=\n- \*\*|\n\n)",
         replace={
             "codex": "- **Standing policy:** respect the effective operator/host rules. An allow "
@@ -491,11 +500,9 @@ AGENT_REWRITES: tuple[Rewrite, ...] = (
             "task scope. Do not require\n  a root-owned rule or edit policy to authorize your "
             "own work. Full access does not authorize\n  unrelated work or an undisclosed "
             "destructive consequence.",
-            "copilot": "- **Standing policy:** host permission rules do not add an execute tool "
-            "to this profile.\n  Retain the user's authorization in the handoff; report the "
-            "missing execution capability,\n  not a missing user decision.",
         },
-        expect=2,
+        hosts=("codex",),
+        expect=1,
         regex=True,
         dotall=True,
         multiline=True,

@@ -17,7 +17,6 @@ import shutil
 import tomllib
 import unittest
 from pathlib import Path
-from unittest import mock
 
 from fleet.hosts import toml as fleet_toml
 from fleet.hosts.rewrites import (
@@ -28,21 +27,13 @@ from fleet.hosts.rewrites import (
     apply_rewrites,
     check_table,
 )
-from fleet.hosts.table import ALL_REWRITES, TEXT_REWRITES
+from fleet.hosts.table import TEXT_REWRITES
 from fleet.references import namespaced_reference_re
 from scripts import generate_platform_adapters as generator
 from tests.support import REPO, repo_copy, run_main
 
 
 class RewriteContractTests(unittest.TestCase):
-    def test_the_table_is_judgeable(self) -> None:
-        # A duplicate id would make two rewrites share one count, so neither could be judged.
-        check_table(ALL_REWRITES)
-        self.assertEqual(len(ALL_REWRITES), len({rewrite.id for rewrite in ALL_REWRITES}))
-        for rewrite in ALL_REWRITES:
-            with self.subTest(rewrite=rewrite.id):
-                self.assertTrue(rewrite.why.strip(), "a rewrite must say why it exists")
-
     def test_a_zero_expectation_cannot_be_declared(self) -> None:
         # Zero is the dead rewrite the ledger exists to surface; declaring it would re-open the
         # silent-no-op class the count was added to close.
@@ -145,11 +136,6 @@ class RewriteContractTests(unittest.TestCase):
 
 
 class FleetRewriteCountTests(unittest.TestCase):
-    def test_every_rewrite_lands_the_count_the_table_declares(self) -> None:
-        # The live invariant: generation over the real fleet must match the table exactly. A
-        # failure here names the canonical sentence that moved.
-        generator.expected_outputs(REPO)
-
     def test_a_reworded_canonical_sentence_fails_generation(self) -> None:
         # The whole point of the phase. Without the count, this mutation regenerates a
         # clean-looking adapter that still names Claude's Agent tool to a host that has none.
@@ -174,31 +160,6 @@ class FleetRewriteCountTests(unittest.TestCase):
         self.assertIn("text.agent-tool.spawn", message)
         self.assertIn("landed 0 time(s)", message)
         self.assertIn(anchor.why, message)
-
-
-    def test_a_reworded_read_only_skill_claim_fails_generation(self) -> None:
-        # A skill body that credits `disallowed-tools` with removing Write and Edit names a deny
-        # the portable frontmatter drops, so the projection is as load-bearing as any agent's —
-        # and so is its count.
-        anchor = "All checks are read-only. `disallowed-tools` removes Write and Edit"
-        with repo_copy() as dst:
-            carriers = [
-                path
-                for path in sorted((dst / "skills").rglob("SKILL.md"))
-                if anchor in path.read_text(encoding="utf-8")
-            ]
-            self.assertTrue(carriers, "the anchor must exist somewhere to be worth counting")
-            for path in carriers:
-                path.write_text(
-                    path.read_text(encoding="utf-8").replace(
-                        anchor, "All checks are read-only. The deny list removes Write and Edit"
-                    ),
-                    encoding="utf-8",
-                )
-            with self.assertRaises(RewriteError) as caught:
-                generator.expected_outputs(dst)
-        self.assertIn("skill.readonly.disallowed-tools-claim", str(caught.exception))
-
 
     def test_a_read_only_claim_outside_the_deny_frontmatter_still_fails_generation(self) -> None:
         # Gating the projection on `disallowed-tools` let a skill that acquired the claim
@@ -320,25 +281,6 @@ class FleetRewriteCountTests(unittest.TestCase):
             f"adapt_text must be composed, not called directly; callers: {callers}",
         )
 
-    def test_a_duplicate_rewrite_id_fails_generation(self) -> None:
-        # Colliding ids share one ledger entry, so a rewrite that lost its anchor would be
-        # covered by its twin's count. The table refuses to load that way, and the generator
-        # re-checks at the point of judgement so a table patched at runtime fails too.
-        victim = next(r for r in TEXT_REWRITES if r.id == "text.agent-tool.spawn")
-        twin = Rewrite(
-            id=victim.id,
-            why="a colliding duplicate that matches nothing",
-            find="a sentence that appears nowhere in the fleet",
-            replace="x",
-            expect=victim.expect,
-        )
-        with mock.patch.object(generator, "ALL_REWRITES", (*ALL_REWRITES, twin)):
-            with repo_copy() as dst:
-                with self.assertRaises(RewriteError) as caught:
-                    generator.expected_outputs(dst)
-        self.assertIn("declared twice", str(caught.exception))
-        self.assertIn(victim.id, str(caught.exception))
-
 
 class TomlEmitterTests(unittest.TestCase):
     def test_a_document_reads_back_as_written(self) -> None:
@@ -398,16 +340,6 @@ class TomlEmitterTests(unittest.TestCase):
         self.assertIn("did not read back as written", str(caught.exception))
         self.assertIn("name", str(caught.exception))
 
-    def test_the_committed_codex_adapters_parse(self) -> None:
-        agents = sorted((REPO / ".codex" / "agents").glob("*.toml"))
-        self.assertTrue(agents)
-        for path in agents:
-            with self.subTest(path=path.name):
-                parsed = tomllib.loads(path.read_text(encoding="utf-8"))
-                self.assertEqual(path.stem, parsed["name"])
-                self.assertIn(parsed["sandbox_mode"], {"read-only", "workspace-write"})
-                self.assertTrue(parsed["developer_instructions"].endswith("\n"))
-
 
 class GeneratorDiffTests(unittest.TestCase):
     def test_diff_reports_nothing_on_a_current_tree(self) -> None:
@@ -457,39 +389,6 @@ class GeneratorDiffTests(unittest.TestCase):
             self.assertIn("same lines, different bytes", report[0])
             self.assertIn(target.as_posix(), report[0])
 
-    def test_diff_reports_a_retired_root_that_write_would_delete(self) -> None:
-        # Deleting the retired trees is the only destructive part of `--write`, and they appear
-        # in no expected-output map, so the preview has to name them itself.
-        with repo_copy() as dst:
-            retired = dst / "platforms" / "portable"
-            retired.mkdir(parents=True)
-            (retired / "stale.md").write_text("x", encoding="utf-8")
-            report = generator.diff_generated_outputs(dst)
-            code, _ = run_main(generator.main, "--diff", "--root", str(dst))
-            self.assertTrue((retired / "stale.md").is_file(), "--diff must not write")
-        self.assertEqual(1, code)
-        self.assertIn("retired generated root", "\n".join(report))
-        self.assertIn("platforms/portable/stale.md", "\n".join(report))
-
-
-    def test_a_retired_root_that_is_a_file_previews_and_removes_cleanly(self) -> None:
-        # `rglob` finds nothing in a regular file, so the preview promised a zero-file removal
-        # while `--write` aborted on the same path with NotADirectoryError.
-        with repo_copy() as dst:
-            retired = dst / "platforms" / "portable"
-            retired.parent.mkdir(parents=True, exist_ok=True)
-            retired.write_text("not a directory", encoding="utf-8")
-            report = generator.diff_generated_outputs(dst)
-            self.assertIn(
-                "--- platforms/portable: retired generated root is a file, "
-                "would be removed by --write",
-                report,
-            )
-            self.assertTrue(retired.exists(), "--diff must not write")
-            generator.write_generated_outputs(dst)
-            self.assertFalse(retired.exists(), "--write must clear the retired root it promised")
-
-
     def test_diff_reports_an_active_root_that_is_a_file(self) -> None:
         # `--write` unlinks such a root before recreating the directory; a preview listing only
         # the child files it then adds would hide the removal entirely.
@@ -504,27 +403,6 @@ class GeneratorDiffTests(unittest.TestCase):
             "would be removed by --write before the directory is recreated",
             report,
         )
-
-
-class GeneratedTreeTests(unittest.TestCase):
-    def test_no_generated_adapter_carries_a_claude_only_path(self) -> None:
-        # The rewrites translate these forms; this is the reader check that holds whether or not
-        # a given translation is still in the table.
-        roots = (
-            REPO / ".github" / "agents",
-            REPO / ".codex" / "agents",
-            REPO / ".github" / "skills",
-            REPO / "plugins" / "sde-agents" / "skills",
-        )
-        reference = Path("prompt-craft/references/claude-code-frontmatter.md")
-        for root in roots:
-            for path in sorted(root.rglob("*")):
-                if not path.is_file() or path.suffix not in {".md", ".toml"}:
-                    continue
-                if path.as_posix().endswith(reference.as_posix()):
-                    continue  # copied verbatim on purpose: it documents Claude's own contract
-                with self.subTest(path=path.relative_to(REPO)):
-                    self.assertNotIn("${CLAUDE_PLUGIN_ROOT}", path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

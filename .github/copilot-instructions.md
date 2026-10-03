@@ -22,8 +22,8 @@ the highest-value findings in this repo:
 - **An unknown frontmatter key does not error** — it silently drops whatever it configured. Any new
   key must be a real Claude Code field.
 - **`memory:` auto-enables Read/Write/Edit**, so it must never appear on a read-only agent.
-- **Descriptions drive routing.** A `description:` edit changes which component fires; it owes a
-  before/after run of the overlapping cluster in `evals/routing/`, not an eyeball.
+- **Descriptions drive routing.** A `description:` edit changes which component fires; try the
+  requests it should and should not catch before and after.
 - **Canonical cross-references must be namespaced** (`sde-agents:code-reviewer`) and must resolve.
   Generated hosts use bare names; the generator owns that translation.
 - **Every file under a skill's `references/` must be linked from its `SKILL.md`** by a
@@ -43,17 +43,16 @@ the highest-value findings in this repo:
 
 Suggestions that violate these are not improvements — please don't raise them:
 
-- **Keep isolated hooks dependency-free.** `scripts/readonly-guard.py` and
-  `scripts/live-effect-gate.py` run with `python -I -S`, so their imports stay in the standard
-  library. Other tooling and tests may use dependencies justified by their actual execution,
+- **Keep isolated hooks dependency-free.** `scripts/readonly-guard.py` runs
+  with `python -I -S`, so its imports stay in the standard library. Other tooling and tests may use dependencies justified by their actual execution,
   packaging, and maintenance needs.
 - **Never repair a generated copy directly.** Fix `agents/`, `skills/`, or
   `scripts/generate_platform_adapters.py`, then regenerate all hosts so one fix cannot create three
   subtly different fleets.
 - **Model aliases only** (`inherit`, `haiku`, `sonnet`, `opus`, `fable`) — a pinned model ID goes
   stale silently, so it is banned even though it is a valid runtime value.
-- **Evidence-label stems are pinned verbatim** (`**[verified]** (you ran or observed it)` and its
-  siblings). Rewording them for style breaks a validator check that exists to stop drift.
+- **Evidence-label stems stay verbatim** (`**[verified]** (you ran or observed it)` and its
+  siblings) by convention; no check enforces them, so flag any rewording in review.
 - **Some files deliberately paraphrase others**, each declaring which side wins on conflict. When
   two files disagree, the finding is "the paraphrase drifted", and the fix goes in the paraphrase —
   never the declared source.

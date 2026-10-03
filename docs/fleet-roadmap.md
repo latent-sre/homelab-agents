@@ -6,8 +6,10 @@
 > do not independently add work to the queue.
 
 This file will contain only unfinished, blocked, or explicitly deferred work for the current
-fleet. Landed implementation history and donor-by-donor adjudication belong in `docs/archive/`;
-architecture decisions and rejected alternatives belong in `docs/decisions/`.
+fleet. Landed history lives in Git. Paths under `docs/archive/` and `docs/decisions/` below name
+files removed on 2026-10-03; read one with `git show 690f28f:<path>`. Routing evals were
+removed the same day: where an item below asks for a routing run or round, a by-hand check
+of the affected requests before and after replaces it.
 
 ## Item contract
 
@@ -24,17 +26,12 @@ Every roadmap item carries:
 | Acceptance | Evidence required to close the item |
 | Next action | The smallest safe step that moves it forward |
 
-An item leaves this file when its acceptance evidence is committed. The source decision remains;
-Git history and archived reviews retain the implementation detail.
+An item leaves this file when its acceptance evidence is committed; Git history retains the
+implementation detail.
 
 Small items (the `Small items` section under Current work) are the deliberate exception: one
 line carrying only ID, the observable fix, and source — the tier that keeps tiny defects in this
 single tracker instead of leaking into memory or issue lists.
-
-Every item below was cut to these fields on 2026-09-01; the narration, dated addenda, and
-round-by-round detail removed in that pass live verbatim in
-[`roadmap-history-2026-09-01.md`](archive/2026-09/roadmap-history-2026-09-01.md), linked from
-each item's Source.
 
 ## Current work
 
@@ -48,7 +45,7 @@ each item's Source.
 **Outcome:** One principal agent owns system design and strategic architecture, with conditional
 depth and preserved builder ownership, document authority, and host controls.
 
-**Source:** [Design-agent merger](decisions/2026-09-07-design-agent-merge.md).
+**Source:** Design-agent merger (`docs/decisions/2026-09-07-design-agent-merge.md`).
 
 **Prerequisites:** Regenerated adapters, current inventories, offline validation, and independent
 review of the surviving authority and routing contracts.
@@ -60,7 +57,7 @@ treat source-following exercises as native routing or enforcement evidence.
 contract; paired ladder and proportionality routing and the native hook probe have fresh evidence
 with any failures or inconclusive criteria explicitly dispositioned before publication.
 
-**Evidence disposition:** The [2026-09-08 outcome trials](archive/2026-09/agent-outcomes-2026-09-08/README.md)
+**Evidence disposition:** The 2026-09-08 outcome trials (`docs/archive/2026-09/agent-outcomes-2026-09-08/README.md`)
 passed both system and both strategic repetitions. Both embedded consults had a material partial:
 compromised deployment-access recovery in one, and CA-rollover validation order in the other.
 The source-following architecture aggregate does not pass; no source correction or native
@@ -70,143 +67,6 @@ activation claim is implied by these observations.
 authentication, capture the untouched main baseline and final candidate under the decision's
 identical routing conditions, and run the native hook probe. Keep host synchronization and
 publication separate from this source-level evidence.
-
-#### MACH-001 — rebuild the fleet machinery on one kernel
-
-**Status:** `active` — the decision record was accepted 2026-09-13 after phase 0 merged (PR #187).
-Phase 1 (rules, policy, findings, CLI, rosters as data) merged in PR #188; phase 2 (host
-projections as a counted rewrite table, the verified Codex TOML emitter, `--diff`) is implemented
-on `claude/machinery-rewrite-fresh-ar08n6` and merged as PR #189. Phase 3 (probes and doctor on
-the kernel, `hypothesis` property tests, PROBE-006 closed) is implemented on the same branch,
-restarted from `main`. Phase 4 (routing evals handed to `claude plugin eval`, the verdict kept
-fleet-side, provenance moved onto the kernel) merged as PR #191. Phase 5 (`hooks/hooks.json`
-rendered from the guard and gate rosters by `fleet/hooks.py` and byte-checked by the adapter
-generator) is implemented on the same branch, restarted from `main`. All five phases are then
-implemented. The lint ratchet held 27 file entries suppressing 147 findings (counted 2026-09-14
-by removing the table and re-running `ruff check .`; an earlier figure of "12 file entries" in
-this item was wrong). It is now **three entries, all `E501`, and none of them a backlog** — the
-reason for each is beside it in `pyproject.toml`.
-
-**Outcome:** Every maintainer instrument under `scripts/` runs on the `fleet/` kernel with one
-implementation per primitive, policy held as data, structured findings, and the routing runner
-retired to native `claude plugin eval`; the hooks stay single-file and dependency-free.
-
-**Source:** [Machinery rewrite decision](decisions/2026-09-13-machinery-rewrite.md).
-
-**Prerequisites:** Phase order as the record states; phase 4 additionally needs CI's CLI at
-≥ 2.1.269 (it now floats on latest) with a probe re-run on that CLI, and one live native eval run.
-
-**Constraints:** No runtime dependency in `fleet/`; hooks never import it; each phase keeps the
-generated adapters byte-identical and every existing verdict unchanged unless its PR records the
-change; the routing runner is not wired onto the kernel before it retires (provenance hole).
-
-**Phase 4 obligation — discharged 2026-09-14, with the disposition stated per test rather than
-in aggregate**. Two counts here were wrong and are corrected: a first draft claimed all were
-re-homed (wrong for four), and the total was given as thirteen while the groups below enumerate
-**fourteen** — the drive-letter test was deferred separately from the original thirteen and
-belongs in the same disposition:
-
-- Re-homed to `FrozenPluginTest` in `tests/test_fleet_provenance.py`, driven directly instead of
-  through a runner: `test_routing_executes_frozen_plugin_when_source_changes_and_restores`,
-  `test_routing_refuses_frozen_plugin_mutated_by_a_session`,
-  `test_transient_private_snapshot_mutation_is_a_host_sandbox_boundary`.
-- Re-homed to `MainIntegrationTest` in `tests/test_eval_routing.py`, which drives `main` with the
-  native harness mocked and mutation-proves both guards:
-  `test_routing_benchmark_writes_complete_provenance`,
-  `test_routing_benchmark_refuses_plugin_content_changed_during_run`,
-  `test_a_cluster_edited_mid_batch_into_a_bad_target_exits_two`.
-- Deleted with the machinery the phase-4 amendment drops (evaluator self-binding):
-  `test_clean_room_classifier_is_loaded_once_per_evaluator_process`,
-  `test_clean_room_identity_hashes_the_exact_compiled_source_buffer`,
-  `test_standalone_runner_is_bound_to_its_actual_compiled_source_buffer`,
-  `test_loaded_a_disk_b_identity_records_the_executing_routing_buffer`,
-  `test_registry_survives_drive_letter_case_drift`.
-- Deleted because the MECHANISM they drove is now the platform's, not because the checks are
-  gone: the three registration and auth-abort tests
-  (`test_routing_batch_aborts_auth_failure_without_writing_benchmark`,
-  `test_routing_batch_requires_every_selected_agent_to_be_registered`,
-  `test_routing_batch_cancels_queued_runs_after_registration_failure`). An earlier draft of this
-  line said the fleet "can no longer observe a failed registration", which is wrong and was
-  caught in review: the shipped runner reconstructs the registered surface from each trace and
-  aborts the batch through `RegistrationIncomplete` at exit 2, and the authentication abort is
-  likewise retained — both are exercised by
-  `CodexTenthRoundTest.test_an_unregistered_component_aborts_the_batch_rather_than_one_run`,
-  `CodexSecondRoundTest.test_an_authentication_failure_aborts_the_batch`, and the
-  missing-registration tests in `CodexReviewFindingsTest`, `CodexSecondRoundTest`,
-  `CodexFourthRoundTest` and `CodexEighthRoundTest`. What genuinely moved is **queue
-  cancellation**: the fleet no longer spawns the sessions, so there is no queue of its own to
-  cancel — the harness owns that, and the fleet's remaining obligation, never writing a benchmark
-  for a measurement that did not happen, is covered by
-  `test_an_unreadable_native_result_is_a_measurement_failure_not_a_verdict`.
-
-The original list is kept below so a reviewer can check that disposition against it.
-
-**Phase 4 original obligation — thirteen runner tests not yet re-homed.** `fleet/provenance.py` took
-the runner's identity machinery and 21 of its tests. Thirteen more drove that machinery through
-the runner's `main` and cannot run until the thin replacement exists, and four of those test the
-evaluator self-binding that phase 4 deliberately drops (see the decision record's phase-4
-amendment). Phase 4 does not merge until each is re-homed against the new entry point or deleted
-with its reason recorded:
-
-`test_routing_benchmark_writes_complete_provenance`,
-`test_routing_benchmark_refuses_plugin_content_changed_during_run`,
-`test_a_cluster_edited_mid_batch_into_a_bad_target_exits_two`,
-`test_routing_batch_aborts_auth_failure_without_writing_benchmark`,
-`test_routing_batch_requires_every_selected_agent_to_be_registered`,
-`test_routing_batch_cancels_queued_runs_after_registration_failure`,
-`test_routing_executes_frozen_plugin_when_source_changes_and_restores` and
-`test_routing_refuses_frozen_plugin_mutated_by_a_session` (both now covered directly by
-`FrozenPluginTest`, so these two are re-homed already),
-`test_transient_private_snapshot_mutation_is_a_host_sandbox_boundary`; and the self-binding five:
-`test_clean_room_classifier_is_loaded_once_per_evaluator_process`,
-`test_clean_room_identity_hashes_the_exact_compiled_source_buffer`,
-`test_standalone_runner_is_bound_to_its_actual_compiled_source_buffer`,
-`test_loaded_a_disk_b_identity_records_the_executing_routing_buffer`,
-`test_registry_survives_drive_letter_case_drift`.
-
-**Acceptance:** Per phase, the oracle named in the record's phase table, plus green tiers.
-**Amended by operator ruling on 2026-09-14**: the criterion was "the lint ratchet table in
-`pyproject.toml` is empty"; it is now "every remaining entry states why it is exempt". MACH-001
-therefore closes when the phase-5 PR merges. Adding a fourth entry still owes the same
-justification — this is not a reopened backlog.
-
-All three are ruled permanent, and none of them is a cleanup anyone skipped:
-
-- `scripts/probe_plugin.py` — its long lines live inside the triple-quoted prompt and workflow
-  source the probe sends to a live model. A physical line inside a triple-quoted string cannot
-  carry a `noqa`, and rewrapping it changes the stimulus, so the recorded probe evidence would no
-  longer describe the same measurement. The exemption is permanent and the entry is
-  documentation, not debt.
-- `scripts/readonly-guard.py` and `scripts/live-effect-gate.py` — 11 long lines between them, all
-  comments and code rather than emitted bytes, so all reflowable with no behavior change. But
-  editing either is a hook change under `AGENTS.md`'s hook playbook and owes a
-  `scripts/probe_plugin.py` run. Spending that run to rewrap comments in the fleet's security
-  boundary is the wrong trade, for the same reason `[tool.ruff.format]` already excludes the hook
-  scripts — so the exemption is permanent and no probe is owed for it.
-
-**Evidence disposition:** The specifier claim was re-probed on 2.1.270 on 2026-09-13 (three
-runs; the specifier restricts nothing, the validator's rule stands) and the CI pin moved to
-2.1.270 with the probe re-run — [pin refresh evidence](archive/2026-09/pin-refresh-evidence-2026-09-13.md).
-
-**Phase 5 found a live defect in the check it replaces.** The validator's `plugin.hooks.gate`
-cross-check took the *last* `case` block as the gate's no-interpreter fallback. The gate nests a
-`case "$IN"` inside that fallback to separate a prompt-suppressed session from an interactive one,
-and the nested block names `homelab-engineer` only inside an English denial reason — so the rule
-was reading prose as a roster. Measured: replacing the gate's real `case "$SQ"` roster with a name
-that gates nobody left `validate_fleet.py` at exit 0 and `tests.test_fleet_rules` green; only
-`tests/test_hook_wiring.py`, which executes the shell string, caught it (11 failures). The rule now
-selects each block by the variable that opened it, with the mutation pinned in
-`tests/test_fleet_hooks.py`. The shipped hook was never wrong; the check was.
-
-**Next action:** Open the phase-5 PR (`fleet/hooks.py` renders both roster copies from the hook
-scripts' own constants; `hooks/hooks.json` joins the generator's byte-checked outputs as a
-standalone `GENERATED_FILES` entry rather than a deletable root; the gate cross-check defect above
-is fixed). **The probe is not run for this phase, and the reason is on the record**: the shipped
-`hooks/hooks.json` is byte-identical to the file the last probe ran against (3,035 bytes), so a
-run would re-prove an existing fact, which proportionality forbids. What changed is where those
-bytes come from, and byte-identity is the stronger evidence for that than a live session would
-be. The next probe — owed before the next release — is the first to exercise a machine-produced
-hook file, and that is the run to read carefully. Then the ratchet.
 
 #### LABFLOW-001 — simplify the homelab operating path
 
@@ -218,14 +78,14 @@ retains its recorded coverage gaps. Publication is authorized; host installation
 **Outcome:** Routine work keeps useful evidence and ownership without mandatory Learning forms,
 digest receipts, repeated approval proposals, or unrelated builder preloads.
 
-**Source:** [Operating-flow decision](decisions/2026-09-07-homelab-operating-flow.md) and
-[2026-09-12 proportional controls](decisions/2026-09-12-proportional-homelab-controls.md).
+**Source:** Operating-flow decision (`docs/decisions/2026-09-07-homelab-operating-flow.md`) and
+2026-09-12 proportional controls (`docs/decisions/2026-09-12-proportional-homelab-controls.md`).
 
 **2026-09-12 follow-up:** Items 1–8 are implemented on `fix/proportional-homelab-controls` after
 base `10b6131d2605`: proportional verification/snapshots, optional live-effect interposition,
 operating triage, and review-policy corrections. Offline and scenario checks passed; independent
 review has no remaining material findings. The three native hook checks could not execute because
-Claude OAuth expired. [Evidence](archive/2026-09/proportional-controls-evidence-2026-09-12.md)
+Claude OAuth expired. Evidence (`docs/archive/2026-09/proportional-controls-evidence-2026-09-12.md`)
 retains exact coverage and source identities; no installed-state claim is made.
 
 **Prerequisites:** Main-based implementation; existing host permission controls and roster retained.
@@ -246,14 +106,10 @@ did not inspect or change hosted PRs or installations.
 recorded as not transferring.
 
 **Source:**
-[AI graph engineering decision](decisions/2026-07-31-ai-graph-engineering.md) ·
-[2026-07-31 independent review](archive/2026-07/graph-decision-independent-review-2026-07-31.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#ctx-001-modernize-fleet-definitions-for-claude-5-generation-context-rules)
+AI graph engineering decision (`docs/decisions/2026-07-31-ai-graph-engineering.md`) ·
+2026-07-31 independent review (`docs/archive/2026-07/graph-decision-independent-review-2026-07-31.md`)
 
-**Prerequisites:** EVAL-003's grading design (negatives, clean-room); one pilot definition before
-any fleet-wide edit. EVAL-003 itself still describes a pinned behavioral suite as part of that
-design — the behavioral harness retired 2026-09-02, so this item's acceptance below no longer
-requires one.
+**Prerequisites:** One pilot definition before any fleet-wide edit.
 
 **Acceptance:** For every edited definition: paired before/after routing runs under identical
 recorded conditions, no negative-case regression, a written stop rule if the pilot regresses,
@@ -273,8 +129,7 @@ that skill is explicit-only maintainer work and is no longer a per-spawn consume
 repeating the cut or restoring automatic learning scans.
 
 **Source:**
-[operating-flow implementation and limits](decisions/2026-09-07-homelab-operating-flow.md) ·
-[original acceptance history](archive/2026-09/roadmap-history-2026-09-01.md#ctx-003-shrink-the-per-spawn-preload-footprint-without-hollowing-the-probes-proof)
+operating-flow implementation and limits (`docs/decisions/2026-09-07-homelab-operating-flow.md`)
 
 **Evidence disposition:** Adapter regeneration and validator parity passed. The bounded native
 builder capture demonstrated the requested preload/read/absence canaries; scorer regressions are
@@ -285,7 +140,10 @@ are still owed. Doctor listing-budget and installed-agent drift warnings remain 
 installation or warning waiver is implied by publication of LABFLOW-001. The 2026-09-13 probe on
 CLI 2.1.270 FAILED the conditional-reference check once (the builder wrote an API client without
 reading `references/consuming-apis.md`), while the three preload canaries were inconclusive —
-[evidence](archive/2026-09/pin-refresh-evidence-2026-09-13.md); a single run, not a rate.
+evidence (`docs/archive/2026-09/pin-refresh-evidence-2026-09-13.md`); a single run, not a rate. Both
+checks were removed from the probe on 2026-10-03, so no instrument now measures builder preload or
+conditional-reference reads; "a complete green runtime probe" here means the guard and loading
+checks only.
 
 **Next action:** Compare the existing LABFLOW-001 evidence with those remaining checks, bind any
 new measurement to immutable before/after plugin bytes, and run only the missing checks. Do not
@@ -298,18 +156,18 @@ roster cut that closed CTX-002 never landed, and the listing measures ~9,174 cha
 the 8,000-character assumption, so a hard rule would fail today.
 
 **Outcome:** Three locks: a calibrated `skillListingBudgetFraction` in lab repositories'
-settings, the doctor's listing-budget warning promoted to a hard validator rule, and a
+settings, a skill-listing budget check in the validator, and a
 generated-adapter size tripwire ahead of GitHub's 30,000-char cap.
 
 **Source:**
-[2026-08-16 skill-listing investigation](archive/2026-08/skill-listing-investigation-2026-08-16.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#ctx-004-lock-the-context-wins-in-settings-lines-validator-promotion-copilot-cap)
+2026-08-16 skill-listing investigation (`docs/archive/2026-08/skill-listing-investigation-2026-08-16.md`)
 
 **Prerequisites:** ROSTER-001 for the validator promotion; the settings lines and the
 Copilot-cap tripwire have none.
 
 **Acceptance:** Settings lines landed with each environment's live-probe calibration; the
-promoted validator rule with a failing fixture; the Copilot-cap tripwire with a firing test;
+listing-budget check with a test that fails over budget; the Copilot-cap tripwire with a firing
+test;
 regenerated adapters; green tiers.
 
 **Next action:** Ship the Copilot-cap tripwire first — prerequisite-free, small, and its
@@ -325,8 +183,8 @@ happened.
 **Outcome:** The shipped roster matches the audience ruling, or the ruling is amended to the
 roster that ships, and the Claude skill listing fits the 8,000-character budget at 200k context.
 
-**Source:** [Single-operator audience decision](decisions/2026-09-02-single-operator-audience.md) ·
-[design-agent merger](decisions/2026-09-07-design-agent-merge.md).
+**Source:** Single-operator audience decision (`docs/decisions/2026-09-02-single-operator-audience.md`) ·
+design-agent merger (`docs/decisions/2026-09-07-design-agent-merge.md`).
 
 **Prerequisites:** None.
 
@@ -335,9 +193,8 @@ design-agent merger before deleting it. If `eng-ladder` is kept, LADDER-002's wo
 ("the roster cut deletes it") lapses: reopen LADDER-002 or re-justify it. A description edit in
 the surviving roster owes routing evals.
 
-**Acceptance:** `agents/` and `skills/` match the ruled roster; `fleet_doctor.py`'s
-`repository.skill-listing-budget` passes; routing clusters for removed components are retired;
-green tiers.
+**Acceptance:** `agents/` and `skills/` match the ruled roster; the skill listing fits the
+8,000-character budget; green tiers.
 
 **Next action:** Operator rules on `eng-ladder` (delete per the audience ruling, or keep it and
 amend that ruling's roster); then open the cut from main.
@@ -352,8 +209,7 @@ denial, and exclusion.
 this item is purely the enforcement shell.
 
 **Source:**
-[roster expansion design](archive/2026-07/roster-expansion-design.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#labsec-002-add-a-guard-enforced-lab-inspector)
+roster expansion design (`docs/archive/2026-07/roster-expansion-design.md`)
 
 **Prerequisites:** None — LABSEC-001, DEPLOY-001, GOV-001, EVAL-001 landed.
 
@@ -365,29 +221,6 @@ authority.
 **Next action:** Open a bounded spec/plan, starting with the smallest read-only command surface
 and a threat review of every new verb/flag.
 
-#### LANE-001 — Codex-lane onboarding discoverability
-
-**Status:** `ready` — spec approved 2026-08-09; host-neutral packaging landed in PR #107, but no
-round is running and no Codex host evidence exists yet.
-
-**Outcome:** On a Codex session with the fleet installed, plain-language onboarding intent
-yields a model recommendation of the explicit workflow, never implicit execution, with the
-Claude lane's measured routing rates unaffected.
-
-**Source:**
-[LANE-001 spec](superpowers/specs/lane-001-codex-onboarding-discoverability.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#lane-001-codex-lane-onboarding-discoverability)
-
-**Prerequisites:** The spec's Phase 0 (two SEC-01 one-liners), still blocking; waiving it takes
-an operator-approved spec amendment.
-
-**Acceptance:** The spec's list: Phase 0's one-liners (or amendment); the paired `homelab-ops`
-before/after capture at merge base `4fef0ce`; a recorded Codex smoke run against a released
-artifact, filed through the ledger's release/retest rule.
-
-**Next action:** Operator runs the two Phase-0 one-liners on the SEC-01 Linux host, then
-captures the paired routing run; the smoke run follows the next release.
-
 #### GATE-007 — bind a tier to each declared effect, or say one response carries one tier
 
 **Status:** `ready` — review-reported on PR #164; not fixed there because the fix is a
@@ -398,8 +231,7 @@ unclassified, closing the gap where a Tier 3 deletion could pass a safety eval d
 Tier 2.
 
 **Source:**
-[homelab live-effect gate decision](decisions/2026-08-29-homelab-live-effect-gate.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#gate-007-bind-a-tier-to-each-declared-effect-or-say-one-response-carries-one-tier)
+homelab live-effect gate decision (`docs/decisions/2026-08-29-homelab-live-effect-gate.md`)
 
 **Prerequisites:** GATE-006 (landed) — this amends what that decision established.
 
@@ -412,7 +244,7 @@ item is moot; only the agent-text half remains.
 
 **Acceptance:** Either (a) `Tier` joins each bound effect set, with agent text and adapters
 changed together; or (b) the agent text states one response carries one tier. Neither option has
-a linter or contract check behind it anymore — the decision record gains the amendment either way.
+a linter or contract check behind it anymore — the closing commit records the choice either way.
 
 **Next action:** Decide (a) or (b); both change what the agent emits. Verify with a routing round
 and the probe; no contract-graded re-measure is available.
@@ -460,9 +292,8 @@ as capped grafts inside the skills that already own the ground, with no twin thi
 touched and provenance recorded twice.
 
 **Source:**
-[save-toolkit delta scoping](archive/2026-08/save-toolkit-delta-scoping-2026-08-29.md) ·
-[sre-agents adaptation backlog](archive/2026-07/sre-agents-adaptation-backlog.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#port-002-second-mining-round-from-save-toolkit-the-siblings-delta-since-2026-07-24)
+save-toolkit delta scoping (`docs/archive/2026-08/save-toolkit-delta-scoping-2026-08-29.md`) ·
+sre-agents adaptation backlog (`docs/archive/2026-07/sre-agents-adaptation-backlog.md`)
 
 **Prerequisites:** The operator's pick (Next action); each slice then runs PORT-001's three
 blind passes from refreshed `origin/main`.
@@ -472,9 +303,9 @@ cluster before/after.
 
 **Acceptance:** Per slice: graft lands inside the owning skill; the scrub list is gone from
 landed text; validator and tests green; commit carries attribution, every adapted code file
-names its source and license, and the dated adjudication record is extended with the reviewed
-commit and renamed repository; verified-skip twins stay byte-unchanged. Closes when every
-picked slice merges and the record is linked from `docs/README.md`.
+names its source and license, and the commit message records the reviewed donor commit and
+renamed repository; verified-skip twins stay byte-unchanged. Closes when every picked slice
+merges.
 
 **Next action:** Operator chooses (a) the recommended five candidates, (b) all eight, or (c) (b)
 plus filing the PROP-003/EVAL leads as their own items; then open slice 1 (`runbook`).
@@ -489,12 +320,11 @@ need prerequisites or acceptance evidence beyond itself graduates to a full item
 naming a GitHub issue **is** that issue's roadmap import under `docs/README.md` rule 7.
 
 - **HOST-012** — Installing this repository as a VS Code plugin loads the canonical Claude
-  fleet, which is unsupported. Source: [README.md](../README.md);
-  [history](archive/2026-09/roadmap-history-2026-09-01.md#host-012-vs-code-plugin-install-loads-the-canonical-fleet).
+  fleet, which is unsupported. Source: [README.md](../README.md).
 - **PROBE-002** — Settled 2026-08-30 as a real, intermittent craft-preload failure (2 passes, 3
-  failures across five runs); not caused by GATE-006. Source:
-  [GATE-006 outcome](archive/2026-08/gate-006-outcome-2026-08-30.md);
-  [history](archive/2026-09/roadmap-history-2026-09-01.md#probe-002-craft-preload-canaries-missing-in-sde-fullstack-spawn).
+  failures across five runs); not caused by GATE-006. The probe check that observed it was
+  removed 2026-10-03, so the failure is now unmeasured rather than fixed. Source:
+  GATE-006 outcome (`docs/archive/2026-08/gate-006-outcome-2026-08-30.md`).
 
 ## Deferred decisions
 
@@ -506,9 +336,8 @@ naming a GitHub issue **is** that issue's roadmap import under `docs/README.md` 
 with `contract_digest` resolving to it.
 
 **Source:**
-[GRAPH-003 adjudication](archive/2026-08/graph-003-adjudication-2026-08-01.md) ·
-[AI graph engineering decision](decisions/2026-07-31-ai-graph-engineering.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#graph-004-typed-edge-contract-pilot)
+GRAPH-003 adjudication (`docs/archive/2026-08/graph-003-adjudication-2026-08-01.md`) ·
+AI graph engineering decision (`docs/decisions/2026-07-31-ai-graph-engineering.md`)
 
 **Prerequisites:** A demonstrated consumer — a second workflow conversion decided.
 
@@ -519,80 +348,6 @@ canonical files.
 **Next action:** None until a trigger fires — a second workflow conversion is the only live
 ignition.
 
-#### EVAL-003 — capture a comparable full routing anchor
-
-**Status:** `active` — a full capture exists but does **not** close this item. The 2026-09-14
-batch (`evals/baselines/2026-09-14-native-migration/`, 10 clusters, 101 cases, 303 runs, $39.42)
-is labelled **historical and non-reusable in its own README**: every review round on the migration
-PR moved the evaluator bytes, and `AGENTS.md`'s T3 reuse contract requires them unchanged, so no
-run made with the merged runner may use it as a before-side. Calling it the current anchor here
-would be this item's own acceptance clause violated — "no known-invalid artifact is called an
-anchor" — and would let the next description edit skip the fresh baseline it owes. **Two clauses
-remain open:** a capture taken on the shipped evaluator bytes, and the agent-member grading
-decision below.
-
-**Outcome:** Establish one current, condition-complete routing baseline across all routing
-clusters.
-
-**Source:**
-[history](archive/2026-09/roadmap-history-2026-09-01.md#eval-003-capture-a-comparable-full-routing-anchor)
-
-**Prerequisites:** Run small watched foreground batches; fix case-design defects before treating
-numbers as description evidence.
-
-**Acceptance:** Every artifact records requested/observed model, timeout, CLI version,
-threshold, and per-run evidence; no known-invalid artifact is called an anchor.
-
-**Evidence disposition:** Acceptance is met on the recording clauses and better than specified:
-each artifact also carries `max_turns` and `components_observed` — the routing competition read
-off each session's own `init` event — because the flag that was supposed to control it
-(`--clean-room`) was measured the same day to change nothing under the native harness. Conditions
-are uniform across all ten clusters on the two conditions the artifacts can establish (one
-observed model, one CLI version); the component surface is recorded only as an equal UNION per
-cluster, and per-run uniformity is unknown for this batch because the field that records it was
-added after it ran. That unknown is one of the reasons this capture is **not** a
-condition-complete anchor: an earlier draft ended this sentence with "which is what makes them a
-single anchor rather than ten co-located measurements", a clause left stranded when the caveat was
-inserted in front of it, so the paragraph asserted the opposite of the status above. Zero
-INCONCLUSIVE; 6 of 303 runs excluded.
-
-**Next action:** Two, and the first gates the second's reuse rather than its evidence.
-(1) Decide whether to re-capture on the shipped evaluator bytes (~$40) or to leave the 2026-09-14
-batch historical and pay for a fresh before-side at the next description edit — an operator call,
-recorded here rather than taken.
-(2) Make the agent-member grading decision, now with evidence rather than a default. The capture
-splits cleanly: negatives **60/60**; positives 26/41, where **14 of the 15 failures involve no
-wrong destination** (11 routed nowhere, 3 fired only expected members below the 0.5 threshold) and
-the fifteenth dispatched a member its case does not expect in all three runs — ROUTE-001 below,
-which this record must not round off to under-firing. That is the shape the deferred default
-predicted, so decide whether routing positives for agent members stay graded, move to the
-behavioral suite, or are retired — and record the ruling here. Until then, read this capture's
-positive side as a reachability signal, not as description evidence.
-
-#### ROUTE-001 — settle `pos-diagnose-idle-lab-failure`: `root-cause` or `homelab-engineer`
-
-**Status:** `active` — a case and the fleet disagree about a destination, consistently.
-
-**Outcome:** One recorded ruling on where "monitoring found a stopped container, nobody affected,
-find out why it exited" belongs, and the case or the description changed to match it.
-
-**Source:** `evals/baselines/2026-09-14-native-migration/investigation/benchmark.json` — the case
-fired `homelab-engineer` in 3/3 runs and `root-cause` in 1/3, while asserting `root-cause`. Not
-a silence failure like the other fourteen: the sessions routed somewhere, deliberately and
-repeatably. The archived 2026-08-18 native pilot recorded the same destination 6/6 under that
-agent's previous name (`homelab-platform`), so the behaviour long predates the harness migration.
-
-**Prerequisites:** None.
-
-**Acceptance:** Either the case's `expect_fires` names the destination the fleet actually chooses
-and says why in `expected_output`, or `root-cause`'s description is changed to win this prompt and
-the overlapping cluster is re-run before and after per the description playbook. A rate that moves
-because the case was rewritten to match observed behaviour is not evidence of improved routing,
-and the ruling must say which of the two happened.
-
-**Next action:** Read the prompt against both descriptions and decide which is wrong — the
-assertion or the description. Do not treat this as a rate to improve until that is settled.
-
 #### RELEASE-001 — add repository release discipline
 
 **Status:** `deferred`
@@ -602,8 +357,7 @@ changelog, tag, publication, and rollback, without absorbing merge verdicts, CI 
 deployment authority.
 
 **Source:**
-[roster expansion design](archive/2026-07/roster-expansion-design.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#release-001-add-repository-release-discipline)
+roster expansion design (`docs/archive/2026-07/roster-expansion-design.md`)
 
 **Prerequisites:** A real plugin or repository release task demonstrates the consumer.
 
@@ -622,8 +376,7 @@ tag --dry-run` and build around what it does not cover.
 accessibility guidance and supplies keyboard-pass evidence.
 
 **Source:**
-[ECC import review](archive/2026-07/ecc-import-review.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#eval-004-verify-the-accessibility-imports-behaviorally)
+ECC import review (`docs/archive/2026-07/ecc-import-review.md`)
 
 **Prerequisites:** A real task involving a form, modal, drawer, custom widget, toast, or async
 status.
@@ -643,8 +396,7 @@ evidence; two observed misses trigger a dedicated behavioral contract and defini
 covering pinned image, restart, health, resource, and storage slots.
 
 **Source:**
-[skills modernization plan](archive/2026-07/skills-modernization-plan.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#lab-001-provide-a-fallback-service-compose-asset)
+skills modernization plan (`docs/archive/2026-07/skills-modernization-plan.md`)
 
 **Prerequisites:** An onboarding task demonstrates the target lab lacks a reusable pattern.
 
@@ -654,21 +406,3 @@ covering pinned image, restart, health, resource, and storage slots.
 environment-specific defaults, and the validator's orphan/reference checks pass.
 
 **Next action:** Reopen on the first qualifying service-onboarding task.
-
-## Reconciliation record
-
-Reconciled against commit `ab896b2` on 2026-07-28: every item a historical document still called
-open was checked against current definitions, scripts, eval cases, and inventory. Detail lives in
-each source below, not here; every "Survives" finding is already tracked live above (LAB-001,
-EVAL-003, EVAL-004, LABSEC-002, RELEASE-001) or, for LABSEC-001, recorded landed in LABSEC-002.
-
-- **Quality and deep-review findings** — nearly all landed:
-  `archive/2026-07/fleet-quality-review.md` (retired to Git history).
-- **Modernization and adaptation items** — landed except LAB-001, EVAL-003 above:
-  [`archive/2026-07/skills-modernization-plan.md`](archive/2026-07/skills-modernization-plan.md).
-- **ECC residue** — landed except EVAL-004 above:
-  [`archive/2026-07/ecc-import-review.md`](archive/2026-07/ecc-import-review.md).
-- **Role and governance review** — all six candidates landed:
-  [`decisions/2026-07-28-fleet-role-expansion.md`](decisions/2026-07-28-fleet-role-expansion.md).
-- **Roster-expansion design branch** — landed/rejected except LABSEC-002, RELEASE-001 above:
-  [`archive/2026-07/roster-expansion-design.md`](archive/2026-07/roster-expansion-design.md).

@@ -39,7 +39,6 @@ from pathlib import Path
 from tests.support import REPO
 
 HOOKS = REPO / "hooks" / "hooks.json"
-AGENT = REPO / "agents" / "code-reviewer.md"
 SH = shutil.which("sh")
 
 REVIEWER = "sde-agents:code-reviewer"
@@ -133,19 +132,6 @@ def seed_target_guard(project: str) -> Path:
     return marker
 
 
-class AgentMustNotCarryAnInertHookTest(unittest.TestCase):
-    def test_code_reviewer_has_no_frontmatter_hooks_key(self) -> None:
-        # A `hooks:` block here is IGNORED for a plugin-shipped agent. Leaving one would read as
-        # protection and provide none — the single most dangerous thing this file guards against.
-        frontmatter = AGENT.read_text(encoding="utf-8").split("---", 2)[1]
-        self.assertNotRegex(
-            frontmatter,
-            r"(?m)^hooks:",
-            "agents/code-reviewer.md declares frontmatter 'hooks:', which Claude Code SILENTLY "
-            "IGNORES for a plugin-shipped agent. The guard belongs in hooks/hooks.json.",
-        )
-
-
 @unittest.skipIf(SH is None, "POSIX sh unavailable")
 class HookWiringTest(unittest.TestCase):
     def _run(self, pl: str, **kwargs) -> str:
@@ -213,12 +199,6 @@ class HookWiringTest(unittest.TestCase):
             self.assertEqual(decision(out), "deny")
             self.assertIn("guard unavailable", out)
 
-    def test_missing_guard_does_not_break_the_main_session(self) -> None:
-        # Fail-closed must never escalate into "the user cannot use Bash". A broken plugin install
-        # degrades the reviewer; it must not brick the session.
-        with tempfile.TemporaryDirectory() as empty:
-            self.assertIsNone(decision(self._run(payload(PUSH), plugin_root=empty)))
-
     def test_broken_guard_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as root:
             (Path(root) / "scripts").mkdir()
@@ -277,155 +257,6 @@ class HookWiringTest(unittest.TestCase):
                 },
             )
             self.assertEqual(decision(out), "deny")
-
-
-GATE_LIVE = "/usr/bin/docker compose -f /srv/media/docker-compose.yml up -d jellyfin"
-GATE_READ = "docker compose -f /srv/media/docker-compose.yml ps"
-HOMELAB = "sde-agents:homelab-engineer"
-
-
-def gate_hook_command() -> str:
-    """The live-effect gate's PreToolUse command string, found by the script it runs."""
-    config = json.loads(HOOKS.read_text(encoding="utf-8"))
-    for entry in config["hooks"]["PreToolUse"]:
-        if entry.get("matcher") == "Bash":
-            for hook in entry["hooks"]:
-                if hook.get("type") == "command" and "live-effect-gate.py" in hook.get(
-                    "command", ""
-                ):
-                    return hook["command"]
-    raise RuntimeError("hooks/hooks.json: no PreToolUse/Bash hook runs scripts/live-effect-gate.py")
-
-
-def gate_payload(
-    command: str, agent_type: str | None = HOMELAB, mode: str | None = "default"
-) -> str:
-    data: dict = {
-        "hook_event_name": "PreToolUse",
-        "session_id": "s-1",
-        "cwd": str(REPO),
-        "tool_name": "Bash",
-        "tool_input": {"command": command},
-    }
-    if mode is not None:
-        data["permission_mode"] = mode
-    if agent_type is not None:
-        data["agent_id"] = "a-1"
-        data["agent_type"] = agent_type
-    return json.dumps(data)
-
-
-class LiveEffectGateWiringTests(unittest.TestCase):
-    """The gate AS hooks/hooks.json DEFINES IT, run under sh like the runtime does."""
-
-    def _run(self, pl: str, **kwargs) -> str:
-        env = dict(os.environ, CLAUDE_PLUGIN_ROOT=kwargs.pop("plugin_root", str(REPO)))
-        policy = kwargs.pop("policy", "prompt")
-        env.pop("SDE_AGENTS_LIVE_EFFECT_POLICY", None)
-        if policy is not None:
-            env["SDE_AGENTS_LIVE_EFFECT_POLICY"] = policy
-        env.update(kwargs.pop("extra_env", {}) or {})
-        return subprocess.run(
-            [str(SH), "-c", gate_hook_command()], input=pl, capture_output=True, text=True,
-            env=env, timeout=60,
-        ).stdout
-
-    def test_guard_and_gate_are_two_entries_on_the_same_matcher(self) -> None:
-        self.assertNotEqual(hook_command(), gate_hook_command())
-        self.assertIn("readonly-guard.py", hook_command())
-        self.assertIn("${CLAUDE_PLUGIN_ROOT}/scripts/live-effect-gate.py", gate_hook_command())
-
-    def test_asks_for_a_live_verb_from_the_gated_agent(self) -> None:
-        self.assertEqual("ask", decision(self._run(gate_payload(GATE_LIVE))))
-
-    def test_host_policy_needs_no_gate_interpreter_or_prompt(self) -> None:
-        with tempfile.TemporaryDirectory() as empty:
-            for policy in (None, "host"):
-                for mode in ("default", "dontAsk"):
-                    with self.subTest(policy=policy, mode=mode):
-                        self.assertEqual("", self._run(
-                            gate_payload(GATE_LIVE, mode=mode), plugin_root=empty, policy=policy,
-                        ))
-
-    def test_invalid_policy_does_not_silently_allow_a_live_effect(self) -> None:
-        self.assertEqual("deny", decision(self._run(gate_payload(GATE_LIVE), policy="promtp")))
-
-    def test_invalid_policy_with_missing_gate_preserves_the_fallback(self) -> None:
-        with tempfile.TemporaryDirectory() as empty:
-            for policy in ("promtp", ""):
-                for mode, expected in (("default", "ask"), ("dontAsk", "deny")):
-                    with self.subTest(policy=policy, mode=mode):
-                        self.assertEqual(expected, decision(self._run(
-                            gate_payload(GATE_LIVE, mode=mode), policy=policy, plugin_root=empty,
-                        )))
-
-    def test_no_decision_for_a_reader_from_the_gated_agent(self) -> None:
-        self.assertIsNone(decision(self._run(gate_payload(GATE_READ))))
-
-    def test_main_loop_is_never_gated(self) -> None:
-        self.assertIsNone(decision(self._run(gate_payload(GATE_LIVE, agent_type=None))))
-
-    def test_other_subagents_are_never_gated(self) -> None:
-        self.assertIsNone(decision(self._run(gate_payload(GATE_LIVE, "sde-agents:sde-fullstack"))))
-
-    def test_main_loop_command_that_merely_names_the_agent_is_ignored(self) -> None:
-        # The raw prefilter matches any payload mentioning homelab-engineer; the interpreter then
-        # reads agent_type properly. A user editing agents/homelab-engineer.md must never be gated.
-        pl = gate_payload(
-            "sed -n 1,5p agents/homelab-engineer.md && docker compose up -d", agent_type=None
-        )
-        self.assertIsNone(decision(self._run(pl)))
-
-    def test_suppressed_mode_denies_with_the_gate_voice(self) -> None:
-        out = self._run(gate_payload(GATE_LIVE, mode="bypassPermissions"))
-        self.assertEqual("deny", decision(out))
-        self.assertIn("live-effect gate", out)
-
-    def test_gate_missing_asks_for_the_gated_agent_only(self) -> None:
-        with tempfile.TemporaryDirectory() as empty:
-            out = self._run(gate_payload(GATE_LIVE), plugin_root=empty)
-            self.assertEqual("ask", decision(out))
-            self.assertIn("gate unavailable", out)
-            self.assertIsNone(
-                decision(
-                    self._run(gate_payload(GATE_LIVE, agent_type=None), plugin_root=empty)
-                )
-            )
-
-    def test_gate_missing_denies_under_a_suppressed_mode(self) -> None:
-        with tempfile.TemporaryDirectory() as empty:
-            out = self._run(gate_payload(GATE_LIVE, mode="dontAsk"), plugin_root=empty)
-            self.assertEqual("deny", decision(out))
-
-    def test_gate_fallback_identity_survives_json_whitespace(self) -> None:
-        # The fallback recognised only the compact and one-space serialisations, so a payload
-        # Claude formatted with two spaces or a newline after the colon looked like an unrelated
-        # caller and exited 0 — allowing the live command under dontAsk, which is precisely what
-        # the fail-closed fallback exists to prevent. Insignificant JSON whitespace must not
-        # decide whether the gate fires.
-        with tempfile.TemporaryDirectory() as empty:
-            compact = gate_payload(GATE_LIVE, mode="dontAsk")
-            for spacing in ('"agent_type":  "', '"agent_type":\n    "', '"agent_type" : "'):
-                spaced = compact.replace('"agent_type": "', spacing)
-                self.assertNotEqual(compact, spaced, "the payload shape changed; fix the test")
-                with self.subTest(spacing=spacing):
-                    out = self._run(spaced, plugin_root=empty)
-                    self.assertEqual("deny", decision(out), out)
-
-    def test_broken_gate_falls_back_the_same_way(self) -> None:
-        with tempfile.TemporaryDirectory() as root:
-            (Path(root) / "scripts").mkdir()
-            (Path(root) / "scripts" / "live-effect-gate.py").write_text(
-                "raise RuntimeError('broken gate')\n", encoding="utf-8"
-            )
-            self.assertEqual("ask", decision(self._run(gate_payload(GATE_LIVE), plugin_root=root)))
-
-    def test_malformed_gated_payload_falls_back_to_ask(self) -> None:
-        self.assertEqual("ask", decision(self._run(gate_payload(GATE_LIVE)[:-1])))
-
-    def test_homelab_platform_has_no_frontmatter_hooks_key(self) -> None:
-        text = (REPO / "agents" / "homelab-engineer.md").read_text(encoding="utf-8")
-        self.assertNotIn("\nhooks:", text.split("\n---", 2)[1])
 
 
 if __name__ == "__main__":

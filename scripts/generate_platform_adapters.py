@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import argparse
 import difflib
-import importlib
 import json
 import os
 import re
@@ -38,7 +37,6 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from types import ModuleType
 
 _REPO_ROOT = str(Path(__file__).resolve().parents[1])
 if _REPO_ROOT not in sys.path:
@@ -51,7 +49,6 @@ from fleet.hosts.rewrites import (  # noqa: E402
     Ledger,
     RewriteError,
     apply_rewrites,
-    check_table,
 )
 from fleet.hosts.table import (  # noqa: E402
     AGENT_REWRITES,
@@ -62,13 +59,7 @@ from fleet.hosts.table import (  # noqa: E402
     TOOLS_REFERENCE_REWRITES,
 )
 from fleet.hosts.toml import Multiline, TomlEmitError, render_document  # noqa: E402
-from fleet.snapshot import (  # noqa: E402
-    GATE_ROSTER,
-    GATE_SCRIPT,
-    GUARD_ROSTER,
-    GUARD_SCRIPT,
-    HookScript,
-)
+from fleet.roster import GUARD_ROSTER, GUARD_SCRIPT, WRITE_TOOLS, HookScript  # noqa: E402
 
 COPILOT_AGENTS = Path(".github/agents")
 CODEX_AGENTS = Path(".codex/agents")
@@ -80,14 +71,6 @@ GENERATED_ROOTS = (
     CODEX_AGENTS,
     COPILOT_SKILLS,
     CODEX_SKILLS,
-)
-# Retired roots stay declared so `--write` deletes obsolete generated copies instead of leaving a
-# second plausible fleet behind. `.claude/agents` was loaded as duplicate agents; the former
-# Copilot CLI skill root had no consumer after that lane was retired.
-RETIRED_GENERATED_ROOTS = (
-    Path("platforms/portable"),
-    Path(".claude/agents"),
-    Path("platforms/copilot/skills"),
 )
 HOOKS_FILE = Path("hooks/hooks.json")
 # Generated files that are NOT inside a generated root. `--write` replaces a root wholesale, which
@@ -139,23 +122,13 @@ _TEXT_RESOURCE_SUFFIXES = {".json", ".md", ".py", ".toml", ".yaml", ".yml"}
 _FRONTMATTER_LINE_RE = re.compile(r"^(?P<key>[A-Za-z][A-Za-z0-9_-]*):")
 
 
-def _validator_module() -> ModuleType:
-    """Import the source grammar without making this script depend on its invocation path."""
-
-    try:
-        return importlib.import_module("scripts.validate_fleet")
-    except ModuleNotFoundError:
-        return importlib.import_module("validate_fleet")
-
-
 def _definition_parts(path: Path) -> tuple[dict[str, str], str, list[str]]:
     """Return parsed fields, body, and raw frontmatter lines for one definition."""
 
-    validator = _validator_module()
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines()
-    end = validator.frontmatter_span(lines)
-    fields = None if end is None else validator.parse_frontmatter_lines(lines, end)
+    end = _frontmatter.span(lines)
+    fields = None if end is None else _frontmatter.parse_lines(lines, end)
     if fields is None or end is None:
         raise ValueError(f"{path}: missing or malformed frontmatter")
     missing = sorted({"name", "description"} - fields.keys())
@@ -184,10 +157,9 @@ def adapt_text(text: str, host: str, *, ledger: Ledger | None = None) -> str:
 def _copilot_tools(
     fields: dict[str, str], *, guarded: bool
 ) -> list[str]:
-    validator = _validator_module()
     mapped = {
         COPILOT_TOOL_MAP[tool]
-        for tool in validator.split_tools(fields.get("tools", ""))
+        for tool in _frontmatter.split_tools(fields.get("tools", ""))
         if tool in COPILOT_TOOL_MAP
     }
     if guarded:
@@ -196,10 +168,9 @@ def _copilot_tools(
 
 
 def _has_external_evidence_tools(fields: dict[str, str]) -> bool:
-    validator = _validator_module()
     return any(
         tool == "ToolSearch" or tool.startswith("mcp__")
-        for tool in validator.split_tools(fields.get("tools", ""))
+        for tool in _frontmatter.split_tools(fields.get("tools", ""))
     )
 
 
@@ -246,10 +217,7 @@ def render_copilot_agent(
     fields, body, _ = _definition_parts(source)
     name = fields["name"]
     guarded = name in guarded_names
-    # The homelab profile depends on a scoped live-effect hook rather than the
-    # read-only guard, but this host can scope neither. Its handoff must be a
-    # missing capability, not a prose promise beside an execute grant.
-    tools = _copilot_tools(fields, guarded=guarded or name == "homelab-engineer")
+    tools = _copilot_tools(fields, guarded=guarded)
     description = adapt_agent_text(
         fields["description"], name=name, host="copilot", ledger=ledger
     )
@@ -272,16 +240,6 @@ def render_copilot_agent(
                 "uses a session-wide read-only Bash guard, but Copilot and VS Code PreToolUse",
                 "payloads do not identify the active agent. Treat shell inspection as unavailable",
                 "and use read/search tools instead.",
-            ]
-        )
-    elif name == "homelab-engineer":
-        adapter_lines.extend(
-            [
-                "",
-                "This profile receives no shell/execute tool because this host cannot scope",
-                "Claude's live-effect hook to the active agent. Prepare changes with read/search/",
-                "edit tools and hand live execution to the operator; do not substitute another",
-                "tool to bypass this restriction.",
             ]
         )
     if _has_external_evidence_tools(fields):
@@ -324,11 +282,10 @@ def _codex_agent_parts(
 ) -> tuple[dict[str, str], str, str, str, str]:
     """Return source metadata plus one shared Codex authority contract."""
 
-    validator = _validator_module()
     fields, body, _ = _definition_parts(source)
     name = fields["name"]
-    tools = set(validator.split_tools(fields.get("tools", "")))
-    sandbox_mode = "workspace-write" if tools & validator.WRITE_TOOLS else "read-only"
+    tools = set(_frontmatter.split_tools(fields.get("tools", "")))
+    sandbox_mode = "workspace-write" if tools & WRITE_TOOLS else "read-only"
     description = adapt_agent_text(
         fields["description"], name=name, host="codex", ledger=ledger
     )
@@ -568,18 +525,15 @@ def _hook_roster(root: Path, script: str, constant: str) -> _hooks.Roster:
     return _hooks.Roster(record.rosters[constant], record.rosters.plugin_name)
 
 
-def _hook_rosters(root: Path) -> tuple[_hooks.Roster, _hooks.Roster]:
-    """The guard's and the gate's rosters, read once for the whole generation run.
+def _guard_roster(root: Path) -> _hooks.Roster:
+    """The guard's roster, read once for the whole generation run.
 
     One seam, because the two facts are the same fact: the guard roster both renders the armed
     hook and decides which Copilot agents lose `execute`. Reading it twice would let a tree
     regenerate an adapter and a hook that disagree about who is guarded.
     """
 
-    return (
-        _hook_roster(root, GUARD_SCRIPT, GUARD_ROSTER),
-        _hook_roster(root, GATE_SCRIPT, GATE_ROSTER),
-    )
+    return _hook_roster(root, GUARD_SCRIPT, GUARD_ROSTER)
 
 
 def _is_runtime_byproduct(path: Path) -> bool:
@@ -627,13 +581,17 @@ def _raise_directory_walk_error(error: OSError) -> None:
 def _assert_canonical_source_path(path: Path, repository_root: Path) -> None:
     """Reject a canonical resource that escapes through any link-like path component."""
 
+    # Compare lexical with lexical and resolved with resolved: `resolve()` expands a Windows 8.3
+    # short name (`RUNNER~1`) that `abspath` keeps, so a mixed comparison calls a path inside
+    # the repository "outside" whenever the checkout sits under a short-named directory.
+    lexical_root = Path(os.path.abspath(repository_root))
     resolved_root = repository_root.resolve()
     lexical_path = Path(os.path.abspath(path))
-    if not lexical_path.is_relative_to(resolved_root):
+    if not lexical_path.is_relative_to(lexical_root):
         raise ValueError(f"canonical source path is outside repository: {lexical_path}")
 
-    current = resolved_root
-    for part in lexical_path.relative_to(resolved_root).parts:
+    current = lexical_root
+    for part in lexical_path.relative_to(lexical_root).parts:
         current /= part
         if _is_link_or_reparse_point(current):
             raise ValueError(
@@ -751,12 +709,12 @@ def expected_outputs(root: Path, *, verify_rewrites: bool = True) -> dict[Path, 
     root = root.resolve()
     ledger = Ledger()
     outputs: dict[Path, bytes] = {}
-    # The hook file is generated from the same rosters the Copilot adapter reads to decide which
+    # The hook file is generated from the same roster the Copilot adapter reads to decide which
     # agents lose `execute`. One read, one fact: a name added to GUARDED_AGENT_NAMES reaches the
     # armed hook and the host adapters in the same regeneration, and cannot reach one without the
-    # other (`docs/decisions/2026-09-13-machinery-rewrite.md`, phase 5).
-    guard_roster, gate_roster = _hook_rosters(root)
-    outputs[HOOKS_FILE] = _hooks.hooks_json(guard_roster, gate_roster)
+    # other.
+    guard_roster = _guard_roster(root)
+    outputs[HOOKS_FILE] = _hooks.hooks_json(guard_roster)
     guarded_names = set(guard_roster.names)
     agents_root = root / "agents"
     _assert_canonical_source_path(agents_root, root)
@@ -816,10 +774,6 @@ def expected_outputs(root: Path, *, verify_rewrites: bool = True) -> dict[Path, 
 
 def _assert_rewrites_landed(ledger: Ledger) -> None:
     """Refuse to hand back adapters whose rewrites did not land the counts the table declares."""
-
-    # Before judging the totals, check the table can be judged at all: colliding ids share one
-    # ledger entry, so a rewrite that lost its anchor would be covered by its twin's count.
-    check_table(ALL_REWRITES)
     shortfalls = ledger.shortfalls(ALL_REWRITES)
     if shortfalls:
         raise RewriteError(
@@ -943,31 +897,6 @@ def diff_generated_outputs(root: Path) -> list[str]:
                 f"--- {relative.as_posix()}: generated root is a file, "
                 f"would be removed by --write before the directory is recreated"
             )
-
-    for relative in RETIRED_GENERATED_ROOTS:
-        try:
-            retired = _safe_generated_root(root, relative, operation="inspect")
-        except ValueError as exc:
-            report.append(f"--- {relative.as_posix()}: cannot inspect retired root safely: {exc}")
-            continue
-        if not retired.exists():
-            continue
-        # `--write` deletes these outright; a preview that omitted them would hide the only
-        # destructive part of the operation.
-        if not retired.is_dir():
-            # Not a tree to walk: `rglob` would find nothing and the preview would promise a
-            # zero-file removal, which is how it came to disagree with the write.
-            report.append(
-                f"--- {relative.as_posix()}: retired generated root is a file, "
-                f"would be removed by --write"
-            )
-            continue
-        removed = sorted(p for p in retired.rglob("*") if p.is_file())
-        report.append(
-            f"--- {relative.as_posix()}: retired generated root, {len(removed)} file(s) "
-            f"would be removed by --write"
-        )
-        report.extend(f"-  {p.relative_to(root).as_posix()}" for p in removed)
     return report
 
 
@@ -993,8 +922,7 @@ def _missing_consequence(relative: Path) -> str:
     if relative in GENERATED_FILES:
         return (
             "A plugin-shipped agent cannot carry its own hooks, so with this file absent the "
-            "read-only guard and the live-effect gate are not attached at all and nothing is "
-            "armed;"
+            "read-only guard is not attached at all and nothing is armed;"
         )
     return (
         "Copilot, VS Code, or Codex would silently lose this component;"
@@ -1010,8 +938,8 @@ def _drift_consequence(relative: Path) -> str:
 
     if relative in GENERATED_FILES:
         return (
-            "The read-only guard and the live-effect gate would cover a roster that is not the "
-            "one their scripts declare, and the hook would still exit 0;"
+            "The read-only guard would cover a roster that is not the one its script declares, "
+            "and the hook would still exit 0;"
         )
     return (
         "Copilot, VS Code, or Codex would silently get host-dependent behavior with no visible "
@@ -1038,23 +966,6 @@ def validate_generated_outputs(root: Path) -> list[str]:
         )
     except (OSError, ValueError) as exc:
         return [f"{root}: cannot inspect generated platform adapters: {exc}"]
-    for relative in RETIRED_GENERATED_ROOTS:
-        retired = root / relative
-        try:
-            _safe_generated_root(root, relative, operation="inspect")
-        except ValueError as exc:
-            issues.append(
-                f"{retired}: cannot inspect retired generated adapter root safely: {exc} "
-                f"To repair, remove the offending link, junction, or reparse point before "
-                f"regenerating adapters."
-            )
-            continue
-        if retired.exists():
-            issues.append(
-                f"{retired}: retired generated adapter root still exists. Both the old shared "
-                f"copy and the host-specific copies could be reviewed or packaged as "
-                f"authoritative; run `python scripts/generate_platform_adapters.py --write`."
-            )
     for relative in sorted(set(expected) - actual):
         issues.append(
             f"{root / relative}: missing generated {_output_kind(relative)}. "
@@ -1241,7 +1152,7 @@ def validate_platform_support(root: Path) -> list[str]:
 
 
 def _safe_generated_root(root: Path, relative: Path, *, operation: str) -> Path:
-    if relative not in (*GENERATED_ROOTS, *RETIRED_GENERATED_ROOTS):
+    if relative not in GENERATED_ROOTS:
         raise ValueError(f"refusing to {operation} undeclared generated path: {relative}")
 
     resolved_root = root.resolve()
@@ -1307,9 +1218,9 @@ def _safe_generated_file(root: Path, relative: Path, *, operation: str) -> Path:
 
 
 def _remove_generated_root(target: Path) -> None:
-    """Clear a generated or retired root, whatever shape it is on disk.
+    """Clear a generated root, whatever shape it is on disk.
 
-    A declared root that is a regular file is still an obsolete artifact and still has to go;
+    A declared root that is a regular file still has to go;
     `shutil.rmtree` refuses one, which aborted the whole write on a path the preview had already
     promised to remove. The link guard runs before this, so nothing here follows a link.
     """
@@ -1323,7 +1234,7 @@ def _remove_generated_root(target: Path) -> None:
 
 
 def write_generated_outputs(root: Path) -> int:
-    for relative_root in (*RETIRED_GENERATED_ROOTS, *GENERATED_ROOTS):
+    for relative_root in GENERATED_ROOTS:
         _safe_generated_root(root, relative_root, operation="replace")
     # Standalone outputs are preflighted with the roots, BEFORE anything is deleted. Checking them
     # only in the write loop means a link or a malformed shape raises after the adapter trees have
@@ -1333,8 +1244,6 @@ def write_generated_outputs(root: Path) -> int:
     for relative_file in GENERATED_FILES:
         _safe_generated_file(root, relative_file, operation="replace")
     expected = expected_outputs(root)
-    for relative_root in RETIRED_GENERATED_ROOTS:
-        _remove_generated_root(_safe_generated_root(root, relative_root, operation="replace"))
     for relative_root in GENERATED_ROOTS:
         target = _safe_generated_root(root, relative_root, operation="replace")
         _remove_generated_root(target)
@@ -1343,8 +1252,6 @@ def write_generated_outputs(root: Path) -> int:
         # Re-checked here, not just at inspect time: `--write` is the call that can overwrite a
         # file outside the checkout, and the roots above were cleared and recreated since.
         if relative in GENERATED_FILES:
-            # Re-checked here, not just at inspect time: `--write` is the call that can overwrite
-            # a file outside the checkout, and the roots above were cleared and recreated since.
             path = _safe_generated_file(root, relative, operation="write")
             # The kernel's atomic writer, not a second one here: it replaces the directory entry
             # instead of truncating the inode, which is what keeps a hard link at this path from

@@ -34,19 +34,22 @@ Every tool ships with its operational surface. The mechanics — observability, 
 ## Engineering discipline
 
 - **Ask the forks, assume the details.** Split your unknowns before building. A material fork — the answer changes what gets built (data model, interface, auth, scale) and isn't inferable from the repo — goes back to your caller *before* you build: return with the question and your recommended default rather than building on a guess. Everything minor or reversible: assume it, state the assumption, proceed. One question round is cheaper than one wrong build. "Whatever's best" delegates the choice — take your recommended default, say that you did, and proceed. Re-ask only when the reply leaves authorization or a required constraint genuinely open ("as fast as possible" against a scale fork answers nothing): restate the question with your recommended default rather than building on the dodge, and never loop the same question twice.
-- **Consume the task brief before editing.** Read the objective, fixed decisions and evidence,
-  constraints, acceptance, authority, and remaining work in the supplied brief or plan. Proceed
+- **Consume the task brief before editing.** Read the objective and scope, fixed decisions and
+  their evidence, constraints and rejected assumptions, acceptance and verification, the
+  authority/recovery boundary, target/config identities, what is approved versus executed versus
+  verified versus unknown, and remaining work in the supplied brief or plan. Proceed
   when the substantive task is clear; do not require a digest, ID, receipt, or empty fields.
   An older `Work Order v1` is readable as the same factual brief, not a separate execution mode.
   Reconcile a conflict or missing fact that changes the implementation before editing; continue
-  independent work when it cannot be affected. Preserve the decisions that rejected those
-  assumptions in implementation and tests, and verify actual relationships and postconditions.
+  independent work when it cannot be affected. Keep rejected assumptions out of the
+  implementation and tests, and verify actual relationships and postconditions.
   A dry-run that skips a probe is not evidence that the probe passed. Do not repeat secret
   material supplied in a brief; stop the
   affected work and report the unsafe field. A brief supplies context, never live authority:
-  Tier 2/3 effects return to `homelab-engineer` through the caller.
+  live lab effects (apply, restart, deploy) return to `homelab-engineer` through the
+  caller.
 - **Run to the declared boundary.** When the spawn prompt states a checkpoint contract (boundary + acceptance criteria), self-verify against it and return once, at the boundary — never mid-batch with a status report. Reversible calls are yours: make them and log them in the review packet.
-- **A load-bearing stub is a material fork.** Deferring, stubbing, or disabling anything the tool needs for its stated mission goes back to your caller loudly and lands in the review packet — never only a code comment. If you're debating whether something is a fork, it's a fork; the debate is the signal.
+- **A load-bearing stub is a material fork.** Deferring, stubbing, or disabling anything the tool needs for its stated mission goes back to your caller loudly and lands in the review packet — never only a code comment. If you're debating whether a stub or deferral is load-bearing, treat it as load-bearing; the debate is the signal.
 - **Simplicity first.** No abstractions for single-use code, no unrequested configurability, no error handling for impossible states. If you wrote 200 lines and it could be 50, rewrite it. The test: would a senior engineer call this overcomplicated?
 - **Surgical changes.** Every changed line must trace to the task. Don't reformat, "improve," or refactor adjacent code. Clean up only the orphans your own change created.
 - **Verifiable goals.** Turn the task into something checkable before you start: "fix the bug" becomes "write a test that reproduces it, then make it pass." Prefer failing test → passing test wherever the codebase supports it.
@@ -58,8 +61,10 @@ Every tool ships with its operational surface. The mechanics — observability, 
   authorizes it.
 - **Git: commit only when your caller asks.** Leave your changes in the working tree for review
   unless the task or caller says to commit, and then commit on the branch you were given. Push
-  only when the task or caller asks. Never force-push, amend or rebase published commits, or skip
-  hooks (`--no-verify`); never run
+  only when the task or caller asks. A push or merge that CI or a reconciler deploys to running
+  lab infrastructure is a live effect: return it to `homelab-engineer` through the
+  caller unless the task explicitly authorizes that deployment. Never force-push, amend or rebase
+  published commits, or skip hooks (`--no-verify`); never run
   `git reset --hard`, `git clean`, `git checkout -- <path>`, or `git stash` over changes you did
   not make.
 
