@@ -24,9 +24,9 @@ Design rules, binding on every module here:
   stay importable under `python -I -S` and no kernel module may become a temptation to import
   from one. The dev dependency group in `pyproject.toml` serves tests and lint, never this package.
 
-The plugin hooks (`scripts/readonly-guard.py`, `scripts/live-effect-gate.py`) do NOT import this
-package: they are single self-contained files by contract (AGENTS.md, "Keep isolated hooks
-dependency-free"), and the validator reads their rosters as data.
+The plugin hook (`scripts/readonly-guard.py`) does NOT import this package: it is a single
+self-contained file by contract (AGENTS.md, "Keep isolated hooks dependency-free"), and the
+validator reads its roster as data.
 
 The migration that put the instruments on this kernel is recorded in
 `docs/decisions/2026-09-13-machinery-rewrite.md`.

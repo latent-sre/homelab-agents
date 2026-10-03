@@ -104,13 +104,13 @@ class PluginWiringDocsTests(PluginWiringMixin, unittest.TestCase):
             path = repo / "docs" / "engineering-program.md"
             path.write_text(
                 path.read_text(encoding="utf-8").replace(
-                    "scripts/live-effect-gate.py", "scripts/live-effect-gates.py"
+                    "scripts/readonly-guard.py", "scripts/readonly-guards.py"
                 ),
                 encoding="utf-8",
             )
 
         issues = self._issues_after(mutate)
-        self.assertTrue(any("'scripts/live-effect-gates.py'" in i for i in issues), issues)
+        self.assertTrue(any("'scripts/readonly-guards.py'" in i for i in issues), issues)
 
     def test_program_doc_is_validated_without_the_guide(self) -> None:
         # PR #133 P2: the map's own header advertises this tripwire, so a check that deleting an
@@ -123,13 +123,13 @@ class PluginWiringDocsTests(PluginWiringMixin, unittest.TestCase):
             path = repo / "docs" / "engineering-program.md"
             path.write_text(
                 path.read_text(encoding="utf-8").replace(
-                    "scripts/live-effect-gate.py", "scripts/live-effect-gates.py"
+                    "scripts/readonly-guard.py", "scripts/readonly-guards.py"
                 ),
                 encoding="utf-8",
             )
 
         issues = self._issues_after(mutate)
-        self.assertTrue(any("'scripts/live-effect-gates.py'" in i for i in issues), issues)
+        self.assertTrue(any("'scripts/readonly-guards.py'" in i for i in issues), issues)
 
     def test_repo_without_the_program_doc_is_valid(self) -> None:
         # Self-gating, like the guide: a repo that carries no program map makes no map claims.

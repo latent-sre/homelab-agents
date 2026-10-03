@@ -197,15 +197,6 @@ def load_guard(root: Path):
     return module
 
 
-def load_gate(root: Path):
-    """Import scripts/live-effect-gate.py by path -- the hyphen makes it un-importable by name."""
-    source = root / "scripts" / "live-effect-gate.py"
-    module = load_module_by_content(source, "live_effect_gate")
-    if module is None:
-        raise ImportError(f"cannot load {source}")
-    return module
-
-
 def validate_repo(
     root: Path, *, check_inventory: bool = True, check_adapters: bool = True
 ) -> tuple[list[str], list[str], list[str]]:

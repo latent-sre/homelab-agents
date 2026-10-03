@@ -31,15 +31,13 @@ covers the VS Code and Codex loops).
 `evals/routing/` before and after and compare the rates; `evals/README.md` owns how runs are
 compared.
 
-**Touching a Claude hook** (`scripts/readonly-guard.py`, `scripts/live-effect-gate.py`, or the
-shell template in `fleet/hooks.py`) — read both docstrings first, then run the tests and the
-probe. Rosters change in the script constants and reach `hooks/hooks.json` only through `--write`;
-an agent is on one roster or neither. The guard's allowlist grows only by readers, never by
-anything that can execute a program; the gate's roster grows only by a live effect an incident or
-drill showed, never by exemption. Never port either hook to Codex or VS Code: their `PreToolUse`
-payload has no agent identity to scope on. Keep them out structurally — no file at that host's
-hook-config path, hence no `hooks/` under `plugins/sde-agents/`; a manifest override does not do
-it.
+**Touching a Claude hook** (`scripts/readonly-guard.py`, or the shell template in
+`fleet/hooks.py`) — read the guard's docstring first, then run the tests and the probe. The roster
+changes in the script constant and reaches `hooks/hooks.json` only through `--write`. The guard's
+allowlist grows only by readers, never by anything that can execute a program. Never port the hook
+to Codex or VS Code: their `PreToolUse` payload has no agent identity to scope on. Keep it out
+structurally — no file at that host's hook-config path, hence no `hooks/` under
+`plugins/sde-agents/`; a manifest override does not do it.
 
 **Changing validator behavior** — a rule is a pure function in `fleet/rules/` with a stable id and
 a one-line why; vocabularies live in `fleet/policy.toml`. Land it with a fixture under
@@ -59,14 +57,14 @@ work".
 Work lands on the default branch through a topic branch and a merge-commit PR, never a direct
 push. A canonical edit and everything it requires (regenerated adapters, inventory, a roster
 entry) land in the same commit. Get one independent review before merge, and a second for changes
-to the guard, the gate, or other authority boundaries. `CONTRIBUTING.md` owns branch naming, the
+to the guard or other authority boundaries. `CONTRIBUTING.md` owns branch naming, the
 PR template, and requesting review.
 
 ## Hard rules with no playbook exceptions
 
-- **Keep isolated hooks dependency-free.** The hooks run their scripts with `python -I -S`, so
-  both stay standard-library and never import `fleet/`; a missing import makes the guard deny, and
-  the gate ask or deny, every scoped Bash call. `fleet/` stays standard-library too, so it can never
+- **Keep isolated hooks dependency-free.** The hook runs its script with `python -I -S`, so it
+  stays standard-library and never imports `fleet/`; a missing import makes the guard deny every
+  scoped Bash call. `fleet/` stays standard-library too, so it can never
   become a hook import. The dev group in `pyproject.toml` is optional tooling.
 - **Never hand-edit generated output:** `.github/agents/`, `.github/skills/`, `.codex/agents/`,
   `plugins/sde-agents/skills/`, and `hooks/hooks.json`. `--write` overwrites it and the validator

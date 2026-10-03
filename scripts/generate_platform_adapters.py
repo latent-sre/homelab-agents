@@ -63,8 +63,6 @@ from fleet.hosts.table import (  # noqa: E402
 )
 from fleet.hosts.toml import Multiline, TomlEmitError, render_document  # noqa: E402
 from fleet.snapshot import (  # noqa: E402
-    GATE_ROSTER,
-    GATE_SCRIPT,
     GUARD_ROSTER,
     GUARD_SCRIPT,
     HookScript,
@@ -568,18 +566,15 @@ def _hook_roster(root: Path, script: str, constant: str) -> _hooks.Roster:
     return _hooks.Roster(record.rosters[constant], record.rosters.plugin_name)
 
 
-def _hook_rosters(root: Path) -> tuple[_hooks.Roster, _hooks.Roster]:
-    """The guard's and the gate's rosters, read once for the whole generation run.
+def _guard_roster(root: Path) -> _hooks.Roster:
+    """The guard's roster, read once for the whole generation run.
 
     One seam, because the two facts are the same fact: the guard roster both renders the armed
     hook and decides which Copilot agents lose `execute`. Reading it twice would let a tree
     regenerate an adapter and a hook that disagree about who is guarded.
     """
 
-    return (
-        _hook_roster(root, GUARD_SCRIPT, GUARD_ROSTER),
-        _hook_roster(root, GATE_SCRIPT, GATE_ROSTER),
-    )
+    return _hook_roster(root, GUARD_SCRIPT, GUARD_ROSTER)
 
 
 def _is_runtime_byproduct(path: Path) -> bool:
@@ -751,12 +746,12 @@ def expected_outputs(root: Path, *, verify_rewrites: bool = True) -> dict[Path, 
     root = root.resolve()
     ledger = Ledger()
     outputs: dict[Path, bytes] = {}
-    # The hook file is generated from the same rosters the Copilot adapter reads to decide which
+    # The hook file is generated from the same roster the Copilot adapter reads to decide which
     # agents lose `execute`. One read, one fact: a name added to GUARDED_AGENT_NAMES reaches the
     # armed hook and the host adapters in the same regeneration, and cannot reach one without the
     # other (`docs/decisions/2026-09-13-machinery-rewrite.md`, phase 5).
-    guard_roster, gate_roster = _hook_rosters(root)
-    outputs[HOOKS_FILE] = _hooks.hooks_json(guard_roster, gate_roster)
+    guard_roster = _guard_roster(root)
+    outputs[HOOKS_FILE] = _hooks.hooks_json(guard_roster)
     guarded_names = set(guard_roster.names)
     agents_root = root / "agents"
     _assert_canonical_source_path(agents_root, root)
@@ -993,8 +988,7 @@ def _missing_consequence(relative: Path) -> str:
     if relative in GENERATED_FILES:
         return (
             "A plugin-shipped agent cannot carry its own hooks, so with this file absent the "
-            "read-only guard and the live-effect gate are not attached at all and nothing is "
-            "armed;"
+            "read-only guard is not attached at all and nothing is armed;"
         )
     return (
         "Copilot, VS Code, or Codex would silently lose this component;"
@@ -1010,8 +1004,8 @@ def _drift_consequence(relative: Path) -> str:
 
     if relative in GENERATED_FILES:
         return (
-            "The read-only guard and the live-effect gate would cover a roster that is not the "
-            "one their scripts declare, and the hook would still exit 0;"
+            "The read-only guard would cover a roster that is not the one its script declares, "
+            "and the hook would still exit 0;"
         )
     return (
         "Copilot, VS Code, or Codex would silently get host-dependent behavior with no visible "

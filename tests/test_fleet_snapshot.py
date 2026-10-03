@@ -17,7 +17,7 @@ class SnapshotTests(TempDirTestCase):
         self.assertEqual(10, len(fleet.agents))
         self.assertEqual(20, len(fleet.skills))
         self.assertEqual("sde-agents", fleet.plugin_name)
-        self.assertEqual(2, len(fleet.hook_commands))
+        self.assertEqual(1, len(fleet.hook_commands))
         reviewer = next(a for a in fleet.agents if a.name == "code-reviewer")
         self.assertIn("Bash", reviewer.tool_bases())
         self.assertEqual("code-reviewer", reviewer.stem)
@@ -66,16 +66,13 @@ class HookScriptTests(TempDirTestCase):
         self.assertIn("missing module constant(s) ['ROSTER']", unreadable.error or "")
         fleet = snapshot.Fleet.load(self.base)
         self.assertFalse(fleet.guard.exists)
-        self.assertFalse(fleet.gate.exists)
 
 
 class RosterTests(TempDirTestCase):
-    def test_real_hook_rosters_read_without_execution(self) -> None:
+    def test_real_hook_roster_reads_without_execution(self) -> None:
         guard = snapshot.read_rosters(REPO / "scripts" / "readonly-guard.py", "GUARDED_AGENT_NAMES")
         self.assertEqual("sde-agents", guard.plugin_name)
         self.assertIn("code-reviewer", guard["GUARDED_AGENT_NAMES"])
-        gate = snapshot.read_rosters(REPO / "scripts" / "live-effect-gate.py", "GATED_AGENT_NAMES")
-        self.assertEqual({"homelab-engineer"}, set(gate["GATED_AGENT_NAMES"]))
 
     def test_reading_never_runs_the_script(self) -> None:
         hook = self.base / "hook.py"

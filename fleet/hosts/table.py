@@ -469,21 +469,21 @@ AGENT_REWRITES: tuple[Rewrite, ...] = (
         agents=("homelab-engineer",),
     ),
     Rewrite(
-        id="agent.homelab-engineer.managed-gate",
-        why="The canonical gate is Claude's scoped live-effect hook. Codex has a real sandbox "
-        "and approval policy; Copilot has neither and no execute tool, so live effects there "
-        "become an operator handoff. A missing bullet must stop generation rather than promise "
-        "a hook the host cannot install.",
-        find=r"^- \*\*Managed gate:\*\*.*?(?=\n- \*\*|\n\n)",
+        id="agent.homelab-engineer.host-controls",
+        why="The canonical bullet describes Claude Code's permission mode. Codex has a real "
+        "sandbox and approval policy; Copilot has neither and no execute tool, so live effects "
+        "there become an operator handoff. A missing bullet must stop generation rather than "
+        "describe a control the host does not have.",
+        find=r"^- \*\*Host controls:\*\*.*?(?=\n- \*\*|\n\n)",
         replace={
-            "codex": "- **Managed gate:** use Codex's actual sandbox and approval policy. "
+            "codex": "- **Host controls:** use Codex's actual sandbox and approval policy. "
             "Traverse any required\n  prompt and respect denials. An available "
             "`codex execpolicy check` may clarify a rule;\n  it is not a mandatory extra gate. "
             "When effective host permissions allow the authorized\n  action without prompting, "
             "execute normally. Do not invent a prompt requirement or\n  route around an actual "
             "restriction.",
-            "copilot": "- **Managed gate:** this generated profile has no execute tool and "
-            "cannot install a scoped\n  live-effect hook on Copilot or VS Code. Live effects "
+            "copilot": "- **Host controls:** this generated profile has no execute tool on "
+            "Copilot or VS Code.\n  Live effects "
             "therefore require operator handoff: give\n  the prepared command and mark execution "
             "pending. Do not substitute another tool to evade\n  the profile's execution "
             "restriction.",

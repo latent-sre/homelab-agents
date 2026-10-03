@@ -266,7 +266,6 @@ class PluginRuleIdTests(unittest.TestCase):
             fleet = Fleet.load(dst)
             self.assertTrue(fleet.guard.exists)
             self.assertIn("code-reviewer", fleet.guard.rosters["GUARDED_AGENT_NAMES"])
-            self.assertEqual({"homelab-engineer"}, set(fleet.gate.rosters["GATED_AGENT_NAMES"]))
             guard = dst / "scripts" / "readonly-guard.py"
             guard.write_text(
                 guard.read_text(encoding="utf-8").replace('"code-reviewer", ', "", 1),

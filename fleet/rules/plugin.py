@@ -17,15 +17,14 @@ from fleet.findings import Finding
 from fleet.policy import POLICY
 from fleet.rules import rule
 from fleet.rules.references import plugin_reference_findings
-from fleet.snapshot import GATE_ROSTER, GUARD_ROSTER, Fleet
+from fleet.snapshot import GUARD_ROSTER, Fleet
 
 # The hook reads its fast-path from "$IN" and its identity fallback from "$SQ", a
 # whitespace-stripped copy, so JSON spacing cannot decide whether the fallback fires. Either
 # variable opens a roster block, and the cross-check must recognise both.
 CASE_BLOCK_RE = re.compile(r'case "\$(IN|SQ)" in')
-# Every `case` opener and closer, so nesting depth can be tracked. The gate opens three at the
-# outer level (`$IN`, the policy selector, `$SQ`) and one INSIDE its fallback, and only the outer
-# ones decide anything.
+# Every `case` opener and closer, so nesting depth can be tracked: only blocks opened at the
+# outer level decide anything.
 CASE_TOKEN_RE = re.compile(r"\bcase\s+\S+\s+in\b|\besac\b")
 # The two blocks a roster must reach. Named, not counted: see `_select_roster_blocks`.
 ROSTER_VARIABLES = ("IN", "SQ")
@@ -73,11 +72,10 @@ def _case_alternatives(block: str) -> set[str]:
 def _missing_patterns(variable: str, name: str, plugin_name: str, block: str) -> list[str]:
     """The roster patterns `name` must contribute to this block, and which of them are absent.
 
-    A BARE-NAME substring search is not enough, and that is not hypothetical: with the gate's
-    nested `case "$IN"` header removed, the `$SQ` slice runs on into the denial reason, whose
-    English sentence names the gated agent -- so the roster could be replaced with a name that
-    gates nobody and the check still found the agent, in prose (Copilot, PR #193). Matching the
-    exact `case` alternation tokens closes that: prose does not contain them.
+    A BARE-NAME substring search is not enough: a `$SQ` slice can run on into a denial reason
+    whose English sentence names the agent, so the roster could be replaced with a name that
+    matches nobody and the check would still find the agent, in prose (Copilot, PR #193).
+    Matching the exact `case` alternation tokens closes that: prose does not contain them.
 
     Each token must be an ENTIRE alternative, not a substring of one: a pattern narrowed to
     `*name*something-else*` contains the expected text and matches nothing real.
@@ -107,14 +105,9 @@ def _missing_patterns(variable: str, name: str, plugin_name: str, block: str) ->
 def _select_roster_blocks(blocks: list[tuple[str, str]]) -> dict[str, str]:
     """The fast-path filter and the no-interpreter fallback, chosen by the variable each reads.
 
-    Never by position. The gate nests a second `case "$IN"` INSIDE its fallback to tell a
-    prompt-suppressed session from an interactive one, so the last block is that nested one --
-    whose branches name the gated agent only inside an English sentence in the denial reason.
-    Taking it as the fallback read as enforcement while checking prose: replacing the gate's real
-    `case "$SQ"` roster with a name that gates nobody left this rule, and the whole validator,
-    green (measured while building phase 5 of the machinery rewrite; the behavioural suite in
-    `tests/test_hook_wiring.py` was the only thing that caught it). The first block each variable
-    opens is the outer one, which is the one that decides.
+    Never by position: a hook may nest another `case` inside its fallback, so the last block need
+    not be the one that decides, and checking a nested block reads as enforcement while checking
+    prose. The first block each variable opens is the outer one, which is the one that decides.
     """
 
     found: dict[str, str] = {}
@@ -127,8 +120,6 @@ PLUGIN_RULE_IDS = (
     "plugin.rules",
     "plugin.manifest",
     "plugin.guard",
-    "plugin.gate",
-    "plugin.hooks.gate",
     "plugin.hooks.guard",
     "plugin.guard.roster",
     "plugin.references.description-namespace",
@@ -140,8 +131,8 @@ PLUGIN_RULE_IDS = (
 @rule(
     "plugin.rules",
     group=GROUP,
-    why="The manifest, the guard, the gate, and the hook file must agree on names and rosters "
-    "in every direction, or a guarded agent silently runs unguarded.",
+    why="The manifest, the guard, and the hook file must agree on names and rosters in every "
+    "direction, or a guarded agent silently runs unguarded.",
     emits=PLUGIN_RULE_IDS,
 )
 def plugin_rules(fleet: Fleet) -> list[Finding]:
@@ -219,147 +210,10 @@ def plugin_findings(
             )
         )
 
-    # The live-effect gate is the guard's mirror image for a Bash-and-Write agent; it has the
-    # same single place to live and the same silent failure modes, so the same links are held.
     agent_names = set(supplied_agent_names)
-    gate_path = fleet.gate.path
-    gate = fleet.gate.rosters
-    if gate is None:  # a gate that cannot be read (or is absent) gates nothing
-        findings.append(
-            Finding(
-                "plugin.gate",
-                f"{gate_path}: cannot load live-effect gate: {fleet.gate.error}",
-                gate_path,
-            )
-        )
-    if gate is not None:
-        gated = gate[GATE_ROSTER]
-        if plugin_name and gate.plugin_name != plugin_name:
-            findings.append(
-                Finding(
-                    "plugin.gate",
-                    f"{gate_path}: PLUGIN_NAME {gate.plugin_name!r} does not match the manifest "
-                    f"name "
-                    f"{plugin_name!r}. The gate recognizes its subject by a NAMESPACED "
-                    f"agent_type, so a "
-                    f"mismatch means it matches nobody and silently gates nothing.",
-                    gate_path,
-                )
-            )
-        for name in sorted(gated):
-            agent = next((a for a in fleet.agents if a.path.stem == name), None)
-            if name not in agent_names:
-                findings.append(
-                    Finding(
-                        "plugin.gate",
-                        f"{gate_path}: GATED_AGENT_NAMES names {name!r}, which is not an agent in "
-                        f"agents/ — a typo here gates nobody.",
-                        gate_path,
-                    )
-                )
-                continue
-            if agent is None or "Bash" not in agent.tool_bases():
-                findings.append(
-                    Finding(
-                        "plugin.gate",
-                        f"{gate_path}: gated agent {name!r} holds no Bash, so the gate can never "
-                        f"fire "
-                        f"for it",
-                        gate_path,
-                    )
-                )
-            if name in guarded:
-                findings.append(
-                    Finding(
-                        "plugin.gate",
-                        f"{gate_path}: {name!r} is in both GATED_AGENT_NAMES and the guard's "
-                        f"GUARDED_AGENT_NAMES; a read-only agent gets the guard, a live-effect "
-                        f"agent "
-                        f"gets the gate, never both (the guard would deny every live verb before "
-                        f"the "
-                        f"gate asked)",
-                        gate_path,
-                    )
-                )
-        gate_command = fleet.hook_command_for("live-effect-gate.py")
-        # An EMPTY roster gates nobody by design, and the renderer emits no hook for it -- so an
-        # absent gate hook is correct there, and demanding one would fail a valid configuration.
-        # A non-empty roster with no hook is the silent-disarm this rule exists for.
-        if gate_command is None:
-            if gated:
-                findings.append(
-                    Finding(
-                        "plugin.hooks.gate",
-                        f"{hooks_path}: no PreToolUse/Bash hook runs "
-                        f"scripts/live-effect-gate.py. A plugin-shipped agent cannot carry its own "
-                        f"hooks, "
-                        f"so this file is the ONLY place the live-effect gate can be attached — "
-                        f"without "
-                        f"it, homelab-engineer's managed gate is prose.",
-                        hooks_path,
-                    )
-                )
-        elif "${CLAUDE_PLUGIN_ROOT}/scripts/live-effect-gate.py" not in gate_command:
-            findings.append(
-                Finding(
-                    "plugin.hooks.gate",
-                    f"{hooks_path}: the live-effect-gate.py hook must run the gate "
-                    f"from ${{CLAUDE_PLUGIN_ROOT}} — the plugin's own installed copy — never a "
-                    f"relative path a repository under operation could supply.",
-                    hooks_path,
-                )
-            )
-        if gate_command is not None:
-            # The gate hook carries two rosters, and each disarms it alone: the `case` fast-path
-            # decides whether the gate runs at all, and the no-interpreter fallback is what
-            # decides when no Python answers. A name added to GATED_AGENT_NAMES after an incident
-            # would gate NOTHING while every check stays green without this (review-reported).
-            gate_blocks = _roster_blocks(gate_command)
-            gate_cases = _select_roster_blocks(gate_blocks)
-            if not set(ROSTER_VARIABLES) <= gate_cases.keys():
-                findings.append(
-                    Finding(
-                        "plugin.hooks.gate",
-                        f"{hooks_path}: expected the live-effect-gate hook to contain a "
-                        f'`case "$IN" in` fast-path filter and a `case "$SQ" in` no-interpreter '
-                        f"fallback; found blocks on "
-                        f"{[variable for variable, _ in gate_blocks] or 'no roster variable'}. "
-                        f"The roster cross-check cannot verify a hook it does not recognize, so "
-                        f"this fails rather than passing a hook it did not actually check.",
-                        hooks_path,
-                    )
-                )
-            else:
-                for label, variable in (
-                    ("fast-path filter", "IN"),
-                    ("no-interpreter fallback", "SQ"),
-                ):
-                    block = gate_cases[variable]
-                    for name in sorted(gated):
-                        missing = _missing_patterns(
-                            variable, name, gate.plugin_name or plugin_name, block
-                        )
-                        if missing:
-                            findings.append(
-                                Finding(
-                                    "plugin.hooks.gate",
-                                    f"{hooks_path}: the live-effect-gate hook's "
-                                    f"{label} is missing {missing} for {name!r}, but "
-                                    f"scripts/live-effect-gate.py "
-                                    f"lists it in GATED_AGENT_NAMES. The fast-path decides "
-                                    f"whether the "
-                                    f"gate runs at all and the fallback is what decides when no "
-                                    f"interpreter answers, so a name missing from EITHER leaves "
-                                    f"that "
-                                    f"agent's live effects ungated — silently, because the hook "
-                                    f"still "
-                                    f"exits 0.",
-                                    hooks_path,
-                                )
-                            )
 
     command = fleet.hook_command_for("readonly-guard.py")
-    # Same reasoning as the gate above: an empty GUARDED_AGENT_NAMES guards nobody by design and
+    # An empty GUARDED_AGENT_NAMES guards nobody by design and
     # renders no hook, so only a non-empty roster owes one.
     if command is None:
         if guarded:

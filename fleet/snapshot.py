@@ -129,11 +129,10 @@ class Fleet:
     plugin_manifest_present: bool = False
     # The repository-level bundle directories a skill link may resolve to instead of its own.
     shared_bundle_paths: frozenset[Path] = field(default_factory=frozenset)
-    # The two hook scripts and their rosters, read as data at load time. The plugin rules judge
-    # these against the same agents and hook file the rest of the report describes; a script
+    # The guard hook script and its roster, read as data at load time. The plugin rules judge
+    # it against the same agents and hook file the rest of the report describes; a script
     # rewritten after the snapshot changes nothing in this report.
     guard: HookScript = field(default_factory=lambda: HookScript(Path(GUARD_SCRIPT)))
-    gate: HookScript = field(default_factory=lambda: HookScript(Path(GATE_SCRIPT)))
     # Every markdown file the fleet ships as behaviour (agent bodies, SKILL.md files, and each
     # skill's references/ and assets/), read once: the cross-reference and perishable-token rules
     # judge these bytes, the same bytes the agent and skill rules judged, so one report can never
@@ -170,7 +169,6 @@ class Fleet:
                 manifest_error = str(exc)
         hooks_path = root / "hooks" / "hooks.json"
         guard = HookScript.load(root / GUARD_SCRIPT, GUARD_ROSTER)
-        gate = HookScript.load(root / GATE_SCRIPT, GATE_ROSTER)
         # The definitions' bytes seed the map, so a core file is read exactly once; only the
         # bundled markdown (a skill's references/ and assets/) is read here.
         markdown_texts = {definition.path: definition.text for definition in (*agents, *skills)}
@@ -192,7 +190,6 @@ class Fleet:
             hooks_path=hooks_path,
             hook_commands=tuple(_hook_commands(hooks_path)),
             guard=guard,
-            gate=gate,
             markdown_texts=markdown_texts,
         )
 
@@ -275,13 +272,11 @@ def _hook_commands(path: Path) -> list[str]:
 
 # --- hook rosters as data ----------------------------------------------------------------
 
-# Where each Claude hook script lives and the roster constant naming the agents it scopes to.
-# `hooks/hooks.json` resolves the scripts through ${CLAUDE_PLUGIN_ROOT}, so these are the only
-# locations a plugin-shipped fleet can put them (`scripts/readonly-guard.py` docstring).
+# Where the Claude hook script lives and the roster constant naming the agents it scopes to.
+# `hooks/hooks.json` resolves the script through ${CLAUDE_PLUGIN_ROOT}, so this is the only
+# location a plugin-shipped fleet can put it (`scripts/readonly-guard.py` docstring).
 GUARD_SCRIPT = "scripts/readonly-guard.py"
 GUARD_ROSTER = "GUARDED_AGENT_NAMES"
-GATE_SCRIPT = "scripts/live-effect-gate.py"
-GATE_ROSTER = "GATED_AGENT_NAMES"
 
 
 class RosterError(ValueError):
@@ -302,7 +297,7 @@ class HookScript:
     @classmethod
     def load(cls, path: Path, *constants: str) -> HookScript:
         # An absent script is read anyway so its error carries the reader's own wording: the
-        # gate rule reports an absent gate exactly as it reports an unreadable one.
+        # guard rule reports an absent guard exactly as it reports an unreadable one.
         exists = path.is_file()
         try:
             return cls(path, exists, read_rosters(path, *constants))
@@ -333,7 +328,7 @@ def _string_set(node: ast.AST, constant: str, path: Path) -> frozenset[str]:
     ):
         if not node.args:
             # `frozenset()` is the obvious way to write "this hook covers nobody", which is a
-            # valid configuration -- the gate returns every caller to the host. Reading it as
+            # valid configuration -- no agent is guarded. Reading it as
             # unparseable turned that into a generation failure (Copilot, PR #193).
             return frozenset()
         node = node.args[0]

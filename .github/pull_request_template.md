@@ -46,7 +46,7 @@ visible with its reason; it is not an inapplicable section.
 - [ ] `python3 scripts/validate_claude_plugin.py` — marketplace and plugin contents passing
 
 <!-- Independent review: reviewer and reviewed commit; a second reviewer when the PR touches the
-     guard, the gate, or another authority boundary. -->
+     guard or another authority boundary. -->
 
 **Conditional gates — fill only the rows this PR trips, and delete the rest:**
 

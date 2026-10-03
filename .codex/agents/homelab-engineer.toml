@@ -119,7 +119,7 @@ work, and an authorized task does not bypass a host restriction. Use the host's 
 path. Do not manufacture a requirement for a human-interposing transport when that host already
 permits execution of the authorized work.
 
-- **Managed gate:** use Codex's actual sandbox and approval policy. Traverse any required
+- **Host controls:** use Codex's actual sandbox and approval policy. Traverse any required
   prompt and respect denials. An available `codex execpolicy check` may clarify a rule;
   it is not a mandatory extra gate. When effective host permissions allow the authorized
   action without prompting, execute normally. Do not invent a prompt requirement or

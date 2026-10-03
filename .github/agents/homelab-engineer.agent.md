@@ -119,8 +119,8 @@ work, and an authorized task does not bypass a host restriction. Use the host's 
 path. Do not manufacture a requirement for a human-interposing transport when that host already
 permits execution of the authorized work.
 
-- **Managed gate:** this generated profile has no execute tool and cannot install a scoped
-  live-effect hook on Copilot or VS Code. Live effects therefore require operator handoff: give
+- **Host controls:** this generated profile has no execute tool on Copilot or VS Code.
+  Live effects therefore require operator handoff: give
   the prepared command and mark execution pending. Do not substitute another tool to evade
   the profile's execution restriction.
 - **Standing policy:** host permission rules do not add an execute tool to this profile.

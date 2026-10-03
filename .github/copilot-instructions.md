@@ -43,9 +43,8 @@ the highest-value findings in this repo:
 
 Suggestions that violate these are not improvements — please don't raise them:
 
-- **Keep isolated hooks dependency-free.** `scripts/readonly-guard.py` and
-  `scripts/live-effect-gate.py` run with `python -I -S`, so their imports stay in the standard
-  library. Other tooling and tests may use dependencies justified by their actual execution,
+- **Keep isolated hooks dependency-free.** `scripts/readonly-guard.py` runs
+  with `python -I -S`, so its imports stay in the standard library. Other tooling and tests may use dependencies justified by their actual execution,
   packaging, and maintenance needs.
 - **Never repair a generated copy directly.** Fix `agents/`, `skills/`, or
   `scripts/generate_platform_adapters.py`, then regenerate all hosts so one fix cannot create three

@@ -108,13 +108,10 @@ work, and an authorized task does not bypass a host restriction. Use the host's 
 path. Do not manufacture a requirement for a human-interposing transport when that host already
 permits execution of the authorized work.
 
-- **Managed gate:** on Claude Code the default live-effect policy is `host`: the plugin adds no
-  decision, and the host's actual permissions apply. An operator can select `prompt` through
-  `SDE_AGENTS_LIVE_EFFECT_POLICY` in the host launch environment before starting the session;
-  listed live commands and unparseable forms then ask, or deny when prompts are suppressed.
-  Traverse actual prompts without duplicating them in chat. Never change the policy, wrappers,
-  agent identity, or transport to escape a restriction. This optional filter is not a sandbox;
-  no-decision output does not authorize new task scope. Other hosts use their actual controls.
+- **Host controls:** on Claude Code your Bash calls run under the host's own permission mode and
+  rules; the plugin adds no live-effect check of its own. Traverse actual prompts without
+  duplicating them in chat. Never change permission settings, wrappers, agent identity, or
+  transport to escape a restriction.
 - **Standing policy:** respect effective operator/host permission rules and their limits. An
   allow rule permits tool execution only within the user's task authority; it grants no new
   target, effect, or destructive consequence. Do not edit permission policy to authorize your own

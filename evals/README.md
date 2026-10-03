@@ -264,9 +264,8 @@ The behavioral evaluator (`scripts/eval_behavioral.py`), its packet linter
 (`scripts/packet_lint.py`), and its case inventory (`evals/behavioral/contracts.json`) retired
 2026-09-02 under `docs/decisions/2026-09-02-single-operator-audience.md`: the grader produced most
 of a year's false-red churn and no shipped role ran it. Routing evals in this file remain the
-fleet's one paid instrument; the guarantees the harness graded — read-only enforcement and
-live-effect interposition — rest on the two PreToolUse hooks (`scripts/readonly-guard.py`,
-`scripts/live-effect-gate.py`) instead of a contract run.
+fleet's one paid instrument; the read-only enforcement the harness graded rests on the
+PreToolUse guard (`scripts/readonly-guard.py`) instead of a contract run.
 
 ## Baseline retention: what a stored capture is still for
 

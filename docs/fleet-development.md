@@ -268,14 +268,14 @@ Two properties fall out of that, both load-bearing and both tested:
   leaving every other caller untouched. A broken install degrades the reviewer; it cannot brick your
   session.
 
-**The hook file is generated, and the scripts are its source.** Each hook names its roster twice:
+**The hook file is generated, and the script is its source.** The hook names its roster twice:
 a `case "$IN"` fast path that decides whether the interpreter runs at all, and a `case "$SQ"`
 identity fallback — matched against the whitespace-stripped payload — that fails closed when no
-interpreter answered. Those two copies were maintained by hand against `GUARDED_AGENT_NAMES` and
-`GATED_AGENT_NAMES`, and a name reaching only one of them left the agent uncovered while every
-file claimed otherwise. `fleet/hooks.py` now renders both copies from the scripts' own constants,
+interpreter answered. Those two copies were maintained by hand against `GUARDED_AGENT_NAMES`,
+and a name reaching only one of them left the agent uncovered while every
+file claimed otherwise. `fleet/hooks.py` now renders both copies from the script's own constant,
 and `scripts/generate_platform_adapters.py` emits `hooks/hooks.json` alongside the host adapters,
-byte-checked the same way. So: **add or remove a guarded or gated agent in the script**, then
+byte-checked the same way. So: **add or remove a guarded agent in the script**, then
 `python3 scripts/generate_platform_adapters.py --write`. Hand-editing the hook file is byte drift
 the validator rejects, and the diagnostic says what the stale file would actually do. The shell
 text itself is a template in `fleet/hooks.py` — editing it is a hook change and owes the probe,
@@ -283,28 +283,14 @@ not only the tests. `tests/test_hook_wiring.py` remains the behavioural oracle: 
 rendered command and runs it under `sh`, because a renderer whose output parses is not a hook that
 decides correctly.
 
-The same file registers the optional `scripts/live-effect-gate.py` hook for `homelab-engineer`.
-Its default `host` policy adds no decision and does not need an interpreter; the host's actual
-permissions remain controlling. The operator may select `SDE_AGENTS_LIVE_EFFECT_POLICY=prompt`
-in the host launch environment before starting Claude. That policy keeps the existing partial
-filter: listed live commands and unparseable forms ask, or deny when prompts are suppressed.
-Missing/broken interpreters still fall back to ask/deny in that policy. Invalid policy values
-fail closed for the scoped agent. No policy emits an allow decision or grants task authority;
-agents must not change the setting to obtain permission. The selector is same-user operator
-configuration, not a tamper-proof boundary. The script docstring owns its detailed contract.
-
 The current [bounded-campaign authority](decisions/2026-09-11-bounded-upgrade-campaign.md)
 separates user authorization from host permission. A bounded live request covers in-scope
 execution and recovery; it never bypasses an actual host prompt or denial. Codex may use permitted
 native execution without another human-interposing gate or a root-owned rule. The generated
 Copilot engineer omits `execute`, so its live work requires operator handoff.
 
-The Claude hook is a partial command filter, not a sandbox. It can return no decision for a
-parsed unlisted command or a direct main-loop call. In `prompt` policy, unbound forms still
-ask/deny. When it returns no decision, the host's effective permissions may allow execution
-without a prompt; that result does not authorize new task scope. Repackaging a gated/denied effect to escape the control remains prohibited. Direct campaign
-and incident skills cooperatively route Claude live work to the gated engineer and Copilot live
-work to operator handoff. Skills do not inherit an agent profile's tool restrictions; their routing
+Direct campaign and incident skills cooperatively route Claude live work to homelab-engineer and
+Copilot live work to operator handoff. Skills do not inherit an agent profile's tool restrictions; their routing
 prose cannot enforce those restrictions in main chat.
 
 The verifier distinguishes authorized checks of the user's established workspace from unfamiliar
@@ -332,7 +318,7 @@ outside a short, reviewed set of readers ever runs — is far narrower and more 
 "we blocked the writes we thought of," but the load-bearing control remains OS-level least
 privilege.
 
-`scripts/fleet_doctor.py` and `scripts/probe_hosts.py` observe the guard and gate posture above but
+`scripts/fleet_doctor.py` and `scripts/probe_hosts.py` observe the guard posture above but
 do not enforce it. The doctor is read-only and reports repository, generated, install, CLI,
 junction, guard, and Codex sync posture. Host probes keep static packaging, discovery, live Claude
 behavior, and model-specific Codex baselines in separate lanes so an absent host or unexposed

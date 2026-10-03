@@ -25,13 +25,10 @@ WRITE_TOOLS = {"Edit", "NotebookEdit", "Write"}
 _create_directory_link = create_directory_link
 _remove_directory_link = remove_directory_link
 
-# A synthetic two-file tree ships no hook scripts, so the rosters `expected_outputs` renders the
-# hook file from cannot be read there. Standing them in keeps those tests about the one thing
-# they are about; a real tree's rosters are pinned by tests/test_fleet_hooks.py.
-STAND_IN_ROSTERS = (
-    hooks.Roster(frozenset({"stand-in-guarded"}), "stand-in"),
-    hooks.Roster(frozenset({"stand-in-gated"}), "stand-in"),
-)
+# A synthetic two-file tree ships no hook script, so the roster `expected_outputs` renders the
+# hook file from cannot be read there. Standing it in keeps those tests about the one thing
+# they are about; a real tree's roster is pinned by tests/test_fleet_hooks.py.
+STAND_IN_ROSTER = hooks.Roster(frozenset({"stand-in-guarded"}), "stand-in")
 
 
 # Canonical forms that a host rewrite used to translate and no longer does, because the sentence
@@ -137,8 +134,8 @@ class PlatformAdapterTests(unittest.TestCase):
 
             with mock.patch.object(
                 generate_platform_adapters,
-                "_hook_rosters",
-                return_value=STAND_IN_ROSTERS,
+                "_guard_roster",
+                return_value=STAND_IN_ROSTER,
             ):
                 # A synthetic two-file tree is not the fleet, so the rewrite-count
                 # contract (calibrated to the canonical corpus) says nothing here.
@@ -170,8 +167,8 @@ class PlatformAdapterTests(unittest.TestCase):
 
             with mock.patch.object(
                 generate_platform_adapters,
-                "_hook_rosters",
-                return_value=STAND_IN_ROSTERS,
+                "_guard_roster",
+                return_value=STAND_IN_ROSTER,
             ):
                 with self.assertRaisesRegex(
                     ValueError,
@@ -425,8 +422,8 @@ class PlatformAdapterTests(unittest.TestCase):
             try:
                 with mock.patch.object(
                     generate_platform_adapters,
-                    "_hook_rosters",
-                    return_value=STAND_IN_ROSTERS,
+                    "_guard_roster",
+                    return_value=STAND_IN_ROSTER,
                 ):
                     with self.assertRaisesRegex(
                         ValueError,
@@ -503,11 +500,11 @@ class PlatformAdapterTests(unittest.TestCase):
                 )
 
     def test_homelab_host_rewrite_fails_loudly_when_its_anchor_is_missing(self) -> None:
-        # Same rule for the live-effect gate (GATE-006): the canonical transport bullet names a
-        # Claude-only hook, and a silent zero-match rewrite would ship that claim to a host that
-        # cannot load it. The real canonical body must rewrite cleanly on both hosts.
+        # The canonical host-controls bullet describes Claude Code's permission mode, and a
+        # silent zero-match rewrite would ship that claim to a host that does not have it. The
+        # real canonical body must rewrite cleanly on both hosts.
         for label, rewrite_id in (
-            ("Managed gate", "agent.homelab-engineer.managed-gate"),
+            ("Host controls", "agent.homelab-engineer.host-controls"),
             ("Standing policy", "agent.homelab-engineer.standing-policy"),
         ):
             with self.subTest(label=label):
@@ -561,7 +558,7 @@ class PlatformAdapterTests(unittest.TestCase):
         """Two competing transport bullets must not yield a plausible generated control."""
         canonical = (REPO / "agents" / "homelab-engineer.md").read_text(encoding="utf-8")
         for label, rewrite_id in (
-            ("Managed gate", "agent.homelab-engineer.managed-gate"),
+            ("Host controls", "agent.homelab-engineer.host-controls"),
             ("Standing policy", "agent.homelab-engineer.standing-policy"),
         ):
             start = canonical.index(f"- **{label}:**")

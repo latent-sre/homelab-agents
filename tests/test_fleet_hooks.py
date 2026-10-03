@@ -4,7 +4,7 @@ Risk hypothesis: `hooks/hooks.json` names each roster TWICE -- once in the `case
 that decides whether the interpreter runs, once in the `case "$SQ"` identity fallback that fails
 closed when none answers. Maintained by hand, a name could reach one block and not the other, and
 the hook would still exit 0 for the agent it was supposed to cover. Phase 5 of the machinery
-rewrite makes the scripts' `GUARDED_AGENT_NAMES` and `GATED_AGENT_NAMES` the single source; these
+rewrite makes the guard script's `GUARDED_AGENT_NAMES` the single source; these
 tests pin that the committed file IS that rendering, that a roster edit reaches both blocks, and
 that the generator refuses the shapes it cannot render honestly.
 
@@ -27,8 +27,6 @@ from pathlib import Path
 from fleet import hooks
 from fleet.rules import plugin as plugin_rules
 from fleet.snapshot import (
-    GATE_ROSTER,
-    GATE_SCRIPT,
     GUARD_ROSTER,
     GUARD_SCRIPT,
     Fleet,
@@ -46,14 +44,10 @@ from tests.support import (
 HOOKS = REPO / "hooks" / "hooks.json"
 
 
-def repo_rosters(root: Path) -> tuple[hooks.Roster, hooks.Roster]:
+def repo_roster(root: Path) -> hooks.Roster:
     guard = HookScript.load(root / GUARD_SCRIPT, GUARD_ROSTER).rosters
-    gate = HookScript.load(root / GATE_SCRIPT, GATE_ROSTER).rosters
-    assert guard is not None and gate is not None
-    return (
-        hooks.Roster(guard[GUARD_ROSTER], guard.plugin_name),
-        hooks.Roster(gate[GATE_ROSTER], gate.plugin_name),
-    )
+    assert guard is not None
+    return hooks.Roster(guard[GUARD_ROSTER], guard.plugin_name)
 
 
 def case_blocks(command: str) -> dict[str, str]:
@@ -71,19 +65,17 @@ class RenderTests(unittest.TestCase):
         # The phase-5 oracle. If this fails, either the templates drifted from the committed
         # shell or someone hand-edited the hook file -- and the generator would now overwrite
         # whichever of the two is not in `fleet/hooks.py`.
-        guard, gate = repo_rosters(REPO)
-        self.assertEqual(HOOKS.read_bytes(), hooks.hooks_json(guard, gate))
+        self.assertEqual(HOOKS.read_bytes(), hooks.hooks_json(repo_roster(REPO)))
 
     def test_a_roster_name_reaches_both_case_blocks(self) -> None:
         # The failure this whole phase exists to end: a name in the fast path but not the
         # fallback (or the reverse) leaves the agent uncovered while every file claims otherwise.
-        guard, gate = repo_rosters(REPO)
+        guard = repo_roster(REPO)
         added = "lab-operator"
-        document = hooks.hooks_document(
-            hooks.Roster(guard.names | {added}, guard.plugin_name),
-            hooks.Roster(gate.names | {added}, gate.plugin_name),
-        )
-        for index, hook in enumerate(document["hooks"]["PreToolUse"][0]["hooks"]):
+        document = hooks.hooks_document(hooks.Roster(guard.names | {added}, guard.plugin_name))
+        entries = document["hooks"]["PreToolUse"][0]["hooks"]
+        self.assertEqual(1, len(entries), entries)
+        for index, hook in enumerate(entries):
             blocks = case_blocks(hook["command"])
             self.assertEqual({"IN", "SQ"}, blocks.keys(), hook["command"])
             with self.subTest(hook=index, block="fast path"):
@@ -92,50 +84,33 @@ class RenderTests(unittest.TestCase):
                 self.assertIn(f'"agent_type":"{added}"', blocks["SQ"])
                 self.assertIn(f'"agent_type":"sde-agents:{added}"', blocks["SQ"])
 
-    def test_each_hook_carries_its_own_scripts_namespace(self) -> None:
-        # The guard and the gate each build the namespaced `agent_type` they match from their own
-        # PLUGIN_NAME. Rendering both from one value would hide a disagreement between the two
-        # scripts behind a hook file that looks consistent.
-        document = hooks.hooks_document(
-            hooks.Roster(frozenset({"guarded"}), "guard-ns"),
-            hooks.Roster(frozenset({"gated"}), "gate-ns"),
-        )
-        guard_command, gate_command = (
-            hook["command"] for hook in document["hooks"]["PreToolUse"][0]["hooks"]
-        )
-        self.assertIn('"agent_type":"guard-ns:guarded"', case_blocks(guard_command)["SQ"])
-        self.assertNotIn("gate-ns", guard_command)
-        self.assertIn('"agent_type":"gate-ns:gated"', case_blocks(gate_command)["SQ"])
-        self.assertNotIn("guard-ns", gate_command)
+    def test_the_hook_carries_its_scripts_namespace(self) -> None:
+        # The guard builds the namespaced `agent_type` it matches from its own PLUGIN_NAME, so the
+        # rendered identity block must use that value, not a shared default.
+        document = hooks.hooks_document(hooks.Roster(frozenset({"guarded"}), "guard-ns"))
+        (command,) = (hook["command"] for hook in document["hooks"]["PreToolUse"][0]["hooks"])
+        self.assertIn('"agent_type":"guard-ns:guarded"', case_blocks(command)["SQ"])
 
-    def test_emptying_a_roster_generates_and_validates(self) -> None:
+    def test_emptying_the_roster_still_generates(self) -> None:
         # End to end, in both spellings an operator would reach for. `frozenset()` in particular
         # was unreadable by the AST roster reader, which turned a valid configuration into a
-        # generation failure.
+        # generation failure. (The validator still flags read-only Bash agents left unguarded;
+        # this pins only that generation does not break.)
         for spelling in ("frozenset()", "frozenset([])"):
             with self.subTest(spelling=spelling), repo_copy() as dst:
-                script = dst / GATE_SCRIPT
+                script = dst / GUARD_SCRIPT
+                original = script.read_text(encoding="utf-8")
+                start = original.index("GUARDED_AGENT_NAMES = frozenset({")
+                end = original.index("})", start) + len("})")
                 script.write_text(
-                    script.read_text(encoding="utf-8").replace(
-                        'GATED_AGENT_NAMES = frozenset({"homelab-engineer"})',
-                        f"GATED_AGENT_NAMES = {spelling}",
-                        1,
-                    ),
+                    original[:start] + f"GUARDED_AGENT_NAMES = {spelling}" + original[end:],
                     encoding="utf-8",
                 )
                 generator.write_generated_outputs(dst)
                 entries = json.loads(
                     (dst / generator.HOOKS_FILE).read_text(encoding="utf-8")
                 )["hooks"]["PreToolUse"][0]["hooks"]
-                self.assertEqual(1, len(entries), entries)
-                self.assertIn("readonly-guard.py", entries[0]["command"])
-                fleet = Fleet.load(dst)
-                self.assertEqual(
-                    [],
-                    validate_fleet.validate_plugin(
-                        dst, fleet.agent_names, fleet.skill_names
-                    ),
-                )
+                self.assertEqual([], entries)
                 self.assertEqual([], generator.validate_generated_outputs(dst))
 
     def test_a_shell_unsafe_name_is_refused_rather_than_interpolated(self) -> None:
@@ -163,29 +138,18 @@ class RenderTests(unittest.TestCase):
 
     def test_an_empty_roster_renders_no_hook_rather_than_a_broken_one(self) -> None:
         # `case "$IN" in ) ;;` is a shell syntax error the runtime swallows, so an empty roster
-        # must not render a hook. But it is a VALID configuration, not an error: the gate's own
-        # `_GATED` set goes empty and it returns every caller to the host, so removing the last
-        # gated agent must not break generation (Copilot, PR #193). The honest rendering of
-        # "covers nobody" is no hook at all.
+        # must not render a hook. But it is a VALID configuration, not an error -- a fleet with
+        # no guarded agent -- so it must not break generation (Copilot, PR #193). The honest
+        # rendering of "covers nobody" is no hook at all.
         self.assertIsNone(hooks.render(hooks.GUARD_TEMPLATE, [], "sde-agents"))
-        document = hooks.hooks_document(
-            hooks.Roster(frozenset({"guarded"}), "sde-agents"),
-            hooks.Roster(frozenset(), "sde-agents"),
-        )
-        entries = document["hooks"]["PreToolUse"][0]["hooks"]
-        self.assertEqual(1, len(entries), entries)
-        self.assertIn("readonly-guard.py", entries[0]["command"])
+        document = hooks.hooks_document(hooks.Roster(frozenset(), "sde-agents"))
+        self.assertEqual([], document["hooks"]["PreToolUse"][0]["hooks"])
 
-    def test_both_templates_carry_exactly_one_of_each_placeholder(self) -> None:
+    def test_the_template_carries_exactly_one_of_each_placeholder(self) -> None:
         # `render` substitutes once per placeholder. A template that gained a second copy would
         # leave the literal `@@FAST_PATH@@` in the shipped shell, matching nothing.
-        for name, template in (
-            ("guard", hooks.GUARD_TEMPLATE),
-            ("gate", hooks.GATE_TEMPLATE),
-        ):
-            with self.subTest(hook=name):
-                self.assertEqual(1, template.count(hooks.FAST_PATH))
-                self.assertEqual(1, template.count(hooks.IDENTITY))
+        self.assertEqual(1, hooks.GUARD_TEMPLATE.count(hooks.FAST_PATH))
+        self.assertEqual(1, hooks.GUARD_TEMPLATE.count(hooks.IDENTITY))
 
 
 class GeneratorWiringTests(unittest.TestCase):
@@ -217,12 +181,12 @@ class GeneratorWiringTests(unittest.TestCase):
         # Byte-drift is what makes the single source real: change a roster without regenerating
         # and the validator says so, in both directions (adding and removing a name).
         edits = (
-            ("name added", '{"homelab-engineer"}', '{"homelab-engineer", "extra"}'),
-            ("name replaced", '{"homelab-engineer"}', '{"researcher"}'),
+            ("name added", '"repository-investigator",', '"repository-investigator", "extra",'),
+            ("name replaced", '"repository-investigator",', '"researcher",'),
         )
         for label, before, after in edits:
             with self.subTest(change=label), repo_copy() as dst:
-                script = dst / GATE_SCRIPT
+                script = dst / GUARD_SCRIPT
                 original = script.read_text(encoding="utf-8")
                 changed = original.replace(before, after, 1)
                 self.assertNotEqual(original, changed, "the mutation did not apply")
@@ -238,7 +202,7 @@ class GeneratorWiringTests(unittest.TestCase):
         # covers no one, the second is a bug. Rendering the first for the second would ship a
         # disarmed hook that byte-drift validation then certifies as current.
         with repo_copy() as dst:
-            (dst / GATE_SCRIPT).write_text("GATED_AGENT_NAMES = compute()\n", encoding="utf-8")
+            (dst / GUARD_SCRIPT).write_text("GUARDED_AGENT_NAMES = compute()\n", encoding="utf-8")
             with self.assertRaises(ValueError):
                 generator.expected_outputs(dst)
             issues = generator.validate_generated_outputs(dst)
@@ -256,7 +220,7 @@ class GeneratorWiringTests(unittest.TestCase):
                 + script.read_text(encoding="utf-8"),
                 encoding="utf-8",
             )
-            guard, _ = generator._hook_rosters(dst)
+            guard = generator._guard_roster(dst)
             self.assertIn("code-reviewer", guard.names)
 
     def test_a_link_in_place_of_the_hook_directory_is_refused(self) -> None:
@@ -372,11 +336,11 @@ class GeneratorWiringTests(unittest.TestCase):
                     generator.write_generated_outputs(dst)
 
     def test_a_linked_hook_script_is_refused_before_its_roster_is_read(self) -> None:
-        # The hook scripts are canonical sources that now feed a SHIPPED artifact. A link at
+        # The hook script is a canonical source that now feeds a SHIPPED artifact. A link at
         # `scripts/readonly-guard.py` would let `--write` derive the armed hook from a roster
         # outside the checkout, and byte-drift validation would then certify it as current
-        # (Copilot, PR #193). They get the same check `agents/` and `skills/` have.
-        for script in (GUARD_SCRIPT, GATE_SCRIPT):
+        # (Copilot, PR #193). It gets the same check `agents/` and `skills/` have.
+        for script in (GUARD_SCRIPT,):
             with self.subTest(script=script), tempfile.TemporaryDirectory() as outside_dir:
                 planted = Path(outside_dir) / "roster.py"
                 with repo_copy() as dst:
@@ -451,87 +415,25 @@ class GeneratorWiringTests(unittest.TestCase):
 class ValidatorCrossCheckTests(unittest.TestCase):
     """The cross-check is a SECOND instrument, and it must not read prose as a roster."""
 
-    def test_the_gate_fallback_roster_is_checked_not_the_nested_bypass_case(self) -> None:
-        # MEASURED DEFECT (phase 5): the rule took the LAST `case` block as the fallback. The gate
-        # nests a `case "$IN"` inside its fallback to separate a prompt-suppressed session from an
-        # interactive one, and that nested block names homelab-engineer only inside an English
-        # denial reason. So replacing the gate's real `case "$SQ"` roster with a name that gates
-        # nobody left the whole validator at exit 0 -- enforcement that checked prose.
-        with repo_copy() as dst:
-            path = dst / "hooks" / "hooks.json"
-            document = json.loads(path.read_text(encoding="utf-8"))
-            hook = document["hooks"]["PreToolUse"][0]["hooks"][1]
-            hook["command"] = hook["command"].replace(
-                '''*'"agent_type":"sde-agents:homelab-engineer"'*'''
-                '''|*'"agent_type":"homelab-engineer"'*''',
-                '''*'"agent_type":"sde-agents:NOBODY"'*''',
-                1,
-            )
-            path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-            issues = validate_fleet.validate_plugin(
-                dst, Fleet.load(dst).agent_names, Fleet.load(dst).skill_names
-            )
-            self.assertTrue(
-                any(
-                    "no-interpreter fallback" in issue and "homelab-engineer" in issue
-                    for issue in issues
-                ),
-                issues,
-            )
-
-    def test_prose_naming_a_roster_member_is_not_read_as_a_roster(self) -> None:
-        # The residual hole in this PR's first fix (Copilot, PR #193): selecting the `$SQ` block
-        # by variable still let `CASE_BLOCK_RE` delimit it, so removing the gate's NESTED
-        # `case "$IN"` header extends the slice into the denial reason — an English sentence that
-        # names homelab-engineer. A bare-name substring check then found the agent in prose while
-        # the real identity roster gated nobody. Measured before the fix: zero findings.
-        with repo_copy() as dst:
-            path = dst / "hooks" / "hooks.json"
-            document = json.loads(path.read_text(encoding="utf-8"))
-            hook = document["hooks"]["PreToolUse"][0]["hooks"][1]
-            command = hook["command"].replace(
-                '''*'"agent_type":"sde-agents:homelab-engineer"'*'''
-                '''|*'"agent_type":"homelab-engineer"'*''',
-                '''*'"agent_type":"sde-agents:NOBODY"'*''',
-                1,
-            )
-            nested = (
-                '''case "$IN" in *bypassPermissions*|*dontAsk*'''
-                '''|*'"permission_mode":"auto"'*|*'"permission_mode": "auto"'*) '''
-            )
-            self.assertIn(nested, command, "the nested case header moved; re-anchor this test")
-            hook["command"] = command.replace(nested, "", 1)
-            path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-            fleet = Fleet.load(dst)
-            issues = validate_fleet.validate_plugin(dst, fleet.agent_names, fleet.skill_names)
-            self.assertTrue(
-                any(
-                    "no-interpreter fallback" in issue and "homelab-engineer" in issue
-                    for issue in issues
-                ),
-                issues,
-            )
-
     def test_a_narrowed_pattern_is_not_accepted_as_the_roster_token(self) -> None:
         # `pattern in block` does not prove the pattern IS an alternative: rendering
-        # `*homelab-engineer*requires-extra*` contains `*homelab-engineer*`, satisfies a substring
+        # `*code-reviewer*requires-extra*` contains `*code-reviewer*`, satisfies a substring
         # check, and still never matches an ordinary payload for that agent (Copilot, PR #193).
-        # The check now compares whole `case` alternatives.
+        # The check compares whole `case` alternatives.
         with repo_copy() as dst:
             path = dst / "hooks" / "hooks.json"
             document = json.loads(path.read_text(encoding="utf-8"))
-            hook = document["hooks"]["PreToolUse"][0]["hooks"][1]
-            hook["command"] = hook["command"].replace(
-                "*homelab-engineer*)", "*homelab-engineer*requires-extra*)", 1
+            hook = document["hooks"]["PreToolUse"][0]["hooks"][0]
+            narrowed = hook["command"].replace(
+                "*code-reviewer*|", "*code-reviewer*requires-extra*|", 1
             )
+            self.assertNotEqual(hook["command"], narrowed, "the fast path moved; re-anchor")
+            hook["command"] = narrowed
             path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
             fleet = Fleet.load(dst)
             issues = validate_fleet.validate_plugin(dst, fleet.agent_names, fleet.skill_names)
             self.assertTrue(
-                any(
-                    "fast-path filter" in issue and "homelab-engineer" in issue
-                    for issue in issues
-                ),
+                any("fast-path filter" in issue and "code-reviewer" in issue for issue in issues),
                 issues,
             )
 
@@ -540,23 +442,23 @@ class ValidatorCrossCheckTests(unittest.TestCase):
         # roster-shaped `case "$SQ"` nested INSIDE the fast path decides nothing — the fast path
         # has already chosen to run the interpreter — so a malformed hook could satisfy the check
         # with a decoy while the real fallback matched nobody (Copilot, PR #193). Only blocks
-        # opened at depth 0 are considered now.
+        # opened at depth 0 are considered.
         with repo_copy() as dst:
             path = dst / "hooks" / "hooks.json"
             document = json.loads(path.read_text(encoding="utf-8"))
-            hook = document["hooks"]["PreToolUse"][0]["hooks"][1]
+            hook = document["hooks"]["PreToolUse"][0]["hooks"][0]
             command = hook["command"]
             identity = (
-                '''*'"agent_type":"sde-agents:homelab-engineer"'*'''
-                '''|*'"agent_type":"homelab-engineer"'*'''
+                '''*'"agent_type":"sde-agents:code-reviewer"'*'''
+                '''|*'"agent_type":"code-reviewer"'*'''
             )
             self.assertIn(identity, command, "the identity roster moved; re-anchor this test")
             # Gut the real fallback FIRST: the decoy contains the same text, and planting it
             # first would make a single replace hit the decoy instead.
             command = command.replace(identity, '''*'"agent_type":"NOBODY"'*''', 1)
             command = command.replace(
-                "*homelab-engineer*) ;;",
-                f'*homelab-engineer*) case "$SQ" in {identity}) ;; esac ;;',
+                "*repository-investigator*) ;;",
+                f'*repository-investigator*) case "$SQ" in {identity}) ;; esac ;;',
                 1,
             )
             self.assertIn(identity, command, "the decoy was not planted")
@@ -566,7 +468,7 @@ class ValidatorCrossCheckTests(unittest.TestCase):
             issues = validate_fleet.validate_plugin(dst, fleet.agent_names, fleet.skill_names)
             self.assertTrue(
                 any(
-                    "no-interpreter fallback" in issue and "homelab-engineer" in issue
+                    "no-interpreter fallback" in issue and "code-reviewer" in issue
                     for issue in issues
                 ),
                 issues,
