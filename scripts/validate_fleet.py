@@ -137,8 +137,6 @@ def validate_routing_clusters(
     return [text for text, _ in _routing._routing_issues(root, agent_names, skill_names)]
 
 
-def validate_host_conformance_manifest(root: Path) -> list[str]:
-    return _run(root, "conformance")
 
 
 def validate_bare_skill_references(root: Path, skill_names: list[str]) -> list[str]:

@@ -318,11 +318,9 @@ outside a short, reviewed set of readers ever runs — is far narrower and more 
 "we blocked the writes we thought of," but the load-bearing control remains OS-level least
 privilege.
 
-`scripts/fleet_doctor.py` and `scripts/probe_hosts.py` observe the guard posture above but
-do not enforce it. The doctor is read-only and reports repository, generated, install, CLI,
-junction, guard, and Codex sync posture. Host probes keep static packaging, discovery, live Claude
-behavior, and model-specific Codex baselines in separate lanes so an absent host or unexposed
-observed-model field cannot become a pass.
+`scripts/fleet_doctor.py` observes the guard posture above but does not enforce it. It is
+read-only and reports repository, generated, install, CLI, junction, guard, and Codex sync
+posture.
 
 ## Validation
 

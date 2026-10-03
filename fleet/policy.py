@@ -8,7 +8,7 @@ are: rules and policy are one versioned unit, and a validator that mixed its own
 target tree's tables would judge that tree by a vocabulary its rules were never written against
 (a table the target lacks would be a load error, not a verdict). This is the contract the legacy
 validator had, where the same tables were module constants; the tree under validation supplies
-its generator and its conformance schema, never the validator's policy.
+its generator, never the validator's policy.
 """
 
 from __future__ import annotations
@@ -52,8 +52,6 @@ class Policy:
     perishable_tokens: Mapping[str, str]
     guide_import: str
     program_doc: str
-    conformance_required_hosts: frozenset[str]
-    conformance_required_baseline_model: str
 
     @property
     def evidence_mcp_tools(self) -> frozenset[str]:
@@ -141,7 +139,6 @@ def load(path: Path = POLICY_PATH) -> Policy:
 
     evidence = _table(document, "evidence")
     guide = _table(document, "guide")
-    conformance = _table(document, "conformance")
     perishable = document.get("perishable_tokens", {})
     if not isinstance(perishable, dict) or not all(
         isinstance(k, str) and isinstance(v, str) for k, v in perishable.items()
@@ -170,12 +167,6 @@ def load(path: Path = POLICY_PATH) -> Policy:
         perishable_tokens=MappingProxyType(dict(perishable)),
         guide_import=_string(guide, "import_line", "guide"),
         program_doc=_string(guide, "program_doc", "guide"),
-        conformance_required_hosts=frozenset(
-            _strings(conformance, "required_static_hosts", "conformance")
-        ),
-        conformance_required_baseline_model=_string(
-            conformance, "required_baseline_model", "conformance"
-        ),
     )
 
 

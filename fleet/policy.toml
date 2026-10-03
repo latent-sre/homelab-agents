@@ -174,8 +174,3 @@ stems = [
 [guide]
 import_line = "@AGENTS.md"
 program_doc = "docs/engineering-program.md"
-
-# Cross-host conformance coverage policy, applied after the shared manifest schema validates.
-[conformance]
-required_static_hosts = ["claude", "codex", "vscode"]
-required_baseline_model = "gpt-5.6-sol"

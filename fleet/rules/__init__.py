@@ -63,7 +63,6 @@ REPO_GROUP_ORDER: tuple[str, ...] = (
     "adapters",
     "guide",
     "routing",
-    "conformance",
     "references",
     "inventory",
 )
@@ -180,7 +179,6 @@ def _home_rank(path: Path | None, homes: dict[Path, int]) -> int:
 from fleet.rules import (  # noqa: E402,F401
     adapters,
     agents,
-    conformance,
     guide,
     inventory,
     plugin,

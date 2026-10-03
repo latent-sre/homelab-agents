@@ -4,8 +4,6 @@ import json
 import unittest
 from pathlib import Path
 
-from scripts import validate_fleet
-from tests.support import repo_copy
 from tests.validate_fleet_wiring_support import PluginWiringMixin
 
 
@@ -107,43 +105,6 @@ class PluginWiringRuntimeTests(PluginWiringMixin, unittest.TestCase):
                     ),
                     issues,
                 )
-
-    def test_host_manifest_schema_failure_reaches_the_ordinary_fleet_gate(self) -> None:
-        def mutate(repo: Path) -> None:
-            path = repo / "evals" / "conformance" / "hosts.json"
-            document = json.loads(path.read_text(encoding="utf-8"))
-            document["description"] = ""
-            path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-
-        issues = self._issues_after(mutate)
-        self.assertTrue(
-            any("conformance description must be non-empty" in issue for issue in issues),
-            issues,
-        )
-
-    def test_host_fleet_policy_keeps_static_hosts_and_required_sol_baseline(self) -> None:
-        with repo_copy() as repo:
-            path = repo / "evals" / "conformance" / "hosts.json"
-            document = json.loads(path.read_text(encoding="utf-8"))
-            document["lanes"] = [
-                lane for lane in document["lanes"] if lane.get("id") != "vscode-static"
-            ]
-            sol_lane = next(
-                lane
-                for lane in document["lanes"]
-                if lane.get("kind") == "model-baseline"
-                and lane.get("model") == "gpt-5.6-sol"
-            )
-            sol_lane["required"] = False
-            decoy = next(lane for lane in document["lanes"] if lane.get("kind") == "static")
-            decoy["model"] = "gpt-5.6-sol"
-            document["lanes"].remove(decoy)
-            document["lanes"].insert(0, decoy)
-            path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-            issues = validate_fleet.validate_host_conformance_manifest(repo)
-
-        self.assertTrue(any("missing hosts ['vscode']" in issue for issue in issues), issues)
-        self.assertTrue(any("baseline is not required" in issue for issue in issues), issues)
 
 
 if __name__ == "__main__":

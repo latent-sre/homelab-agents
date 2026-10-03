@@ -1,7 +1,7 @@
 """Import a script by path, keyed on the exact bytes of it and its siblings.
 
-Validation imports the tree-under-validation's own scripts (the adapter generator, the
-conformance schema), and the mutation suite validates about a hundred copies of this repository
+Validation imports the tree-under-validation's own scripts (the adapter generator),
+and the mutation suite validates about a hundred copies of this repository
 in one process -- nearly all byte-identical, each previously paying compile+exec again. Keying
 the cache on content keeps the reuse honest: mutated code hashes differently and gets a fresh
 import, so the cache can never certify code it did not load.
