@@ -61,9 +61,7 @@ select = ["E", "F", "W", "I", "B", "UP"]
 #   `probe_plugin.py` run. Spending a live probe to rewrap comments in the fleet's security
 #   boundary is the wrong trade, for the same reason `[tool.ruff.format]` below excludes them.
 #
-# Operator ruling, 2026-09-14: the exemptions are PERMANENT, and MACH-001's acceptance criterion
-# is amended from "the table is empty" to "every entry states why it is exempt". Adding another
-# entry still requires the same justification -- this is not a reopened backlog.
+# The exemptions are permanent; adding another entry requires the same stated reason.
 [tool.ruff.lint.per-file-ignores]
 "scripts/probe_plugin.py" = ["E501"]
 "scripts/readonly-guard.py" = ["E501"]

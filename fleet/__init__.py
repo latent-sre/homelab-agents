@@ -15,7 +15,7 @@ Design rules, binding on every module here:
   is adopted, a description too long, or a command live is policy, and policy stays in the
   instrument that owns it.
 * **The inspected tree is data.** Nothing under a caller-supplied root is imported or executed by
-  a kernel function, so a foreign checkout or frozen baseline is safe to read.
+  a kernel function, so a foreign checkout is safe to read.
 * **Skip, never crash, on a line the reader cannot interpret** when the input is a transcript or
   a report that was already paid for; **refuse, never guess** when the input is a definition whose
   misreading would silently change what it configures. Each module's docstring says which side it
@@ -25,8 +25,8 @@ Design rules, binding on every module here:
   from one. The dev dependency group in `pyproject.toml` serves tests and lint, never this package.
 
 The plugin hook (`scripts/readonly-guard.py`) does NOT import this package: it is a single
-self-contained file by contract (AGENTS.md, "Keep isolated hooks dependency-free"), and the
-validator reads its roster as data.
+self-contained file by contract (AGENTS.md, "Keep isolated hooks dependency-free");
+`fleet.roster` reads its roster as data.
 """
 
 from __future__ import annotations

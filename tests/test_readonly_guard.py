@@ -24,11 +24,11 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from scripts import validate_fleet
 from tests.support import (
     HAS_HYPOTHESIS,
     HYPOTHESIS_REQUIRED,
     given,
+    load_guard,
     settings,
     st,
 )
@@ -39,7 +39,7 @@ GUARD = Path(__file__).resolve().parents[1] / "scripts" / "readonly-guard.py"
 # test would keep passing while the newest guarded agent went unexercised. (The design agents in
 # it are guarded by choice rather than by the validator's rule — they hold Write for documents
 # while promising an inspection-only Bash, the half a command allowlist can actually enforce.)
-GUARDED_AGENT_NAMES = validate_fleet.load_guard(
+GUARDED_AGENT_NAMES = load_guard(
     Path(__file__).resolve().parents[1]
 ).GUARDED_AGENT_NAMES
 
@@ -550,7 +550,7 @@ class NetworkReadScoping(unittest.TestCase):
     with extra steps.
     """
 
-    GUARD_MODULE = validate_fleet.load_guard(Path(__file__).resolve().parents[1])
+    GUARD_MODULE = load_guard(Path(__file__).resolve().parents[1])
 
     def test_investigator_is_denied_gh_in_both_name_forms(self) -> None:
         for agent_type in ("repository-investigator", "sde-agents:repository-investigator"):
@@ -612,7 +612,7 @@ class GuardPropertyTests(unittest.TestCase):
     and what is fuzzed here is the tokenizer's decision, which is where a bypass would live.
     """
 
-    guard = validate_fleet.load_guard(Path(__file__).resolve().parents[1])
+    guard = load_guard(Path(__file__).resolve().parents[1])
 
     @given(st.text(max_size=120))
     @settings(max_examples=500, deadline=None)

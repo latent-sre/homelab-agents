@@ -19,7 +19,7 @@ roster expansions are computed. Substitution is by explicit placeholder rather t
 because the template legitimately contains `${CLAUDE_PLUGIN_ROOT}` and JSON braces a format call
 would have to escape -- and an escaping mistake here is a silently disarmed hook.
 
-This module renders; it never reads a roster itself. `fleet.snapshot` already reads the hook
+This module renders; it never reads a roster itself. `fleet.roster` already reads the hook
 script as data, and a second reader here would be the duplicate-parser failure the kernel exists
 to end (`AGENTS.md`, "One parser per fact").
 """
@@ -37,7 +37,7 @@ class Roster(NamedTuple):
     """The hook script's subjects and the namespace it spells them under.
 
     Both fields come from that script's own module constants, read as data by
-    `fleet.snapshot.read_rosters`; this module never opens a hook script itself.
+    `fleet.roster.read_rosters`; this module never opens a hook script itself.
     """
 
     names: frozenset[str]

@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import argparse
 import difflib
-import importlib
 import json
 import os
 import re
@@ -38,7 +37,6 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from types import ModuleType
 
 _REPO_ROOT = str(Path(__file__).resolve().parents[1])
 if _REPO_ROOT not in sys.path:
@@ -61,11 +59,7 @@ from fleet.hosts.table import (  # noqa: E402
     TOOLS_REFERENCE_REWRITES,
 )
 from fleet.hosts.toml import Multiline, TomlEmitError, render_document  # noqa: E402
-from fleet.snapshot import (  # noqa: E402
-    GUARD_ROSTER,
-    GUARD_SCRIPT,
-    HookScript,
-)
+from fleet.roster import GUARD_ROSTER, GUARD_SCRIPT, WRITE_TOOLS, HookScript  # noqa: E402
 
 COPILOT_AGENTS = Path(".github/agents")
 CODEX_AGENTS = Path(".codex/agents")
@@ -136,23 +130,13 @@ _TEXT_RESOURCE_SUFFIXES = {".json", ".md", ".py", ".toml", ".yaml", ".yml"}
 _FRONTMATTER_LINE_RE = re.compile(r"^(?P<key>[A-Za-z][A-Za-z0-9_-]*):")
 
 
-def _validator_module() -> ModuleType:
-    """Import the source grammar without making this script depend on its invocation path."""
-
-    try:
-        return importlib.import_module("scripts.validate_fleet")
-    except ModuleNotFoundError:
-        return importlib.import_module("validate_fleet")
-
-
 def _definition_parts(path: Path) -> tuple[dict[str, str], str, list[str]]:
     """Return parsed fields, body, and raw frontmatter lines for one definition."""
 
-    validator = _validator_module()
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines()
-    end = validator.frontmatter_span(lines)
-    fields = None if end is None else validator.parse_frontmatter_lines(lines, end)
+    end = _frontmatter.span(lines)
+    fields = None if end is None else _frontmatter.parse_lines(lines, end)
     if fields is None or end is None:
         raise ValueError(f"{path}: missing or malformed frontmatter")
     missing = sorted({"name", "description"} - fields.keys())
@@ -181,10 +165,9 @@ def adapt_text(text: str, host: str, *, ledger: Ledger | None = None) -> str:
 def _copilot_tools(
     fields: dict[str, str], *, guarded: bool
 ) -> list[str]:
-    validator = _validator_module()
     mapped = {
         COPILOT_TOOL_MAP[tool]
-        for tool in validator.split_tools(fields.get("tools", ""))
+        for tool in _frontmatter.split_tools(fields.get("tools", ""))
         if tool in COPILOT_TOOL_MAP
     }
     if guarded:
@@ -193,10 +176,9 @@ def _copilot_tools(
 
 
 def _has_external_evidence_tools(fields: dict[str, str]) -> bool:
-    validator = _validator_module()
     return any(
         tool == "ToolSearch" or tool.startswith("mcp__")
-        for tool in validator.split_tools(fields.get("tools", ""))
+        for tool in _frontmatter.split_tools(fields.get("tools", ""))
     )
 
 
@@ -321,11 +303,10 @@ def _codex_agent_parts(
 ) -> tuple[dict[str, str], str, str, str, str]:
     """Return source metadata plus one shared Codex authority contract."""
 
-    validator = _validator_module()
     fields, body, _ = _definition_parts(source)
     name = fields["name"]
-    tools = set(validator.split_tools(fields.get("tools", "")))
-    sandbox_mode = "workspace-write" if tools & validator.WRITE_TOOLS else "read-only"
+    tools = set(_frontmatter.split_tools(fields.get("tools", "")))
+    sandbox_mode = "workspace-write" if tools & WRITE_TOOLS else "read-only"
     description = adapt_agent_text(
         fields["description"], name=name, host="codex", ledger=ledger
     )

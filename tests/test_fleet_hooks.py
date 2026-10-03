@@ -25,11 +25,7 @@ import unittest
 from pathlib import Path
 
 from fleet import hooks
-from fleet.snapshot import (
-    GUARD_ROSTER,
-    GUARD_SCRIPT,
-    HookScript,
-)
+from fleet.roster import GUARD_ROSTER, GUARD_SCRIPT, HookScript
 from scripts import generate_platform_adapters as generator
 from tests.support import (
     REPO,

@@ -68,85 +68,6 @@ authentication, capture the untouched main baseline and final candidate under th
 identical routing conditions, and run the native hook probe. Keep host synchronization and
 publication separate from this source-level evidence.
 
-#### MACH-001 — rebuild the fleet machinery on one kernel
-
-**Status:** `active` — the decision record was accepted 2026-09-13 after phase 0 merged (PR #187).
-Phase 1 (rules, policy, findings, CLI, rosters as data) merged in PR #188; phase 2 (host
-projections as a counted rewrite table, the verified Codex TOML emitter, `--diff`) is implemented
-on `claude/machinery-rewrite-fresh-ar08n6` and merged as PR #189. Phase 3 (probes and doctor on
-the kernel, `hypothesis` property tests, PROBE-006 closed) is implemented on the same branch,
-restarted from `main`. Phase 4 (routing evals handed to `claude plugin eval`, the verdict kept
-fleet-side, provenance moved onto the kernel) merged as PR #191. Phase 5 (`hooks/hooks.json`
-rendered from the guard and gate rosters by `fleet/hooks.py` and byte-checked by the adapter
-generator) is implemented on the same branch, restarted from `main`. All five phases are then
-implemented. The lint ratchet held 27 file entries suppressing 147 findings (counted 2026-09-14
-by removing the table and re-running `ruff check .`; an earlier figure of "12 file entries" in
-this item was wrong). It is now **three entries, all `E501`, and none of them a backlog** — the
-reason for each is beside it in `pyproject.toml`.
-
-**Outcome:** Every maintainer instrument under `scripts/` runs on the `fleet/` kernel with one
-implementation per primitive, policy held as data, structured findings, and the routing runner
-retired to native `claude plugin eval`; the hooks stay single-file and dependency-free.
-
-**Source:** Machinery rewrite decision (`docs/decisions/2026-09-13-machinery-rewrite.md`).
-
-**Prerequisites:** Phase order as the record states; phase 4 additionally needs CI's CLI at
-≥ 2.1.269 (it now floats on latest) with a probe re-run on that CLI, and one live native eval run.
-
-**Constraints:** No runtime dependency in `fleet/`; hooks never import it; each phase keeps the
-generated adapters byte-identical and every existing verdict unchanged unless its PR records the
-change; the routing runner is not wired onto the kernel before it retires (provenance hole).
-
-**Phase 4's fleet-side verdict and provenance were removed 2026-10-03.** A paired
-`prompt-tooling` batch (36 runs) graded the same traces both ways and the native `regex`
-grader agreed on every run, so `claude plugin eval` now grades as well as runs, and
-`fleet/routing.py`, `fleet/provenance.py`, `scripts/eval_clean_room.py`, and the stored
-baselines went with their tests.
-
-**Acceptance:** Per phase, the oracle named in the record's phase table, plus green tiers.
-**Amended by operator ruling on 2026-09-14**: the criterion was "the lint ratchet table in
-`pyproject.toml` is empty"; it is now "every remaining entry states why it is exempt". MACH-001
-therefore closes when the phase-5 PR merges. Adding a fourth entry still owes the same
-justification — this is not a reopened backlog.
-
-All three are ruled permanent, and none of them is a cleanup anyone skipped:
-
-- `scripts/probe_plugin.py` — its long lines live inside the triple-quoted prompt and workflow
-  source the probe sends to a live model. A physical line inside a triple-quoted string cannot
-  carry a `noqa`, and rewrapping it changes the stimulus, so the recorded probe evidence would no
-  longer describe the same measurement. The exemption is permanent and the entry is
-  documentation, not debt.
-- `scripts/readonly-guard.py` and `scripts/live-effect-gate.py` — 11 long lines between them, all
-  comments and code rather than emitted bytes, so all reflowable with no behavior change. But
-  editing either is a hook change under `AGENTS.md`'s hook playbook and owes a
-  `scripts/probe_plugin.py` run. Spending that run to rewrap comments in the fleet's security
-  boundary is the wrong trade, for the same reason `[tool.ruff.format]` already excludes the hook
-  scripts — so the exemption is permanent and no probe is owed for it.
-
-**Evidence disposition:** The specifier claim was re-probed on 2.1.270 on 2026-09-13 (three
-runs; the specifier restricts nothing, the validator's rule stands) and the CI pin moved to
-2.1.270 with the probe re-run — pin refresh evidence (`docs/archive/2026-09/pin-refresh-evidence-2026-09-13.md`).
-
-**Phase 5 found a live defect in the check it replaces.** The validator's `plugin.hooks.gate`
-cross-check took the *last* `case` block as the gate's no-interpreter fallback. The gate nests a
-`case "$IN"` inside that fallback to separate a prompt-suppressed session from an interactive one,
-and the nested block names `homelab-engineer` only inside an English denial reason — so the rule
-was reading prose as a roster. Measured: replacing the gate's real `case "$SQ"` roster with a name
-that gates nobody left `validate_fleet.py` at exit 0 and `tests.test_fleet_rules` green; only
-`tests/test_hook_wiring.py`, which executes the shell string, caught it (11 failures). The rule now
-selects each block by the variable that opened it, with the mutation pinned in
-`tests/test_fleet_hooks.py`. The shipped hook was never wrong; the check was.
-
-**Next action:** Open the phase-5 PR (`fleet/hooks.py` renders both roster copies from the hook
-scripts' own constants; `hooks/hooks.json` joins the generator's byte-checked outputs as a
-standalone `GENERATED_FILES` entry rather than a deletable root; the gate cross-check defect above
-is fixed). **The probe is not run for this phase, and the reason is on the record**: the shipped
-`hooks/hooks.json` is byte-identical to the file the last probe ran against (3,035 bytes), so a
-run would re-prove an existing fact, which proportionality forbids. What changed is where those
-bytes come from, and byte-identity is the stronger evidence for that than a live session would
-be. The next probe — owed before the next release — is the first to exercise a machine-produced
-hook file, and that is the run to read carefully. Then the ratchet.
-
 #### LABFLOW-001 — simplify the homelab operating path
 
 **Status:** `active` — the operator selected main-review items 1, 2, 3, 5, and 6 on 2026-09-07;
@@ -235,7 +156,7 @@ roster cut that closed CTX-002 never landed, and the listing measures ~9,174 cha
 the 8,000-character assumption, so a hard rule would fail today.
 
 **Outcome:** Three locks: a calibrated `skillListingBudgetFraction` in lab repositories'
-settings, the doctor's listing-budget warning promoted to a hard validator rule, and a
+settings, a skill-listing budget check in the validator, and a
 generated-adapter size tripwire ahead of GitHub's 30,000-char cap.
 
 **Source:**
@@ -245,7 +166,8 @@ generated-adapter size tripwire ahead of GitHub's 30,000-char cap.
 Copilot-cap tripwire have none.
 
 **Acceptance:** Settings lines landed with each environment's live-probe calibration; the
-promoted validator rule with a failing fixture; the Copilot-cap tripwire with a firing test;
+listing-budget check with a test that fails over budget; the Copilot-cap tripwire with a firing
+test;
 regenerated adapters; green tiers.
 
 **Next action:** Ship the Copilot-cap tripwire first — prerequisite-free, small, and its
@@ -271,9 +193,8 @@ design-agent merger before deleting it. If `eng-ladder` is kept, LADDER-002's wo
 ("the roster cut deletes it") lapses: reopen LADDER-002 or re-justify it. A description edit in
 the surviving roster owes routing evals.
 
-**Acceptance:** `agents/` and `skills/` match the ruled roster; `fleet_doctor.py`'s
-`repository.skill-listing-budget` passes; routing clusters for removed components are retired;
-green tiers.
+**Acceptance:** `agents/` and `skills/` match the ruled roster; the skill listing fits the
+8,000-character budget; green tiers.
 
 **Next action:** Operator rules on `eng-ladder` (delete per the audience ruling, or keep it and
 amend that ruling's roster); then open the cut from main.

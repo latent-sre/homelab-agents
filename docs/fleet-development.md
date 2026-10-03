@@ -54,8 +54,8 @@ needs one. `AGENTS.md` names each trigger and points here. The rules are unchang
 - An explicit `tools:` list. Omitting it is not a harmless default — the agent **inherits every
   tool**. No parenthesized specifiers: `Bash(git diff:*)` and `Agent(worker)` are silently ignored
   by the runtime while reading as limits, so the validator rejects them. New built-in tools outside
-  the fleet's adopted set must be added to the `[tools] fleet` list in `fleet/policy.toml`;
-  exact MCP tools go in an MCP group under `[tools.groups]` there. Add either deliberately —
+  the fleet's adopted set must be added to `FLEET_TOOLS` in `scripts/validate_fleet.py`;
+  exact MCP tools go in `EVIDENCE_MCP` there. Add either deliberately —
   every entry is authority, and server-wide MCP grants are rejected because they silently
   acquire future tools.
 - `model:` must be an alias (`inherit`, `haiku`, `sonnet`, `opus`, `fable`). A full model ID is a
@@ -335,32 +335,23 @@ python3 scripts/validate_claude_plugin.py                # before push — marke
 ```
 
 The instruments share the `fleet/` kernel (link-safe filesystem reads, one subprocess runner,
-stream-json decoding with the `tool_use_id` oracle, digests, the exit ladder, and the frontmatter
-dialect with its strict scalar check and emitter). The validator itself is the rule registry in
-`fleet/rules/` — each rule a pure function over one `fleet/snapshot.py` snapshot, registered with
-a stable id and its why (`python3 -m fleet rules` lists them) — judging against the vocabularies
-in `fleet/policy.toml`; `scripts/validate_fleet.py` is the compatibility entry that returns the
-same messages as before, and `python3 -m fleet validate --json` returns them with rule ids. The hook rosters are read as AST data, never by running
-the hook. `ruff` and the kernel's differential YAML
+stream-json decoding with the `tool_use_id` oracle, the frontmatter dialect, and the guard
+roster reader). `scripts/validate_fleet.py` is one script: its vocabularies are the constants at
+the top, and each check is a function that returns the problems it found. The hook roster is
+read as AST data, never by running the hook. `ruff` and the kernel's differential YAML
 tripwire come from the dev group: `uv sync --upgrade-package ruff` (ruff floats, and CI installs
 its latest release; plain `uv sync` keeps the locked one), or the `pip install` line
 `.github/workflows/validate.yml` runs.
 
-The validator checks frontmatter, names, descriptions, explicit agent tool authority (against a
-known tool vocabulary), models, bundled skill references, the canonical evidence-label phrasing,
-the required end-of-task packet heading, README inventory drift, and drift in the repo's own agent
-guide — the `@AGENTS.md` bridge in `CLAUDE.md` and the paths `AGENTS.md` names. It is
-intentionally runtime-neutral and uses only the Python standard library.
-
-It also enforces the plugin invariants that fail *silently* at runtime: no agent may declare a
-field a plugin ignores; every read-only agent holding `Bash` must be registered with the guard; the
-guard's plugin name must match the manifest; the hook must resolve the guard through
-`${CLAUDE_PLUGIN_ROOT}`; cross-references in **descriptions** must be namespaced; every namespaced
-reference in definition Markdown must be well-formed and resolve (with slash commands restricted to
-skills); and a bare backticked skill name in an agent body must be present in that agent's
-`skills:` preload. Other free-form body prose remains convention-only. No definition may resolve a
-fleet file under `~/.claude`: the discovery roots there hold no fleet once it ships as a plugin,
-and the cached copy Claude Code keeps is replaced by the next reinstall.
+The validator checks only what fails *silently* at runtime: frontmatter that parses, known
+agent and skill keys (and no key a plugin-shipped agent ignores), names that match their file,
+explicit `tools:` built from known, adopted, subagent-available tools with no scoped grants, the
+investigation roles' trust split, `skills:` preloads that resolve to model-invocable skills, model
+aliases, a bare backticked skill name being preloaded, bundle links in both directions, the guard
+roster agreeing with the agents and the manifest, namespaced references that resolve to the right
+kind of member, byte-current host adapters, the README inventory, and the `@AGENTS.md` bridge
+plus the paths `AGENTS.md` and the program map name. Platform schema is `claude plugin
+validate`'s job. It uses only the Python standard library.
 
 The generator's host projections are data too: `fleet/hosts/table.py` declares every rewrite that
 turns a Claude-only authority claim into what the target host can enforce, each with its `why` and

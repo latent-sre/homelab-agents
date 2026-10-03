@@ -1,6 +1,6 @@
 """Namespaced cross-reference records of the canonical fleet, read once and never judged.
 
-The rules in `fleet/rules/` read these records; the judgments stay in the rules.
+`scripts/validate_fleet.py` reads these records and judges them.
 
 The inspected tree is DATA. Nothing under the caller-supplied root is imported or executed, so a
 foreign checkout is safe to parse.

@@ -14,6 +14,7 @@ from tests.support import (
     REPO,
     create_directory_link,
     git,
+    load_guard,
     remove_directory_link,
     repo_copy,
 )
@@ -517,7 +518,7 @@ class PlatformAdapterTests(unittest.TestCase):
                 self._generation_refuses(duplicate, rewrite_id=rewrite_id)
 
     def test_guarded_copilot_agents_have_no_shell_tool(self) -> None:
-        guard = validate_fleet.load_guard(REPO)
+        guard = load_guard(REPO)
         for name in sorted(guard.GUARDED_AGENT_NAMES):
             with self.subTest(agent=name):
                 fields = validate_fleet.parse_frontmatter(

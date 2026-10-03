@@ -68,6 +68,13 @@ class ReaderTests(unittest.TestCase):
             "Claude Code reads frontmatter only on line 1",
         )
 
+    def test_reads_quoted_and_literal_block_values(self) -> None:
+        parsed = _parse("---\nname: \"builder\"\ncolor: 'red'\ndescription: |\n  one\n  two\n---\n")
+        self.assertEqual("builder", parsed["name"])
+        self.assertEqual("red", parsed["color"])
+        self.assertIn("one", parsed["description"])
+        self.assertIn("two", parsed["description"])
+
     def test_span_returns_the_closing_marker_index(self) -> None:
         self.assertEqual(fm.span(["---", "a: b", "---", "body"]), 2)
         self.assertIsNone(fm.span(["---", "a: b"]))

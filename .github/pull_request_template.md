@@ -55,7 +55,7 @@ visible with its reason; it is not an inapplicable section.
 | a `description:` on any agent or skill | the requests you tried by hand before and after, and where each routed |
 | `scripts/readonly-guard.py` or `hooks/hooks.json` | `python3 scripts/probe_plugin.py` re-run — the guard's contract rests on the `agent_type` payload field, and only the probe proves the current CLI still honors it |
 | Codex agent adoption behavior (`scripts/install_codex_agents.py`) | a disposable run against the installed Codex version with adopted/refused/pruned counts and semantic parity result |
-| a validator rule | a fixture or mutation test that **fails without the change** (state that you checked it fails) |
+| a validator check | a test in `tests/test_validate_fleet.py` that **fails without the change** (state that you checked it fails) |
 | any canonical agent or skill | host adapters regenerated; no generated copy edited as the source |
 | an added, renamed, or removed component | `--write-inventory` re-run and host adapters regenerated |
 | a new mechanism (abstraction, config surface, component, gate, or CI job) | its demonstrated consumer — the real task that needs it now; its tier and measured cost if it's a check; and the smaller alternative that lost, with the reason |

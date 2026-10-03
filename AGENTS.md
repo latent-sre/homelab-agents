@@ -39,9 +39,9 @@ to Codex or VS Code: their `PreToolUse` payload has no agent identity to scope o
 structurally — no file at that host's hook-config path, hence no `hooks/` under
 `plugins/sde-agents/`; a manifest override does not do it.
 
-**Changing validator behavior** — a rule is a pure function in `fleet/rules/` with a stable id and
-a one-line why; vocabularies live in `fleet/policy.toml`. Land it with a fixture under
-`tests/fixtures/` or a mutation test that fails without it.
+**Changing validator behavior** — `scripts/validate_fleet.py` holds only checks for failures Claude
+Code ignores silently; vocabularies are the constants at its top. Land a check with a test in
+`tests/test_validate_fleet.py` that breaks the clean baseline tree in exactly that way.
 
 **Adding a guard or check to a fleet script** — land a test that makes it fire, or prove it by
 mutation. Do not call something "enforced" in prose unless a check stands behind it. A diagnostic
