@@ -74,8 +74,8 @@ class ToolExchange:
     """One `tool_use` block and the `tool_result` that answered it, if any.
 
     `result` is None when no result block ever named this call's id: a correlation gap, which a
-    verdict must report as INCONCLUSIVE rather than as either outcome. An observed `""` is a real
-    answer -- a command that ran and printed nothing still ran.
+    verdict must never read as either outcome. An observed `""` is a real answer -- a command that
+    ran and printed nothing still ran.
     """
 
     id: str
