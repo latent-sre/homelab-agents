@@ -115,35 +115,6 @@ class Report:
     def render_json(self) -> str:
         return json.dumps(self.to_dict(), indent=2, sort_keys=True)
 
-    def render_github(self) -> str:
-        """GitHub Actions workflow commands, one annotation per finding.
-
-        `::error file=...,line=...,title=<rule>::<message>` surfaces each finding inline on the
-        PR diff instead of only in a job log nobody opens. Newlines and the characters the
-        command grammar reserves are percent-encoded per the Actions specification.
-        """
-        lines = []
-        for finding in self.findings:
-            properties = []
-            relative = finding.relative_path(self.root)
-            if relative:
-                properties.append(f"file={_escape_property(relative)}")
-            if finding.line is not None:
-                properties.append(f"line={finding.line}")
-            properties.append(f"title={_escape_property(finding.rule)}")
-            lines.append(
-                f"::{finding.severity} {','.join(properties)}::{_escape_data(finding.text)}"
-            )
-        return "\n".join(lines)
-
-
-def _escape_data(value: str) -> str:
-    return value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
-
-
-def _escape_property(value: str) -> str:
-    return _escape_data(value).replace(":", "%3A").replace(",", "%2C")
-
 
 def texts(findings: Sequence[Finding]) -> list[str]:
     return [finding.text for finding in findings]

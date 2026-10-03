@@ -52,14 +52,6 @@ class FindingTests(unittest.TestCase):
         self.assertEqual({"error": 2, "warning": 1}, document["summary"])
         self.assertEqual("agents/a.md", document["findings"][0]["path"])
         self.assertEqual(7, document["findings"][1]["line"])
-        github = report.render_github().splitlines()
-        self.assertEqual(
-            "::error file=agents/a.md,title=agent.tools::"
-            "/repo/agents/a.md: missing explicit tools authority",
-            github[0],
-        )
-        self.assertIn("line=7", github[1])
-        self.assertTrue(github[2].startswith("::warning title=doctor.note::"))
 
     def test_warnings_alone_exit_warn_and_nothing_exits_ok(self) -> None:
         self.assertEqual(

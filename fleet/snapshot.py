@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from fleet import frontmatter, fs
+from fleet.references import definition_markdown_files
 
 TOOL_ENTRY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)(?:\((.*)\))?$")
 
@@ -172,7 +173,7 @@ class Fleet:
         # The definitions' bytes seed the map, so a core file is read exactly once; only the
         # bundled markdown (a skill's references/ and assets/) is read here.
         markdown_texts = {definition.path: definition.text for definition in (*agents, *skills)}
-        for path in _definition_markdown_files(root):
+        for path in definition_markdown_files(root):
             if path not in markdown_texts:
                 markdown_texts[path] = fs.try_read_text(path)
         return cls(
@@ -238,13 +239,6 @@ class Fleet:
     def hook_command_for(self, script: str) -> str | None:
         """The PreToolUse/Bash command that runs `script`, found by name."""
         return next((command for command in self.hook_commands if script in command), None)
-
-
-def _definition_markdown_files(root: Path) -> list[Path]:
-    files = sorted((root / "agents").glob("*.md")) if (root / "agents").is_dir() else []
-    if (root / "skills").is_dir():
-        files += sorted((root / "skills").rglob("*.md"))
-    return files
 
 
 def _hook_commands(path: Path) -> list[str]:

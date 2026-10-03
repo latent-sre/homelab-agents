@@ -65,8 +65,6 @@ def _validate_command(args: argparse.Namespace) -> int:
 
     if args.json:
         print(report.render_json())
-    elif args.github:
-        print(report.render_github())
     else:
         if report.findings:
             print(report.render_human(), file=sys.stderr)
@@ -93,9 +91,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     validate_parser.add_argument("--root", type=Path, default=DEFAULT_ROOT, help="repository root")
     validate_parser.add_argument("--json", action="store_true", help="print the report as JSON")
-    validate_parser.add_argument(
-        "--github", action="store_true", help="print GitHub Actions annotations, one per finding"
-    )
     validate_parser.add_argument(
         "--write-inventory",
         action="store_true",

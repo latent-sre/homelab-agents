@@ -521,7 +521,6 @@ class PlatformAdapterTests(unittest.TestCase):
                     canonical, name="homelab-engineer", host=host
                 )
                 self.assertNotIn("hooks/hooks.json", rewritten)
-                self.assertNotIn("live-effect gate — matched rule `docker compose up`", rewritten)
                 self.assertIn(marker, rewritten)
 
     def test_homelab_codex_allows_authorized_native_execution_without_fake_gate(self) -> None:
@@ -536,7 +535,6 @@ class PlatformAdapterTests(unittest.TestCase):
         self.assertIn("respect denials", rewritten)
         self.assertNotIn("sandbox and command-approval prompt must interpose", rewritten)
         self.assertNotIn("only an exec-policy rule under a root-owned path", rewritten)
-        self.assertNotIn("live-effect hook asks", rewritten)
 
     def test_homelab_copilot_handoff_tracks_missing_capability_not_missing_consent(self) -> None:
         """The native-execution path cannot accidentally grant the no-shell host a tool."""

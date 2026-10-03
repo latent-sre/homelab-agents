@@ -29,13 +29,6 @@ class CliTests(unittest.TestCase):
         self.assertIn("agent.tools", [f["rule"] for f in document["findings"]])
         self.assertEqual("agents/builder.md", document["findings"][0]["path"])
 
-    def test_github_annotations_render_one_line_per_finding(self) -> None:
-        code, out = run_main(
-            cli.main, "validate", "--root", str(FIXTURES / "unknown-tool"), "--github"
-        )
-        self.assertEqual(1, code)
-        self.assertTrue(out.startswith("::error file=agents/builder.md"))
-
     def test_write_inventory_repairs_then_validates_clean(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             dst = Path(tmp) / "repo"

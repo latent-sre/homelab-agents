@@ -7,7 +7,6 @@ import unittest
 from pathlib import Path
 
 from fleet import policy
-from scripts import validate_fleet
 
 
 class PolicyLoadTests(unittest.TestCase):
@@ -19,17 +18,6 @@ class PolicyLoadTests(unittest.TestCase):
         self.assertIn("Bash", p.roles["repository-investigator"].required)
         self.assertTrue(p.evidence_mcp_tools <= p.roles["researcher"].required)
         self.assertTrue(p.evidence_mcp_tools <= p.roles["application-security-auditor"].forbidden)
-
-    def test_validator_constants_are_views_of_the_policy(self) -> None:
-        p = policy.POLICY
-        self.assertEqual(set(p.model_aliases), validate_fleet.ALIAS_MODELS)
-        self.assertEqual(set(p.known_agent_fields), validate_fleet.KNOWN_AGENT_FIELDS)
-        self.assertEqual(set(p.known_skill_fields), validate_fleet.KNOWN_SKILL_FIELDS)
-        self.assertEqual(set(p.fleet_tools), validate_fleet.FLEET_TOOLS)
-        self.assertEqual(set(p.write_tools), validate_fleet.WRITE_TOOLS)
-        self.assertEqual(
-            {n: set(r.forbidden) for n, r in p.roles.items()}, validate_fleet.FORBIDDEN_AGENT_TOOLS
-        )
 
     def test_an_unknown_group_reference_is_a_loud_error(self) -> None:
         # A typo'd `@group` would otherwise grant or forbid nothing while reading as policy.

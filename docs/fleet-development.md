@@ -348,8 +348,7 @@ dialect with its strict scalar check and emitter). The validator itself is the r
 `fleet/rules/` — each rule a pure function over one `fleet/snapshot.py` snapshot, registered with
 a stable id and its why (`python3 -m fleet rules` lists them) — judging against the vocabularies
 in `fleet/policy.toml`; `scripts/validate_fleet.py` is the compatibility entry that returns the
-same messages as before, and `python3 -m fleet validate --json` (or `--github` for Actions
-annotations) returns them with rule ids. The hook rosters are read as AST data, never by running
+same messages as before, and `python3 -m fleet validate --json` returns them with rule ids. The hook rosters are read as AST data, never by running
 the hook. `ruff` and the kernel's differential YAML
 tripwire come from the dev group: `uv sync --upgrade-package ruff` (ruff floats, and CI installs
 its latest release; plain `uv sync` keeps the locked one), or the `pip install` line

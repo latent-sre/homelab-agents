@@ -12,20 +12,10 @@ evals/baselines/**/*.log
 .probe-tmp/
 probe-transcript.jsonl
 
-# Acceptance-evidence run logs (probe and pilot-workflow sessions). Raw session streams can
+# Acceptance-evidence run logs (probe sessions). Raw session streams can
 # carry repository content and belong beside the round's other transient evidence, never in
 # the tree; the distilled numbers live in the archived evidence note.
 .probe-run.log
-.pilot-run.jsonl
-.pilot-run.err
-
-# Failing-run model text from scripts/eval_behavioral.py. Same rule as the run logs above, and the
-# reason this artifact was made separable from benchmark.json in the first place: it exists so a
-# grammar-versus-text call can be made offline from the batch that already ran, which is a local
-# diagnosis, not a committed measurement. A round's conclusions reach the tree as reviewed quotes
-# in its decisions note; the raw dump does not. benchmark.json cannot be ignored the same way — it
-# IS the artifact — which is why retaining every run's text inside it stays opt-in and warned.
-evals/baselines/**/failing-run-evidence.json
 
 .claude/worktrees/
 

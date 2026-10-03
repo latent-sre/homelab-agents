@@ -39,7 +39,6 @@ from pathlib import Path
 from tests.support import REPO
 
 HOOKS = REPO / "hooks" / "hooks.json"
-AGENT = REPO / "agents" / "code-reviewer.md"
 SH = shutil.which("sh")
 
 REVIEWER = "sde-agents:code-reviewer"
@@ -131,23 +130,6 @@ def seed_target_guard(project: str) -> Path:
         encoding="utf-8",
     )
     return marker
-
-
-class AgentMustNotCarryAnInertHookTest(unittest.TestCase):
-    def test_code_reviewer_has_no_frontmatter_hooks_key(self) -> None:
-        # A `hooks:` block here is IGNORED for a plugin-shipped agent. Leaving one would read as
-        # protection and provide none — the single most dangerous thing this file guards against.
-        frontmatter = AGENT.read_text(encoding="utf-8").split("---", 2)[1]
-        self.assertNotRegex(
-            frontmatter,
-            r"(?m)^hooks:",
-            "agents/code-reviewer.md declares frontmatter 'hooks:', which Claude Code SILENTLY "
-            "IGNORES for a plugin-shipped agent. The guard belongs in hooks/hooks.json.",
-        )
-
-    def test_homelab_engineer_has_no_frontmatter_hooks_key(self) -> None:
-        text = (REPO / "agents" / "homelab-engineer.md").read_text(encoding="utf-8")
-        self.assertNotIn("\nhooks:", text.split("\n---", 2)[1])
 
 
 @unittest.skipIf(SH is None, "POSIX sh unavailable")

@@ -43,10 +43,6 @@ def _installed_agent(match: re.Match[str]) -> str:
     return f"the installed `{match.group('name')}` agent definition"
 
 
-def _trusted_fleet_control(match: re.Match[str]) -> str:
-    return f"an operator-provided trusted copy of the fleet's `{match.group('name')}` control"
-
-
 # The namespace is the plugin's, and only Claude resolves it. There is exactly one matcher for
 # a namespaced reference in this repository (`fleet.references`), and the host projection uses
 # it rather than a second grammar: a looser one rewrites the namespace inside a URL or path, and
