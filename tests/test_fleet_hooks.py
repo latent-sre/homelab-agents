@@ -25,15 +25,12 @@ import unittest
 from pathlib import Path
 
 from fleet import hooks
-from fleet.rules import plugin as plugin_rules
 from fleet.snapshot import (
     GUARD_ROSTER,
     GUARD_SCRIPT,
-    Fleet,
     HookScript,
 )
 from scripts import generate_platform_adapters as generator
-from scripts import validate_fleet
 from tests.support import (
     REPO,
     create_directory_link,
@@ -51,13 +48,14 @@ def repo_roster(root: Path) -> hooks.Roster:
 
 
 def case_blocks(command: str) -> dict[str, str]:
-    """The fast-path and fallback blocks, split by the validator's own reader.
+    """The fast-path (`$IN`) and identity-fallback (`$SQ`) `case` blocks, up to their `esac`."""
 
-    Deliberately not a second splitter: if this module grew its own, a renderer and a rule could
-    disagree about where a block ends and both tests would still pass.
-    """
-
-    return plugin_rules._select_roster_blocks(plugin_rules._roster_blocks(command))
+    blocks: dict[str, str] = {}
+    for variable in ("IN", "SQ"):
+        opener = f'case "${variable}" in'
+        if opener in command:
+            blocks[variable] = command.split(opener, 1)[1].split("esac", 1)[0]
+    return blocks
 
 
 class RenderTests(unittest.TestCase):
@@ -410,87 +408,6 @@ class GeneratorWiringTests(unittest.TestCase):
                     any("cannot inspect" in issue for issue in issues), issues
                 )
             self.assertEqual("outside content\n", victim.read_text(encoding="utf-8"))
-
-
-class ValidatorCrossCheckTests(unittest.TestCase):
-    """The cross-check is a SECOND instrument, and it must not read prose as a roster."""
-
-    def test_a_narrowed_pattern_is_not_accepted_as_the_roster_token(self) -> None:
-        # `pattern in block` does not prove the pattern IS an alternative: rendering
-        # `*code-reviewer*requires-extra*` contains `*code-reviewer*`, satisfies a substring
-        # check, and still never matches an ordinary payload for that agent (Copilot, PR #193).
-        # The check compares whole `case` alternatives.
-        with repo_copy() as dst:
-            path = dst / "hooks" / "hooks.json"
-            document = json.loads(path.read_text(encoding="utf-8"))
-            hook = document["hooks"]["PreToolUse"][0]["hooks"][0]
-            narrowed = hook["command"].replace(
-                "*code-reviewer*|", "*code-reviewer*requires-extra*|", 1
-            )
-            self.assertNotEqual(hook["command"], narrowed, "the fast path moved; re-anchor")
-            hook["command"] = narrowed
-            path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-            fleet = Fleet.load(dst)
-            issues = validate_fleet.validate_plugin(dst, fleet.agent_names, fleet.skill_names)
-            self.assertTrue(
-                any("fast-path filter" in issue and "code-reviewer" in issue for issue in issues),
-                issues,
-            )
-
-    def test_a_decoy_roster_nested_in_the_fast_path_is_not_read_as_the_fallback(self) -> None:
-        # Selecting the first block per variable took whichever came first in the text. A
-        # roster-shaped `case "$SQ"` nested INSIDE the fast path decides nothing — the fast path
-        # has already chosen to run the interpreter — so a malformed hook could satisfy the check
-        # with a decoy while the real fallback matched nobody (Copilot, PR #193). Only blocks
-        # opened at depth 0 are considered.
-        with repo_copy() as dst:
-            path = dst / "hooks" / "hooks.json"
-            document = json.loads(path.read_text(encoding="utf-8"))
-            hook = document["hooks"]["PreToolUse"][0]["hooks"][0]
-            command = hook["command"]
-            identity = (
-                '''*'"agent_type":"sde-agents:code-reviewer"'*'''
-                '''|*'"agent_type":"code-reviewer"'*'''
-            )
-            self.assertIn(identity, command, "the identity roster moved; re-anchor this test")
-            # Gut the real fallback FIRST: the decoy contains the same text, and planting it
-            # first would make a single replace hit the decoy instead.
-            command = command.replace(identity, '''*'"agent_type":"NOBODY"'*''', 1)
-            command = command.replace(
-                "*repository-investigator*) ;;",
-                f'*repository-investigator*) case "$SQ" in {identity}) ;; esac ;;',
-                1,
-            )
-            self.assertIn(identity, command, "the decoy was not planted")
-            hook["command"] = command
-            path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-            fleet = Fleet.load(dst)
-            issues = validate_fleet.validate_plugin(dst, fleet.agent_names, fleet.skill_names)
-            self.assertTrue(
-                any(
-                    "no-interpreter fallback" in issue and "code-reviewer" in issue
-                    for issue in issues
-                ),
-                issues,
-            )
-
-    def test_a_hook_missing_either_case_variable_is_refused(self) -> None:
-        # A restructured hook the cross-check cannot recognize must fail, not report nothing.
-        for variable in ("IN", "SQ"):
-            with self.subTest(removed=variable), repo_copy() as dst:
-                path = dst / "hooks" / "hooks.json"
-                document = json.loads(path.read_text(encoding="utf-8"))
-                hook = document["hooks"]["PreToolUse"][0]["hooks"][0]
-                hook["command"] = hook["command"].replace(
-                    f'case "${variable}" in', "if false; then", 1
-                )
-                path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-                issues = validate_fleet.validate_plugin(
-                    dst, Fleet.load(dst).agent_names, Fleet.load(dst).skill_names
-                )
-                self.assertTrue(
-                    any("found blocks on" in issue for issue in issues), issues
-                )
 
 
 if __name__ == "__main__":

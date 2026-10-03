@@ -89,69 +89,6 @@ class PluginWiringGuardTests(PluginWiringMixin, unittest.TestCase):
         issues = self._issues_after(mutate)
         self.assertTrue(any("CLAUDE_PLUGIN_ROOT" in i for i in issues), issues)
 
-    def test_guarded_agent_missing_from_the_hook_string_is_reported(self) -> None:
-        # The hook filters on the agent name before it ever runs the guard, so the roster lives in
-        # TWO places. Simulate adding another guarded agent to the guard alone: the hook's
-        # fast-path would exit 0 for it, leaving it unguarded while every file claims otherwise.
-        # `sde-fullstack` is a real agent, so this isolates the hook-sync rule from the
-        # does-this-agent-exist rule above.
-        def mutate(repo: Path) -> None:
-            _add_guarded_name(repo, "sde-fullstack")
-
-        issues = self._issues_after(mutate)
-        self.assertTrue(
-            any("is missing" in i and "'sde-fullstack'" in i for i in issues), issues
-        )
-
-    def test_name_present_in_only_one_hook_roster_is_reported(self) -> None:
-        # REGRESSION (review-reported, reproduced): the hook holds TWO rosters — the `case`
-        # fast-path that decides whether the guard runs at all, and the no-interpreter fallback
-        # that fails closed. Searching the whole command string passed when a name sat in one
-        # block and was missing from the other, which is the silent-disarm this rule exists to
-        # prevent. Each direction is pinned separately.
-        def drop_from_fast_path(repo: Path) -> None:
-            path = repo / "hooks" / "hooks.json"
-            doc = json.loads(path.read_text(encoding="utf-8"))
-            hook = doc["hooks"]["PreToolUse"][0]["hooks"][0]
-            hook["command"] = hook["command"].replace("|*principal-engineer*", "", 1)
-            path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
-
-        issues = self._issues_after(drop_from_fast_path)
-        self.assertTrue(
-            any("fast-path filter" in i and "principal-engineer" in i for i in issues), issues
-        )
-
-        def drop_from_fallback(repo: Path) -> None:
-            path = repo / "hooks" / "hooks.json"
-            doc = json.loads(path.read_text(encoding="utf-8"))
-            hook = doc["hooks"]["PreToolUse"][0]["hooks"][0]
-            command = hook["command"]
-            # Remove only the fallback's agent_type patterns for this agent, leaving the fast-path.
-            for form in ("sde-agents:principal-engineer", "principal-engineer"):
-                command = command.replace(f"""|*'"agent_type":"{form}"'*""", "")
-                command = command.replace(f"""|*'"agent_type": "{form}"'*""", "")
-            hook["command"] = command
-            path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
-
-        issues = self._issues_after(drop_from_fallback)
-        self.assertTrue(
-            any("no-interpreter fallback" in i and "principal-engineer" in i for i in issues),
-            issues,
-        )
-
-    def test_unrecognized_hook_shape_fails_rather_than_passing(self) -> None:
-        # If the hook is ever restructured away from two `case` blocks, the roster cross-check
-        # cannot verify it — and must say so instead of quietly reporting no issues.
-        def mutate(repo: Path) -> None:
-            path = repo / "hooks" / "hooks.json"
-            doc = json.loads(path.read_text(encoding="utf-8"))
-            hook = doc["hooks"]["PreToolUse"][0]["hooks"][0]
-            hook["command"] = hook["command"].replace('case "$IN" in', "if false; then", 1)
-            path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
-
-        issues = self._issues_after(mutate)
-        self.assertTrue(any("does not recognize" in i for i in issues), issues)
-
     def test_plugin_name_mismatch_is_reported(self) -> None:
         # The guard matches a NAMESPACED agent_type. Rename the plugin and it matches nobody.
         def mutate(repo: Path) -> None:

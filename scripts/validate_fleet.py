@@ -86,7 +86,6 @@ BUNDLE_REF_RE = _skills.BUNDLE_REF_RE
 INVENTORY_RE = _inventory.INVENTORY_RE
 INLINE_CODE_RE = _references.INLINE_CODE_RE
 GUIDE_PATH_TOKEN_RE = _guide.GUIDE_PATH_TOKEN_RE
-_CASE_BLOCK_RE = _plugin.CASE_BLOCK_RE
 _flow_scalar_defect = fleet_records._frontmatter.flow_scalar_defect
 load_module_by_content = modules.load_module_by_content
 _execute_source = modules.execute_source
