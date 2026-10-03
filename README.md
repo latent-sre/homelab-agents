@@ -3,8 +3,8 @@
 A Claude Code plugin for one person who runs a home lab and wants AI agents that behave like a
 careful operator: inspect before changing, finish an explicitly delegated task within its scope,
 keep recovery ready, and record the result. It ships agents for running the lab and for writing the
-scripts and services that live on it, skills that carry the operating knowledge, and two hooks
-that enforce their scoped read-only and live-command policies.
+scripts and services that live on it, skills that carry the operating knowledge, and a hook that
+keeps the read-only agents read-only.
 
 ## Fleet
 
@@ -138,13 +138,11 @@ recovers failures within the delegated scope. A major version alone does not req
 After recovery, independent authorized upgrades can continue; unresolved shared failures stop
 related work.
 
-Claude's shipped live-effect hook still prompts for listed commands and denies them when prompts
-are suppressed; unbound/unparseable forms also ask/deny. The hook is a partial filter: only when
-it returns no decision does execution proceed under the host's own permission flow. Skills cooperatively route Claude live work to the engineer; that routing does
-not remove main-loop tools. Direct Copilot skills also hand live commands to the operator.
-Codex uses its effective permissions without a fleet-invented prompt; required native prompts
-and denials still apply. The Copilot profile has no execution tool and hands live commands to
-the operator. Changing prose
+Live commands run under each host's own permission flow; the plugin adds no live-effect check of
+its own. On Claude Code that is the session's permission mode and rules; on VS Code and Copilot,
+homelab-engineer holds the `execute` tool and each command goes through the host's approval
+prompts; Codex applies its sandbox and approval policy. Skills cooperatively route live work to
+homelab-engineer on every host; that routing does not remove main-loop tools. Changing prose
 neither removes a host gate nor supplies a missing tool.
 
 ## Working on the fleet

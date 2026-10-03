@@ -16,10 +16,10 @@ consequence of that premise, engineered.
 
 A handoff is complete when the receiving session can act correctly with nothing but the artifact.
 
-- **End-of-task packets.** Every agent definition carries a packet contract — the validator
-  requires the section and pins the `[verified]/[sourced]/[unverified]` evidence stems exactly, so
-  the triad cannot drift file by file. Evidence labels exist because the reader cannot interrogate
-  the writer: a claim's strength must travel with the claim.
+- **End-of-task packets.** Every agent definition carries a packet contract and the
+  `[verified]/[sourced]/[unverified]` evidence labels, by convention — no check enforces either,
+  so review holds the triad to one phrasing. Evidence labels exist because the reader cannot
+  interrogate the writer: a claim's strength must travel with the claim.
 - **Task briefs.** `agents/homelab-engineer.md` supplies the objective, fixed decisions,
   constraints, acceptance, authority, and remaining work when application development crosses to
   `agents/sde-fullstack.md`. The receiver checks substance rather than a digest or receipt shape;

@@ -51,8 +51,8 @@ Suggestions that violate these are not improvements — please don't raise them:
   subtly different fleets.
 - **Model aliases only** (`inherit`, `haiku`, `sonnet`, `opus`, `fable`) — a pinned model ID goes
   stale silently, so it is banned even though it is a valid runtime value.
-- **Evidence-label stems are pinned verbatim** (`**[verified]** (you ran or observed it)` and its
-  siblings). Rewording them for style breaks a validator check that exists to stop drift.
+- **Evidence-label stems stay verbatim** (`**[verified]** (you ran or observed it)` and its
+  siblings) by convention; no check enforces them, so flag any rewording in review.
 - **Some files deliberately paraphrase others**, each declaring which side wins on conflict. When
   two files disagree, the finding is "the paraphrase drifted", and the fix goes in the paraphrase —
   never the declared source.
