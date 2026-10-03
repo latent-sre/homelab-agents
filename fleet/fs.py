@@ -34,12 +34,6 @@ def is_link_or_reparse(target: Path | os.stat_result) -> bool:
     )
 
 
-def absolute_without_resolving(path: Path) -> Path:
-    """An absolute lexical path. `Path.resolve()` is not used because it follows links, and the
-    callers of this function are the ones deciding whether a link is acceptable at all."""
-    return Path(os.path.abspath(os.fspath(Path(path).expanduser())))
-
-
 def read_text(path: Path) -> str:
     """Read a UTF-8 text file; the encoding is explicit so Windows never decodes as cp1252."""
     return Path(path).read_text(encoding="utf-8")
@@ -213,18 +207,3 @@ def safe_path_segment(value: str, *, what: str) -> str:
             f"directory there: {value!r}"
         )
     return value
-
-
-def contained_path(root: Path, relative: str, *, what: str) -> Path:
-    """`root / relative`, proven to stay under `root`.
-
-    The belt to `safe_path_segment`'s braces, for a multi-segment relative path that is assembled
-    rather than supplied whole. Resolution is done WITHOUT following symlinks
-    (`absolute_without_resolving`), because resolving first would accept a path whose containment
-    depends on a link that a repository under evaluation could have planted.
-    """
-    base = absolute_without_resolving(root)
-    candidate = absolute_without_resolving(root / relative)
-    if base != candidate and base not in candidate.parents:
-        raise ValueError(f"{what} escapes {base}: {relative!r} -> {candidate}")
-    return candidate

@@ -21,17 +21,16 @@ or run it. Why the fleet's disciplines exist is in `docs/engineering-program.md`
   --check`; repair Codex agent drift with `python3 scripts/install_codex_agents.py --user`.
 - **T2:** CI on Windows (`.github/workflows/validate.yml`) runs on every PR, push to main, and
   weekly; nothing to run locally.
-- **T3 — before a release or after a Claude CLI upgrade:** `python3 scripts/probe_plugin.py` and
-  every routing cluster in `evals/routing/`, before and after.
+- **T3 — before a release or after a Claude CLI upgrade:** `python3 scripts/probe_plugin.py`.
 
 Load the plugin from the working tree while editing it: `claude --plugin-dir .` (`README.md`
 covers the VS Code and Codex loops).
 
 ## Change playbooks
 
-**Editing a description** — descriptions drive routing, so run the overlapping cluster in
-`evals/routing/` before and after and compare the rates; `evals/README.md` owns how runs are
-compared.
+**Editing a description** — descriptions drive routing, so run the overlapping cluster before and
+after with `python3 scripts/eval_routing.py evals/routing/<cluster>.json --model sonnet` and
+compare; `evals/README.md` owns how to read the rates.
 
 **Touching a Claude hook** (`scripts/readonly-guard.py`, or the shell template in
 `fleet/hooks.py`) — read the guard's docstring first, then run the tests and the probe. The roster

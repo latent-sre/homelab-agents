@@ -109,12 +109,5 @@ class CorrelationTests(unittest.TestCase):
         )
 
 
-class SkillLaunchSignalTests(unittest.TestCase):
-    def test_launch_control_signals_are_not_failures(self) -> None:
-        self.assertTrue(stream.is_skill_launch_signal("Execute skill: lab-audit"))
-        self.assertTrue(stream.is_skill_launch_signal("launching SKILL: runbook"))
-        self.assertFalse(stream.is_skill_launch_signal("Error: unknown skill"))
-
-
 if __name__ == "__main__":
     unittest.main()

@@ -200,9 +200,8 @@ Use the installer for the initial user-scope installation and for every update a
 The Codex lane is supported but limited, and its limits are about *discovery*, not content. Two
 host behaviors change how the fleet is reached here. Both were read from the upstream source at
 HEAD `a16863f8` (re-verified 2026-08-09), not measured against an installed CLI. The repository's
-newest actual Codex run used `codex-cli 0.147.0`
-(`evals/baselines/history/2026-08-11-handoff-001.md`), but that behavioral capture did not test these two
-discovery claims. Treat the claims as source-established and re-check them on a version bump:
+newest actual Codex run used `codex-cli 0.147.0`, but that behavioral capture did not test these
+two discovery claims. Treat the claims as source-established and re-check them on a version bump:
 
 - **Explicit-only skills are invisible to the model.** `service-onboard` and `host-onboard` ship
   with `policy.allow_implicit_invocation: false`, and Codex keeps such skills out of every
@@ -325,8 +324,8 @@ instead of recomputing it. The edit loop runs the validator plus the test module
 touched artifact; a push owes the full offline suite, the platform contract check, and a hand
 check of the installed copies (`claude plugin list`, `codex plugin list`,
 `install_codex_agents.py --user --check`), which CI can never substitute for; CI runs on Windows for every PR, push to main, weekly sweep, and dispatch;
-releases and CLI upgrades owe the probe and every routing cluster, and `evals/README.md` owns
-when a stored benchmark can stand in for the 'before' side of a paired run.
+releases and CLI upgrades owe the probe; a description edit owes a before/after routing run
+(`evals/README.md`).
 The full tier recipe (T0–T3) lives in `AGENTS.md` under "Validate before you push"; this
 paragraph is its summary and loses to it on conflict.
 

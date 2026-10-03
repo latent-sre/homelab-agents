@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
 
 from scripts import validate_fleet
-from tests.support import repo_copy
+from tests.support import REPO, repo_copy
 
 
 class RoutingClusterTests(unittest.TestCase):
@@ -158,6 +159,35 @@ class RoutingClusterTests(unittest.TestCase):
                 for i in issues),
             issues,
         )
+
+
+class RoutingPromptTests(unittest.TestCase):
+    # A prompt that points at something must carry it. Every run starts in an empty working
+    # directory, so "here are the findings" with no findings makes the CORRECT behavior -- asking
+    # for the missing artifact -- score as a routing miss.
+    _DEICTIC = re.compile(
+        r"\b(?:here (?:are|is) (?:the|my|one)|this (?:change|diff|branch|PR|patch)\b"
+        r"|the attached|below\b)",
+        re.IGNORECASE,
+    )
+    # What "carrying the referent" looks like: enough prose to BE the artifact, or a structural
+    # marker that one is inlined.
+    _CARRIES = ("```", "diff --git", "@@", "PR #", "DRAFT", "FINDINGS")
+
+    def test_no_prompt_points_at_an_artifact_it_does_not_carry(self) -> None:
+        bare = []
+        for path in sorted((REPO / "evals" / "routing").glob("*.json")):
+            for case in json.loads(path.read_text(encoding="utf-8"))["cases"]:
+                prompt = case["prompt"]
+                match = self._DEICTIC.search(prompt)
+                if match and len(prompt) <= 500 and not any(m in prompt for m in self._CARRIES):
+                    bare.append(f"{path.name}:{case['id']} ({match.group(0)!r})")
+        self.assertEqual(
+            [], bare,
+            "prompt(s) refer to an artifact they do not supply, so the correct 'send me the "
+            "artifact' answer scores as a routing miss; inline a representative artifact",
+        )
+
 
 class AdapterCheckTierTests(unittest.TestCase):
     """The T0/T1 tier boundary for adapter byte-drift.

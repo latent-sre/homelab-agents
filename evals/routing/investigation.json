@@ -8,7 +8,7 @@
     "root-cause",
     "application-security-auditor"
   ],
-  "notes": "Seeded 2026-07-24 and trust-split on 2026-07-31. All five members are agents, so positives under-fire in headless one-shot mode; trust negatives and cross-run regressions over absolute positive rates. The load-bearing seams are public/external research vs local/private repository evidence, ordinary local investigation vs source-to-sink security audit, a diff verdict, and an observed failure. The before artifact at baselines/2026-07-31-p0-p1/before/investigation records the four-member pre-split shape under opus, timeout 420, and clean-room. New repository-investigator cases have no like-for-like before rate and are reported separately. Ordinary negatives use the whole-cluster default; the advisory-only disambiguation explicitly forbids every member except researcher.",
+  "notes": "Seeded 2026-07-24 and trust-split on 2026-07-31. All five members are agents, so positives under-fire in headless one-shot mode; trust negatives and cross-run regressions over absolute positive rates. The load-bearing seams are public/external research vs local/private repository evidence, ordinary local investigation vs source-to-sink security audit, a diff verdict, and an observed failure. Ordinary negatives use the whole-cluster default; the advisory-only disambiguation explicitly forbids every member except researcher.",
   "cases": [
     {
       "id": "pos-diagnose-failure",

@@ -1,317 +1,129 @@
 """The projection from a routing cluster onto native eval case directories.
 
-The generated graders are text that nothing in this repository executes, so the regexes are
-compiled and matched here against real tool-call JSON. A grader whose `input_match` never matches
-is not a weak tripwire -- it is a green light that means nothing, and it would pass every other
-check in the tree.
+The generated graders are text the native harness compiles; nothing in this repository runs them.
+So the pattern each grader carries is unquoted exactly as YAML would and matched here against real
+tool-call JSON -- a pattern that never matches would pass every negative and fail every positive
+while looking like a grader.
 """
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import re
+import shutil
+import tempfile
 import unittest
+from pathlib import Path
 
-from fleet import frontmatter, nativecases
+from fleet import nativecases
+from scripts import eval_routing
 
-AGENTS = frozenset({"homelab-engineer", "code-reviewer", "sde-fullstack"})
-SPEC = {
-    "cluster": "demo",
-    "members": ["homelab-engineer", "code-reviewer", "runbook", "lab-audit"],
-    "cases": [],
+SPEC = {"cluster": "demo", "members": ["prompt-craft", "prompt-engineer"], "cases": []}
+POSITIVE = {
+    "id": "pos-case",
+    "prompt": "Fix my skill.",
+    "polarity": "positive",
+    "expect_fires": ["prompt-craft", "prompt-engineer"],
+    "tags": ["fix-trigger"],
 }
+NEGATIVE = {"id": "neg-case", "prompt": "Optimize this SQL.", "polarity": "negative"}
+
+AGENT_CALL = (
+    '{"type":"tool_use","name":"Agent","input":{"subagent_type":"sde-agents:prompt-engineer"}}'
+)
+SKILL_CALL = '{"type":"tool_use","name":"Skill","input":{"skill": "prompt-craft"}}'
 
 
-def grader_body(files: dict[str, str], name: str) -> dict[str, str]:
-    for path, text in files.items():
-        if path.endswith(f"/graders/{name}.md"):
-            parsed = frontmatter.parse_text(text)
-            assert parsed is not None, f"grader {name} has unreadable frontmatter"
-            return parsed
-    raise AssertionError(f"no grader named {name} in {sorted(files)}")
+def grader(files: dict[str, str], case_id: str) -> dict[str, str]:
+    """The grader's fields, with `pattern` unquoted the way a YAML parser reads it."""
+    text = files[f"{case_id}/graders/routing.md"]
+    fields = {}
+    for line in text.split("---")[1].strip().splitlines():
+        key, value = line.split(": ", 1)
+        if value.startswith("'") and value.endswith("'"):
+            value = value[1:-1].replace("''", "'")
+        fields[key] = value
+    return fields
 
 
-class ToolForTests(unittest.TestCase):
-    def test_an_agent_dispatches_through_agent_and_a_skill_through_skill(self) -> None:
-        self.assertEqual("Agent", nativecases.tool_for("homelab-engineer", AGENTS))
-        self.assertEqual("Skill", nativecases.tool_for("runbook", AGENTS))
-
-
-class NegativeCaseTests(unittest.TestCase):
-    CASE = {
-        "id": "neg-demo",
-        "polarity": "negative",
-        "prompt": "do something unrelated",
-        "expect_not_fires": ["homelab-engineer", "runbook"],
-    }
-
-    def setUp(self) -> None:
-        self.files = nativecases.case_files(SPEC, self.CASE, agents=AGENTS)
-
-    def test_each_forbidden_target_gets_a_zero_bound_grader_on_its_own_tool(self) -> None:
-        agent = grader_body(self.files, "no-homelab-engineer")
-        self.assertEqual("Agent", agent["tool"])
-        skill = grader_body(self.files, "no-runbook")
-        self.assertEqual("Skill", skill["tool"])
-        for body in (agent, skill):
-            self.assertEqual("tool_used", body["type"])
-            self.assertEqual("0", body["min"])
-            self.assertEqual("0", body["max"])
-            self.assertEqual("both", body["arm"], "a negative must hold in the no-plugin arm too")
-
-    def test_a_target_outside_the_case_gets_no_grader(self) -> None:
-        """The runner honoured `expect_not_fires`; a sibling firing is not an over-trigger."""
-        self.assertNotIn("neg-demo/graders/no-code-reviewer.md", self.files)
-
-    def test_a_broad_negative_forbids_every_cluster_member(self) -> None:
-        broad = dict(self.CASE)
-        del broad["expect_not_fires"]
-        files = nativecases.case_files(SPEC, broad, agents=AGENTS)
+class GraderTests(unittest.TestCase):
+    def test_a_positive_grader_matches_either_tool_in_either_spelling(self) -> None:
+        fields = grader(nativecases.case_files(SPEC, POSITIVE), "pos-case")
         self.assertEqual(
-            {f"neg-demo/graders/no-{m}.md" for m in SPEC["members"]},
-            {p for p in files if "/graders/" in p},
+            ("regex", "trace", "contains"), (fields["type"], fields["target"], fields["match"])
         )
+        pattern = re.compile(fields["pattern"])
+        self.assertTrue(pattern.search(AGENT_CALL))
+        self.assertTrue(pattern.search(SKILL_CALL))
+        self.assertTrue(pattern.search('{"input":{"skill":"sde-agents:prompt-craft"}}'))
+
+    def test_the_pattern_matches_no_longer_name_and_no_other_plugin(self) -> None:
+        pattern = re.compile(nativecases.routing_pattern(["prompt-craft"]))
+        for text in (
+            '{"input":{"skill":"prompt-crafter"}}',
+            '{"input":{"skill":"other-plugin:prompt-craft"}}',
+            '{"input":{"description":"prompt-craft"}}',
+        ):
+            with self.subTest(text=text):
+                self.assertIsNone(pattern.search(text))
+
+    def test_a_negative_without_targets_forbids_the_whole_cluster(self) -> None:
+        fields = grader(nativecases.case_files(SPEC, NEGATIVE), "neg-case")
+        self.assertEqual("not_contains", fields["match"])
+        self.assertEqual(nativecases.routing_pattern(SPEC["members"]), fields["pattern"])
+
+    def test_the_pattern_is_valid_javascript_without_hyphen_escapes(self) -> None:
+        # The harness compiles it as a JS RegExp, which rejects `\-` under the `u` flag.
+        self.assertNotIn("\\-", nativecases.routing_pattern(SPEC["members"]))
+
+    def test_a_name_outside_the_component_grammar_never_reaches_a_pattern(self) -> None:
+        for bad in ("a|b", "x.*", "Upper"):
+            with self.subTest(name=bad), self.assertRaises(ValueError):
+                nativecases.routing_pattern([bad])
 
 
-class GraderRegexTests(unittest.TestCase):
-    """The generated `input_match` is matched against real tool-call JSON, not eyeballed."""
+class CaseTreeTests(unittest.TestCase):
+    def test_the_prompt_is_tagged_with_cluster_and_polarity(self) -> None:
+        # The driver selects each polarity with `--tag`, so the tag is load-bearing.
+        prompt = nativecases.case_files(SPEC, POSITIVE)["pos-case/prompt.md"]
+        self.assertIn('tags: ["demo", "positive", "fix-trigger"]', prompt)
+        self.assertTrue(prompt.rstrip().endswith("Fix my skill."))
 
-    def _pattern(self, component: str) -> re.Pattern[str]:
-        """Compile the pattern AND prove the grader carries it byte-for-byte.
+    def test_ids_that_collide_ignoring_case_are_refused(self) -> None:
+        with self.assertRaises(ValueError):
+            nativecases.cluster_files(SPEC, [POSITIVE, {**NEGATIVE, "id": "POS-CASE"}])
 
-        The fleet's own frontmatter reader is lenient about quoting and cannot recover a
-        single-quoted scalar's contents, so the emitted text is checked against the pattern
-        directly rather than round-tripped through a parser that would silently mangle it.
-        """
-        tool = nativecases.tool_for(component, AGENTS)
-        pattern = nativecases.forbidden_pattern(component, tool)
-        case = {
-            "id": "neg", "polarity": "negative", "prompt": "p",
-            "expect_not_fires": [component],
-        }
-        files = nativecases.case_files(SPEC, case, agents=AGENTS)
-        emitted = files[f"neg/graders/no-{component}.md"]
-        self.assertIn(
-            f"input_match: '{pattern}'\n", emitted,
-            "the grader must carry the pattern in the single-quoted form, where a backslash is "
-            "literal -- a double-quoted scalar needs the reader to decode it, and a mangled "
-            "pattern matches nothing while a max:0 tripwire passes forever",
-        )
-        return re.compile(pattern)
-
-    def test_an_agent_pattern_matches_both_spellings_and_nothing_else(self) -> None:
-        pattern = self._pattern("homelab-engineer")
-        for spelling in ("sde-agents:homelab-engineer", "homelab-engineer"):
-            with self.subTest(spelling=spelling):
-                self.assertRegex(json.dumps({"subagent_type": spelling}), pattern)
-        self.assertNotRegex(json.dumps({"subagent_type": "code-reviewer"}), pattern)
-        self.assertNotRegex(
-            json.dumps({"subagent_type": "homelab-engineer-v2"}), pattern,
-            "a longer name that merely starts with this one is a different component",
-        )
-
-    def test_a_skill_pattern_matches_the_keys_a_skill_call_uses(self) -> None:
-        pattern = self._pattern("runbook")
-        for key in ("command", "skill", "name"):
-            with self.subTest(key=key):
-                self.assertRegex(json.dumps({key: "sde-agents:runbook"}), pattern)
-        self.assertNotRegex(json.dumps({"command": "lab-audit"}), pattern)
-
-    def test_a_pattern_survives_the_json_whitespace_the_cli_may_emit(self) -> None:
-        pattern = self._pattern("homelab-engineer")
-        self.assertRegex('{"subagent_type" : "sde-agents:homelab-engineer"}', pattern)
+    def test_an_id_that_would_leave_the_tree_is_refused(self) -> None:
+        with self.assertRaises(ValueError):
+            nativecases.case_files(SPEC, {**POSITIVE, "id": "../escape"})
 
 
-class PositiveCaseTests(unittest.TestCase):
-    CASE = {
-        "id": "pos-demo",
-        "polarity": "positive",
-        "prompt": "diagnose the failure",
-        "expect_fires": ["homelab-engineer", "runbook"],
-        "expected_output": "either destination is correct",
-    }
+class DriverTests(unittest.TestCase):
+    def _dry_run(self, *extra: str) -> tuple[int, str, Path]:
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        cluster = tmp / "demo.json"
+        cluster.write_text(json.dumps({**SPEC, "cases": [POSITIVE, NEGATIVE]}), encoding="utf-8")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = eval_routing.main([str(cluster), "--plugin-dir", str(tmp), "--dry-run", *extra])
+        return code, out.getvalue(), tmp
 
-    def test_a_positive_gets_one_openly_vacuous_grader_and_no_lower_bound(self) -> None:
-        """A positive's disjunction spans two tools, so no `tool_used` grader can state it.
+    def test_a_dry_run_writes_the_cases_and_one_command_per_polarity(self) -> None:
+        code, out, tmp = self._dry_run()
+        self.assertEqual(0, code)
+        self.assertTrue((tmp / "evals/generated/demo/pos-case/graders/routing.md").is_file())
+        self.assertIn("--tag positive --threshold 0.5", out)
+        self.assertIn("--tag negative --threshold 1.0", out)
 
-        The harness rejects a case with no graders, so the placeholder exists; what matters is
-        that it never claims a lower bound, which would fail whenever the OTHER correct
-        destination fired.
-        """
-        files = nativecases.case_files(SPEC, self.CASE, agents=AGENTS)
-        graders = [p for p in files if "/graders/" in p]
-        self.assertEqual(["pos-demo/graders/verdict-is-fleet-side.md"], graders)
-        body = grader_body(files, "verdict-is-fleet-side")
-        self.assertEqual("0", body["min"])
-        self.assertNotIn("max", body)
-        self.assertNotIn("input_match", body)
-
-
-class PromptFileTests(unittest.TestCase):
-    CASE = {
-        "id": "pos-demo",
-        "polarity": "positive",
-        "prompt": "diagnose: the thing # broke",
-        "expect_fires": ["runbook"],
-        "expected_output": "runbook is correct",
-        "tags": ["disambiguation"],
-    }
-
-    def setUp(self) -> None:
-        self.text = nativecases.case_files(SPEC, self.CASE, agents=AGENTS)["pos-demo/prompt.md"]
-        parsed = frontmatter.parse_text(self.text)
-        assert parsed is not None
-        self.front = parsed
-
-    def test_the_prompt_body_is_the_cluster_prompt_verbatim(self) -> None:
-        self.assertTrue(self.text.endswith("diagnose: the thing # broke\n"))
-
-    def test_a_prompt_with_yaml_punctuation_round_trips_rather_than_tearing(self) -> None:
-        """`: ` and `#` in a value are why the emitter quotes; this proves it reads back whole."""
-        self.assertEqual("runbook is correct", self.front["expected_outcome"])
-
-    def test_the_cluster_and_polarity_are_carried_as_tags(self) -> None:
-        self.assertEqual(
-            ["demo", "positive", "disambiguation"], json.loads(self.front["tags"])
-        )
-
-    def test_the_measurement_levers_are_written_where_the_harness_reads_them(self) -> None:
-        files = nativecases.case_files(
-            SPEC, self.CASE, agents=AGENTS, max_turns=9, timeout_seconds=42,
-            allowed_tools=("Read", "Skill"),
-        )
-        front = frontmatter.parse_text(files["pos-demo/prompt.md"])
-        assert front is not None
-        self.assertEqual("9", front["max_turns"])
-        self.assertEqual("42", front["timeout_seconds"])
-        self.assertEqual(["Read", "Skill"], json.loads(front["allowed_tools"]))
-
-
-class ClusterTests(unittest.TestCase):
-    def test_two_cases_sharing_an_id_are_refused_rather_than_silently_merged(self) -> None:
-        """The directory is keyed by id, so the second would replace the first and every count
-        would still look right."""
-        case = {"id": "dup", "polarity": "positive", "prompt": "p", "expect_fires": ["runbook"]}
-        with self.assertRaisesRegex(ValueError, "two cases with id"):
-            nativecases.cluster_files(SPEC, [case, dict(case)], agents=AGENTS)
-
-    def test_every_real_cluster_projects_and_every_grader_frontmatter_parses(self) -> None:
-        """A live-wiring check: the projection runs over this repository's own clusters."""
-        import pathlib
-
-        agents = {p.stem for p in pathlib.Path("agents").glob("*.md")}
-        clusters = sorted(pathlib.Path("evals/routing").glob("*.json"))
-        self.assertTrue(clusters, "no routing clusters found to project")
-        for path in clusters:
-            with self.subTest(cluster=path.stem):
-                spec = json.loads(path.read_text(encoding="utf-8"))
-                files = nativecases.cluster_files(spec, spec["cases"], agents=agents)
-                self.assertEqual(
-                    len(spec["cases"]),
-                    sum(1 for p in files if p.endswith("/prompt.md")),
-                    "every case must project to exactly one prompt",
-                )
-                for rel, text in files.items():
-                    self.assertIsNotNone(
-                        frontmatter.parse_text(text),
-                        f"{path.stem}/{rel} has unreadable frontmatter",
-                    )
+    def test_a_case_filter_skips_the_polarity_it_excludes(self) -> None:
+        code, out, _ = self._dry_run("--case", "pos-*")
+        self.assertEqual(0, code)
+        self.assertIn("--tag positive", out)
+        self.assertNotIn("--tag negative", out)
 
 
 if __name__ == "__main__":
     unittest.main()
-
-
-class CaseInsensitiveIdTest(unittest.TestCase):
-    """Round 11: `Case` and `case` are one directory on Windows and default macOS volumes.
-
-    The duplicate check was case-sensitive, so both ids were accepted and the generated tree then
-    ran fewer cases than the cluster selected — after the sessions were paid for. The
-    reserved-character checks in `fleet.fs` do not cover aliasing.
-    """
-
-    SPEC = {"cluster": "demo", "members": ["root-cause"]}
-
-    def _cases(self, *ids: str) -> list[dict]:
-        return [
-            {"id": i, "polarity": "negative", "prompt": "p", "expect_not_fires": ["root-cause"]}
-            for i in ids
-        ]
-
-    def test_ids_differing_only_in_case_are_refused(self) -> None:
-        with self.assertRaisesRegex(ValueError, "differ only in case"):
-            nativecases.cluster_files(
-                self.SPEC, self._cases("Case", "case"), agents=frozenset()
-            )
-
-    def test_an_exact_duplicate_still_names_the_id_plainly(self) -> None:
-        with self.assertRaisesRegex(ValueError, "id 'case'"):
-            nativecases.cluster_files(
-                self.SPEC, self._cases("case", "case"), agents=frozenset()
-            )
-
-    def test_ids_that_merely_share_a_prefix_are_untouched(self) -> None:
-        files = nativecases.cluster_files(
-            self.SPEC, self._cases("case", "case-two"), agents=frozenset()
-        )
-        self.assertTrue(any(p.startswith("case/") for p in files))
-        self.assertTrue(any(p.startswith("case-two/") for p in files))
-
-
-class GeneratedTripwireTest(unittest.TestCase):
-    """Round 12: the generated negative graders hardcoded this repository's namespace.
-
-    Fleet-side grading reads the evaluated plugin's namespace, but the native tripwire did not —
-    so an `other-plugin:root-cause` dispatch left the harness's own report green on an
-    over-trigger it simply could not see.
-    """
-
-    SPEC = {"cluster": "demo", "members": ["root-cause"]}
-    CASE = {"id": "neg", "polarity": "negative", "prompt": "p", "expect_not_fires": ["root-cause"]}
-
-    def test_the_pattern_uses_the_namespace_it_is_given(self) -> None:
-        agent = nativecases.forbidden_pattern("root-cause", "Agent", "other-plugin")
-        self.assertIn("other\\-plugin:", agent)
-        self.assertNotIn("sde-agents", agent)
-        skill = nativecases.forbidden_pattern("lab-audit", "Skill", "other-plugin")
-        self.assertIn("other\\-plugin:", skill)
-
-    def test_the_generated_grader_carries_the_evaluated_namespace(self) -> None:
-        files = nativecases.case_files(
-            self.SPEC, self.CASE, agents=frozenset({"root-cause"}), namespace="other-plugin"
-        )
-        grader = files["neg/graders/no-root-cause.md"]
-        self.assertIn("other", grader)
-        self.assertNotIn("sde-agents:", grader.split("input_match")[1])
-
-    def test_this_repository_still_generates_its_own_namespace(self) -> None:
-        files = nativecases.case_files(self.SPEC, self.CASE, agents=frozenset({"root-cause"}))
-        self.assertIn("sde\\-agents:", files["neg/graders/no-root-cause.md"])
-
-
-class MalformedTagsTest(unittest.TestCase):
-    """Round 12: `"tags": 1` is valid JSON, and iterating the scalar raised TypeError out of
-    `cluster_files` — past the runner's ValueError handler, so the CLI ended in a traceback
-    instead of the documented configuration exit before any session launched."""
-
-    SPEC = {"cluster": "demo", "members": ["root-cause"]}
-
-    def _case(self, tags: object) -> dict:
-        return {"id": "neg", "polarity": "negative", "prompt": "p",
-                "expect_not_fires": ["root-cause"], "tags": tags}
-
-    def test_a_scalar_tags_value_is_a_configuration_error(self) -> None:
-        for tags in (1, True, "lab", {"a": 1}):
-            with self.subTest(tags=tags):
-                with self.assertRaisesRegex(ValueError, "must be a list of scalars"):
-                    nativecases.case_files(
-                        self.SPEC, self._case(tags), agents=frozenset({"root-cause"})
-                    )
-
-    def test_a_well_formed_or_absent_tags_list_still_works(self) -> None:
-        for tags in (None, [], ["lab", "root-cause"], [1, 2.5]):
-            with self.subTest(tags=tags):
-                files = nativecases.case_files(
-                    self.SPEC, self._case(tags), agents=frozenset({"root-cause"})
-                )
-                self.assertIn("neg/prompt.md", files)

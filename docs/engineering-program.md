@@ -46,10 +46,8 @@ must converge even though every iteration starts amnesiac.
 - **Status transitions gate authority.** Incident handling holds mitigate-first authority only
   while the situation is an outage; the explicit downgrade to follow-up
   (`skills/lab-incident/SKILL.md`) is the edge that ends the emergency regime.
-- **Paired measurement.** A loop that edits graded text owes before/after runs under identical
-  recorded conditions; the automated reuse check that once answered whether the before side already
-  existed, scripts/eval_baseline.py, was retired 2026-09-01 — a stored capture is now reusable only
-  when a session manually confirms cluster, cases, evaluator, and plugin bytes are unchanged.
+- **Paired measurement.** A loop that edits graded text owes fresh before/after runs on the same
+  model (`scripts/eval_routing.py`); `evals/README.md` owns how to read the rates.
 
 ## Graph engineering — authority is typed edges
 
