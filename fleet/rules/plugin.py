@@ -46,15 +46,10 @@ def plugin_rules(fleet: Fleet) -> list[Finding]:
     return plugin_findings(fleet)
 
 
-def plugin_findings(
-    fleet: Fleet,
-    agent_names: list[str] | None = None,
-    skill_names: list[str] | None = None,
-) -> list[Finding]:
-    """The pass, with the roster a caller may supply (the legacy `validate_plugin` contract)."""
+def plugin_findings(fleet: Fleet) -> list[Finding]:
+    """Every plugin-wiring check over the snapshot."""
     if not fleet.ships_as_plugin:
         return []
-    supplied_agent_names = fleet.agent_names if agent_names is None else agent_names
     manifest_path = fleet.plugin_manifest_path
     if fleet.plugin_manifest_error is not None:
         return [
@@ -114,7 +109,7 @@ def plugin_findings(
             )
         )
 
-    agent_names = set(supplied_agent_names)
+    agent_names = set(fleet.agent_names)
 
     command = fleet.hook_command_for("readonly-guard.py")
     # An empty GUARDED_AGENT_NAMES guards nobody by design and
@@ -172,5 +167,5 @@ def plugin_findings(
                 )
             )
 
-    findings.extend(plugin_reference_findings(fleet, list(supplied_agent_names), skill_names))
+    findings.extend(plugin_reference_findings(fleet))
     return findings

@@ -45,10 +45,6 @@ class LinkDetectionTests(TempDirTestCase):
         with self.assertRaises(OSError):
             fs.is_link_or_reparse(self.base / "absent")
 
-    def test_the_reparse_flag_never_degrades_to_zero(self) -> None:
-        # A zero flag would AND every attribute to False and silently disable the check.
-        self.assertNotEqual(fs.REPARSE_POINT_FLAG, 0)
-
 
 class ReadTests(TempDirTestCase):
     def test_invalid_utf8_reads_as_none_not_a_traceback(self) -> None:

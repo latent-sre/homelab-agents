@@ -1,7 +1,7 @@
 """Structured validation findings and the renderers every instrument shares.
 
 A finding used to be a free-form string, so a reworded diagnostic was a test failure and no
-consumer could filter by rule, path, or severity. A `Finding` keeps the exact message register
+consumer could filter by rule or path. A `Finding` keeps the exact message register
 the fleet already relies on -- what broke *and why it would have failed silently* -- and adds the
 handles a consumer needs: a stable rule id, the path, and the line when one is known.
 
@@ -17,29 +17,22 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from fleet import diagnostics
-
-SEVERITIES = ("error", "warning")
-
 
 @dataclass(frozen=True)
 class Finding:
-    """One rule's verdict about one place in the tree."""
+    """One rule's verdict about one place in the tree. Every finding is an error."""
 
     rule: str
     text: str
     path: Path | None = None
     line: int | None = None
-    severity: str = "error"
 
     def __post_init__(self) -> None:
-        if self.severity not in SEVERITIES:
-            raise ValueError(f"unknown finding severity: {self.severity!r}")
         if not self.rule:
             raise ValueError("a finding must name its rule")
 
     @classmethod
-    def from_text(cls, rule: str, text: str, *, severity: str = "error") -> Finding:
+    def from_text(cls, rule: str, text: str) -> Finding:
         """A finding from a legacy `path: message` or `path:line: message` string.
 
         Instruments that still return strings (the adapter generator) attribute each message to
@@ -51,7 +44,7 @@ class Finding:
         line: int | None = None
         if len(parts) == 2 and parts[1].isdigit():
             head, line = parts[0], int(parts[1])
-        return cls(rule, text, Path(head) if head and head != text else None, line, severity)
+        return cls(rule, text, Path(head) if head and head != text else None, line)
 
     def relative_path(self, root: Path) -> str | None:
         """The path as a repo-relative POSIX string, or the absolute path when outside root."""
@@ -71,22 +64,13 @@ class Report:
         self.findings: tuple[Finding, ...] = tuple(findings)
 
     @property
-    def errors(self) -> tuple[Finding, ...]:
-        return tuple(f for f in self.findings if f.severity == "error")
-
-    @property
-    def warnings(self) -> tuple[Finding, ...]:
-        return tuple(f for f in self.findings if f.severity == "warning")
-
-    @property
     def texts(self) -> list[str]:
         """The legacy `list[str]` view: every finding's full message, in order."""
         return [finding.text for finding in self.findings]
 
     def exit_status(self) -> int:
-        return diagnostics.exit_status(
-            failed=len(self.errors), not_computed=0, warned=len(self.warnings)
-        )
+        """0 when the tree is clean, 1 when any rule found something."""
+        return 1 if self.findings else 0
 
     def render_human(self, *, success: str = "") -> str:
         if not self.findings:
@@ -97,13 +81,12 @@ class Report:
 
     def to_dict(self) -> dict[str, object]:
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "root": self.root.as_posix(),
-            "summary": {"error": len(self.errors), "warning": len(self.warnings)},
+            "summary": {"error": len(self.findings)},
             "findings": [
                 {
                     "rule": f.rule,
-                    "severity": f.severity,
                     "path": f.relative_path(self.root),
                     "line": f.line,
                     "message": f.text,

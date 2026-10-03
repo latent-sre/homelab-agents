@@ -1,8 +1,6 @@
 """The one command line for the fleet's instruments: `python -m fleet <verb>`.
 
-Every verb shares `--root` and `--json`, and every verb's exit code comes from the kernel's
-ladder (`fleet.diagnostics`), so a caller never has to learn one instrument's private codes.
-It has one verb, `validate`.
+`validate` exits 0 on a clean tree and 1 when any rule found something; `rules` lists the rules.
 """
 
 from __future__ import annotations

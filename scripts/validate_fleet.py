@@ -5,9 +5,7 @@ The rules live in `fleet/rules/` as pure functions over one `fleet.snapshot.Flee
 against the data in `fleet/policy.toml`; this script is the command-line entry the recipe and
 CI run, and the compatibility surface the generator and the tests import. Every
 `validate_*` function here runs the corresponding rule group and returns the legacy
-`list[str]` of messages, byte-identical to what the rules produced before they moved. The
-vocabularies are bound from the policy so a caller that reads `FLEET_TOOLS` here sees the one
-table the rules use. `python -m fleet validate` is the same run with structured output.
+`list[str]` of messages. `python -m fleet validate` is the same run with structured output.
 
 The validator intentionally uses only the Python standard library.
 """
@@ -30,50 +28,25 @@ if __package__:
 else:
     import generate_platform_adapters  # noqa: E402,F401
 
-import fleet_records  # noqa: E402  (sibling module; scripts/ is not a package)
-from fleet_records import (  # noqa: E402,F401  (re-exported: the generator and tests reach them here)
-    LIST_ITEM_RE,
-    NAME_RE,
-    TOP_LEVEL_KEY_RE,
-    definition_markdown_files,
-    frontmatter_span,
-    is_runtime_byproduct,
-    parse_frontmatter,
-    parse_frontmatter_lines,
-    read_text,
-    split_tools,
-)
-
 from fleet import modules, rules  # noqa: E402
 from fleet.findings import texts  # noqa: E402
+from fleet.frontmatter import flow_scalar_defect as _flow_scalar_defect  # noqa: E402,F401
+from fleet.frontmatter import parse_lines as parse_frontmatter_lines  # noqa: E402,F401
+from fleet.frontmatter import span as frontmatter_span  # noqa: E402,F401
+from fleet.frontmatter import split_tools  # noqa: E402,F401
+from fleet.fs import read_text  # noqa: E402
 from fleet.policy import POLICY  # noqa: E402
-from fleet.rules import agents as _agents  # noqa: E402
-from fleet.rules import guide as _guide  # noqa: E402
+from fleet.references import parse_frontmatter  # noqa: E402,F401
 from fleet.rules import inventory as _inventory  # noqa: E402
-from fleet.rules import plugin as _plugin  # noqa: E402
-from fleet.rules import references as _references  # noqa: E402
 from fleet.rules import routing as _routing  # noqa: E402
 from fleet.rules import skills as _skills  # noqa: E402
-from fleet.rules.adapters import load_platform_adapter_generator  # noqa: E402,F401
 from fleet.snapshot import Fleet  # noqa: E402
 
 # --- vocabularies, bound from fleet/policy.toml (the rationale for each lives beside it) --------
-ALIAS_MODELS = set(POLICY.model_aliases)
-FULL_MODEL_ID_RE = _agents.FULL_MODEL_ID_RE
 KNOWN_AGENT_FIELDS = set(POLICY.known_agent_fields)
 KNOWN_SKILL_FIELDS = set(POLICY.known_skill_fields)
 WRITE_TOOLS = set(POLICY.write_tools)
-FLEET_TOOLS = set(POLICY.fleet_tools)
-FORBIDDEN_AGENT_TOOLS = {name: set(role.forbidden) for name, role in POLICY.roles.items()}
-MCP_EXACT_TOOL_RE = _agents.MCP_EXACT_TOOL_RE
-MCP_SERVER_GRANT_RE = _agents.MCP_SERVER_GRANT_RE
-EVIDENCE_LABEL_RE = _agents.EVIDENCE_LABEL_RE
-PACKET_HEADING_RE = _agents.PACKET_HEADING_RE
-BUNDLE_REF_RE = _skills.BUNDLE_REF_RE
 INVENTORY_RE = _inventory.INVENTORY_RE
-INLINE_CODE_RE = _references.INLINE_CODE_RE
-GUIDE_PATH_TOKEN_RE = _guide.GUIDE_PATH_TOKEN_RE
-_flow_scalar_defect = fleet_records._frontmatter.flow_scalar_defect
 load_module_by_content = modules.load_module_by_content
 render_inventory = _inventory.render_inventory
 replace_inventory = _inventory.replace_inventory
@@ -101,11 +74,6 @@ def validate_yaml_scalar_quoting(root: Path) -> list[str]:
     return _run(root, "scalars")
 
 
-def validate_plugin(root: Path, agent_names: list[str], skill_names: list[str]) -> list[str]:
-    # Honors the caller's roster, as the legacy signature promised.
-    return texts(_plugin.plugin_findings(Fleet.load(root), agent_names, skill_names))
-
-
 def validate_routing_clusters(
     root: Path, agent_names: list[str], skill_names: list[str]
 ) -> list[str]:
@@ -114,28 +82,12 @@ def validate_routing_clusters(
     return [text for text, _ in _routing._routing_issues(root, agent_names, skill_names)]
 
 
-def validate_bare_skill_references(root: Path, skill_names: list[str]) -> list[str]:
-    return texts(_references.bare_skill_references(Fleet.load(root), skill_names))
-
-
 def validate_inventory(root: Path, expected: str) -> list[str]:
     return texts(_inventory.inventory_findings(root, expected))
 
 
 def bundle_references(skill_file: Path) -> set[str]:
     return _skills.bundle_references(read_text(skill_file))
-
-
-def hook_commands(root: Path) -> list[str]:
-    return list(Fleet.load(root).hook_commands)
-
-
-def hook_command_for(root: Path, script: str) -> str | None:
-    return Fleet.load(root).hook_command_for(script)
-
-
-def hook_command(root: Path) -> str | None:
-    return hook_command_for(root, "readonly-guard.py")
 
 
 def load_guard(root: Path):

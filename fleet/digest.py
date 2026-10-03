@@ -9,16 +9,6 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Iterable
-from pathlib import Path
-
-
-def sha256_hex(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
-
-
-def sha256_file(path: Path) -> str:
-    """The digest of a file's bytes as they are on disk (no newline or encoding translation)."""
-    return sha256_hex(Path(path).read_bytes())
 
 
 def framed_sha256(parts: Iterable[tuple[str, bytes]], *, domain: bytes) -> str:

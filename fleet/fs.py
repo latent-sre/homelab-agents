@@ -13,12 +13,10 @@ from collections.abc import Iterable
 from pathlib import Path
 
 # Windows directory junctions are reparse points that `Path.is_symlink()` reports as plain
-# directories, so a junction planted inside a generated tree, a fixture copy, or a provenance
-# input redirects traversal without tripping the symlink check. Every kernel walk therefore asks
-# about the reparse attribute too. The flag's value is fixed by the Win32 API; the fallback keeps
-# the check MEANINGFUL on an interpreter that lacks the constant instead of silently disabling
-# it (one of the three former copies defaulted to 0, which is exactly that silent disable).
-REPARSE_POINT_FLAG = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+# directories, so a junction planted inside a generated tree or a fixture copy redirects traversal
+# without tripping the symlink check. Every kernel walk therefore asks about the reparse attribute
+# too. `stat` defines the flag on every platform.
+REPARSE_POINT_FLAG = stat.FILE_ATTRIBUTE_REPARSE_POINT
 
 
 def is_link_or_reparse(target: Path | os.stat_result) -> bool:
@@ -113,10 +111,7 @@ def atomic_write_bytes(path: Path, content: bytes) -> None:
 # basename: a basename ignore would silently omit any legitimate `worktrees/` directory a later
 # skill or fixture ships, so the tree under validation would quietly stop matching the repository.
 #
-# Before this module the test pool and the probe each carried this list "kept in step by hand"
-# (tests/support.py, scripts/probe_plugin.py). Now both read it from here.
-# `node_modules` is a maintainer's local toolchain, never fleet source; the probe excluded it to
-# keep its plugin copy small and the test pool now agrees.
+# `node_modules` is a maintainer's local toolchain, never fleet source.
 IGNORED_DIRS: frozenset[str] = frozenset({".git", "__pycache__", ".probe-tmp", "node_modules"})
 IGNORED_PATHS: frozenset[Path] = frozenset({Path(".claude") / "worktrees"})
 
@@ -187,7 +182,7 @@ def safe_path_segment(value: str, *, what: str) -> str:
         raise ValueError(f"{what} must be relative, not an absolute path: {value!r}")
     # Portable, not POSIX-only: these names are refused on every platform even though most are
     # legal on Linux. A generated eval tree is created on whichever OS the operator is running,
-    # and this repository validates on three of them -- so a cluster or case id like `a:b`, `x?`,
+    # so a cluster or case id like `a:b`, `x?`,
     # `CON` or `name.` that Linux accepts becomes an uncaught OSError from `mkdir` on Windows,
     # after the sessions are paid for, instead of the documented configuration exit. Refusing
     # everywhere keeps one answer rather than a name that means different things per host.

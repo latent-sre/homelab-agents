@@ -51,7 +51,6 @@ from fleet.hosts.rewrites import (  # noqa: E402
     Ledger,
     RewriteError,
     apply_rewrites,
-    check_table,
 )
 from fleet.hosts.table import (  # noqa: E402
     AGENT_REWRITES,
@@ -811,10 +810,6 @@ def expected_outputs(root: Path, *, verify_rewrites: bool = True) -> dict[Path, 
 
 def _assert_rewrites_landed(ledger: Ledger) -> None:
     """Refuse to hand back adapters whose rewrites did not land the counts the table declares."""
-
-    # Before judging the totals, check the table can be judged at all: colliding ids share one
-    # ledger entry, so a rewrite that lost its anchor would be covered by its twin's count.
-    check_table(ALL_REWRITES)
     shortfalls = ledger.shortfalls(ALL_REWRITES)
     if shortfalls:
         raise RewriteError(
@@ -1337,8 +1332,6 @@ def write_generated_outputs(root: Path) -> int:
         # Re-checked here, not just at inspect time: `--write` is the call that can overwrite a
         # file outside the checkout, and the roots above were cleared and recreated since.
         if relative in GENERATED_FILES:
-            # Re-checked here, not just at inspect time: `--write` is the call that can overwrite
-            # a file outside the checkout, and the roots above were cleared and recreated since.
             path = _safe_generated_file(root, relative, operation="write")
             # The kernel's atomic writer, not a second one here: it replaces the directory entry
             # instead of truncating the inode, which is what keeps a hard link at this path from

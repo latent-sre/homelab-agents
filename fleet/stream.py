@@ -52,12 +52,10 @@ def iter_content_blocks(text: str) -> Iterator[dict[str, object]]:
                 yield block
 
 
-def block_text(content: object, *, separator: str = " ") -> str:
+def block_text(content: object) -> str:
     """Flatten a block's `content` -- a string, or a list of `{"type": "text", ...}` parts.
 
-    Parts that are not dicts, or whose `text` is not a string, are dropped rather than raising:
-    the four former copies of this loop agreed on that but disagreed on the separator, which is
-    why it is a named parameter here.
+    Parts that are not dicts, or whose `text` is not a string, are dropped rather than raising.
     """
     if isinstance(content, str):
         return content
@@ -68,7 +66,7 @@ def block_text(content: object, *, separator: str = " ") -> str:
         for part in content
         if isinstance(part, dict) and isinstance(part.get("text"), str)
     ]
-    return separator.join(texts)
+    return " ".join(texts)
 
 
 @dataclass(frozen=True)
@@ -95,7 +93,6 @@ def correlate_tool_results(
     text: str,
     *,
     tool_names: Collection[str] | None = None,
-    separator: str = " ",
 ) -> list[ToolExchange]:
     """Every `tool_use` (optionally filtered by tool name) with its own result, in stream order.
 
@@ -128,7 +125,7 @@ def correlate_tool_results(
             if not isinstance(tool_id, str) or not tool_id:
                 continue
             results[tool_id] = (
-                block_text(block.get("content"), separator=separator),
+                block_text(block.get("content")),
                 bool(block.get("is_error")),
             )
     correlated = []

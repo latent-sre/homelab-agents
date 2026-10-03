@@ -11,7 +11,7 @@ and the file would validate).
 
 Three pieces, kept together on purpose because they used to live in two files and drift:
 
-* `span` / `parse_lines` -- the reader (moved verbatim from `scripts/fleet_records.py`).
+* `span` / `parse_lines` -- the reader.
 * `flow_scalar_defect` -- the strict check a reader that reads to end of line cannot make on its
   own (moved verbatim from `scripts/validate_fleet.py`). It names why a quoted scalar the reader
   accepted would be refused by a conforming parser, or mangled by THIS one.

@@ -44,7 +44,6 @@ class ReaderTests(unittest.TestCase):
     def test_block_text_flattens_only_string_parts(self) -> None:
         parts = [{"type": "text", "text": "a"}, "junk", {"text": 7}, {"type": "text", "text": "b"}]
         self.assertEqual(stream.block_text(parts), "a b")
-        self.assertEqual(stream.block_text(parts, separator="\n"), "a\nb")
         self.assertEqual(stream.block_text("plain"), "plain")
         self.assertEqual(stream.block_text(None), "")
 

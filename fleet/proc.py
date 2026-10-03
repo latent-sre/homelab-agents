@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import os
 import subprocess
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -62,8 +62,6 @@ def run(
     *,
     timeout: float,
     cwd: Path | str | None = None,
-    env: Mapping[str, str] | None = None,
-    stdin: str | None = None,
 ) -> CommandResult:
     """Run `argv` to completion and report it; never raises for a timeout or a missing binary.
 
@@ -82,8 +80,6 @@ def run(
             check=False,
             timeout=timeout,
             cwd=None if cwd is None else os.fspath(cwd),
-            env=None if env is None else dict(env),
-            input=stdin,
         )
     except subprocess.TimeoutExpired as exc:
         return CommandResult(
@@ -101,21 +97,4 @@ def run(
         completed.returncode,
         decode_stream(completed.stdout),
         decode_stream(completed.stderr),
-    )
-
-
-def run_completed(argv: Sequence[str], *, timeout: float, **kwargs) -> subprocess.CompletedProcess:
-    """`subprocess.run` with the kernel's decoding, for callers that still want the raw object.
-
-    Timeouts and missing binaries RAISE here, as they do from `subprocess.run`. This exists so an
-    instrument that has not yet moved its verdict logic onto `run()` shares the encoding decision
-    today; new code uses `run()`.
-    """
-    return subprocess.run(
-        [os.fspath(part) for part in argv],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=timeout,
-        **kwargs,
     )

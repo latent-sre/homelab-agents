@@ -17,7 +17,6 @@ import shutil
 import tomllib
 import unittest
 from pathlib import Path
-from unittest import mock
 
 from fleet.hosts import toml as fleet_toml
 from fleet.hosts.rewrites import (
@@ -28,7 +27,7 @@ from fleet.hosts.rewrites import (
     apply_rewrites,
     check_table,
 )
-from fleet.hosts.table import ALL_REWRITES, TEXT_REWRITES
+from fleet.hosts.table import TEXT_REWRITES
 from fleet.references import namespaced_reference_re
 from scripts import generate_platform_adapters as generator
 from tests.support import REPO, repo_copy, run_main
@@ -281,25 +280,6 @@ class FleetRewriteCountTests(unittest.TestCase):
             set(callers),
             f"adapt_text must be composed, not called directly; callers: {callers}",
         )
-
-    def test_a_duplicate_rewrite_id_fails_generation(self) -> None:
-        # Colliding ids share one ledger entry, so a rewrite that lost its anchor would be
-        # covered by its twin's count. The table refuses to load that way, and the generator
-        # re-checks at the point of judgement so a table patched at runtime fails too.
-        victim = next(r for r in TEXT_REWRITES if r.id == "text.agent-tool.spawn")
-        twin = Rewrite(
-            id=victim.id,
-            why="a colliding duplicate that matches nothing",
-            find="a sentence that appears nowhere in the fleet",
-            replace="x",
-            expect=victim.expect,
-        )
-        with mock.patch.object(generator, "ALL_REWRITES", (*ALL_REWRITES, twin)):
-            with repo_copy() as dst:
-                with self.assertRaises(RewriteError) as caught:
-                    generator.expected_outputs(dst)
-        self.assertIn("declared twice", str(caught.exception))
-        self.assertIn(victim.id, str(caught.exception))
 
 
 class TomlEmitterTests(unittest.TestCase):

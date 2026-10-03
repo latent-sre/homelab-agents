@@ -53,10 +53,6 @@ class PolicyLoadTests(unittest.TestCase):
             with self.assertRaises(TypeError):
                 mapping["x"] = None  # type: ignore[index]
 
-    def test_every_table_carries_a_checked_date_or_the_meta_date(self) -> None:
-        self.assertRegex(policy.POLICY.checked, r"^\d{4}-\d{2}-\d{2}$")
-        self.assertRegex(policy.POLICY.cli, r"^\d+\.\d+\.\d+$")
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -35,8 +35,6 @@ class RolePolicy:
 
 @dataclass(frozen=True)
 class Policy:
-    checked: str
-    cli: str
     model_aliases: frozenset[str]
     known_agent_fields: frozenset[str]
     plugin_inert_agent_fields: frozenset[str]
@@ -104,7 +102,6 @@ def load(path: Path = POLICY_PATH) -> Policy:
     with Path(path).open("rb") as stream:
         document = tomllib.load(stream)
 
-    meta = _table(document, "meta")
     models = _table(document, "models")
     agent_fm = _table(document, "agent_frontmatter")
     skill_fm = _table(document, "skill_frontmatter")
@@ -146,8 +143,6 @@ def load(path: Path = POLICY_PATH) -> Policy:
         raise PolicyError("policy table [perishable_tokens] must map strings to strings")
 
     return Policy(
-        checked=_string(meta, "checked", "meta"),
-        cli=_string(meta, "cli", "meta"),
         model_aliases=frozenset(_strings(models, "aliases", "models")),
         known_agent_fields=frozenset(_strings(agent_fm, "known", "agent_frontmatter")),
         plugin_inert_agent_fields=frozenset(

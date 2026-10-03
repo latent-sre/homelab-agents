@@ -71,8 +71,7 @@ PR template, and requesting review.
   `plugins/sde-agents/skills/`, and `hooks/hooks.json`. `--write` overwrites it and the validator
   rejects any drift.
 - **One parser per fact.** Read frontmatter, `tools:`, references, and the tree snapshot through
-  `fleet/` (re-exported by `scripts/fleet_records.py`), and use the kernel's copy of every other
-  primitive; never write a second one.
+  `fleet/`, and use the kernel's copy of every other primitive; never write a second one.
 - **Authority is the host's own control, never prose:** Claude's guard, VS Code's omitted
   `execute`, Codex's `sandbox_mode`.
 - **Proportionality.** No check that re-proves an existing fact, no speed claim without a

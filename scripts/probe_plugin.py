@@ -92,11 +92,8 @@ PASS, FAIL, SKIP = "PASS", "FAIL", "INCONCLUSIVE"
 def run(cmd: list[str], **kwargs) -> _proc.CommandResult:
     """Spawn one command; never raise for a timeout or a missing binary (roadmap PROBE-006).
 
-    This used to call `run_completed`, which raises `TimeoutExpired` out of whatever leg was
-    running. One 600-second session that did not answer therefore discarded every later check in
-    the run -- including the ones that had already passed -- and the operator paid for the whole
-    probe to learn nothing. The kernel runner returns the partial transcript instead, and a leg
-    that got no answer reports its own INCONCLUSIVE while the rest of the probe continues.
+    A session that hits the 600-second limit returns its partial transcript rather than raising,
+    so a leg that got no answer reports its own INCONCLUSIVE while the rest of the probe continues.
     """
     return _proc.run(cmd, timeout=600, **kwargs)
 

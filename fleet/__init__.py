@@ -13,7 +13,7 @@ Design rules, binding on every module here:
 
 * **Records, never judgments.** The kernel reads, decodes, hashes, and runs. Whether a tool grant
   is adopted, a description too long, or a command live is policy, and policy stays in the
-  instrument that owns it (the principle `scripts/fleet_records.py` established).
+  instrument that owns it.
 * **The inspected tree is data.** Nothing under a caller-supplied root is imported or executed by
   a kernel function, so a foreign checkout or frozen baseline is safe to read.
 * **Skip, never crash, on a line the reader cannot interpret** when the input is a transcript or

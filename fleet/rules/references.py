@@ -22,11 +22,9 @@ INLINE_CODE_RE = re.compile(r"`([^`\n]+)`")
     why="A bare backticked skill name asserts 'already in context'; without a preload the "
     "instruction cannot execute and nothing errors (observed: sde-fullstack and `code-craft`).",
 )
-def bare_skill_references(fleet: Fleet, skill_names: list[str] | None = None) -> list[Finding]:
-    """`skill_names` is the roster a legacy caller may supply; the snapshot's own is the default.
-    A test grades a synthetic body against names the tree under validation does not carry."""
+def bare_skill_references(fleet: Fleet) -> list[Finding]:
     findings: list[Finding] = []
-    known = set(fleet.skill_names if skill_names is None else skill_names)
+    known = set(fleet.skill_names)
     for agent in fleet.agents:
         preloaded = set(agent.preloaded_skills())
         for span in sorted(set(INLINE_CODE_RE.findall(agent.text or ""))):
@@ -77,20 +75,13 @@ def perishable_tokens(fleet: Fleet) -> list[Finding]:
     return findings
 
 
-def plugin_reference_findings(
-    fleet: Fleet,
-    agent_names: list[str] | None = None,
-    skill_names: list[str] | None = None,
-) -> list[Finding]:
-    """The plugin-scoped reference rules the legacy `validate_plugin` ran last: description
-    namespacing, `~/.claude` paths, and every namespaced reference's shape and resolution.
-
-    `agent_names` / `skill_names` default to the snapshot's; the compatibility layer passes a
-    caller's roster through, as the legacy signature promised."""
+def plugin_reference_findings(fleet: Fleet) -> list[Finding]:
+    """Description namespacing, `~/.claude` paths, and every namespaced reference's shape
+    and resolution."""
     findings: list[Finding] = []
     plugin_name = fleet.plugin_name
-    agent_names = fleet.agent_names if agent_names is None else agent_names
-    skill_names = fleet.skill_names if skill_names is None else skill_names
+    agent_names = fleet.agent_names
+    skill_names = fleet.skill_names
     fleet_members = set(agent_names) | set(skill_names)
     definitions = [(a.path, a.path.stem, a) for a in fleet.agents]
     definitions += [(s.path, s.directory.name, s) for s in fleet.skills]

@@ -211,37 +211,6 @@ class FixtureRuleContractTests(unittest.TestCase):
 
 
 class PluginRuleIdTests(unittest.TestCase):
-    def test_validate_plugin_honors_a_caller_supplied_roster(self) -> None:
-        # The legacy signature validated against the supplied names; a roster that omits a
-        # guarded agent must report it as "not an agent", whatever the tree holds.
-        from scripts import validate_fleet
-
-        issues = validate_fleet.validate_plugin(REPO, ["homelab-engineer"], ["runbook"])
-        self.assertTrue(any("not an agent in agents/" in i for i in issues), issues)
-        self.assertEqual(
-            [],
-            validate_fleet.validate_plugin(
-                REPO,
-                validate_fleet.validate_agents(REPO)[1],
-                validate_fleet.validate_skills(REPO)[1],
-            ),
-        )
-
-    def test_validate_bare_skill_references_honors_a_caller_supplied_roster(self) -> None:
-        # The legacy signature judged bare backticks against the caller's skill names; a roster
-        # that omits `runbook` must not report a reference to it, whatever the tree holds.
-        from scripts import validate_fleet
-
-        with repo_copy() as dst:
-            agent = dst / "agents" / "sde-fullstack.md"
-            agent.write_text(
-                agent.read_text(encoding="utf-8") + "\nSee `runbook`.\n", encoding="utf-8"
-            )
-            reported = validate_fleet.validate_bare_skill_references(dst, ["runbook"])
-            not_reported = validate_fleet.validate_bare_skill_references(dst, ["other-skill"])
-        self.assertTrue(any("`runbook`" in text for text in reported), reported)
-        self.assertEqual([], not_reported)
-
     def test_plugin_rules_judge_the_snapshot_rosters_not_the_disk(self) -> None:
         # The guard's roster is captured in Fleet.load; a guard rewritten afterwards is a
         # different tree, and this report must keep describing the one it loaded.
