@@ -509,8 +509,7 @@ not only of the description. Read the clusters accordingly:
   while larger-window models saw all in full. The recorded `models_observed` condition therefore
   carries listing state implicitly: skill-routing rates measured on a 200k-window model are not
   comparable with rates measured on a larger-window model, and a paired before/after run must hold
-  the model — and with it the listing state — fixed. `scripts/fleet_doctor.py` reports the fleet's
-  current footprint (`repository.skill-listing-budget`).
+  the model — and with it the listing state — fixed.
 
 ## Homelab operating-flow change
 

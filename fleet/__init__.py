@@ -1,7 +1,7 @@
 """The fleet kernel: the primitives every maintainer instrument shares.
 
-`scripts/` holds the fleet's instruments -- the validator, the adapter generator, the doctor, the
-probes, the Codex installer -- and the two plugin hooks. Until 2026-09-13 each instrument carried
+`scripts/` holds the fleet's instruments -- the validator, the adapter generator, the probe, the
+Codex installer -- and the plugin's read-only guard hook. Until 2026-09-13 each instrument carried
 its own copy of the same primitives: a symlink/reparse-point check (three copies, one with a
 divergent default), a subprocess runner (four, disagreeing on how a timed-out stream is decoded),
 a stream-json decoder (four), a SHA-256 convention (two), and a frontmatter reader whose strict

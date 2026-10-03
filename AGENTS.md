@@ -14,10 +14,11 @@ or run it. Why the fleet's disciplines exist is in `docs/engineering-program.md`
   CI runs both on the latest ruff, and `check` passes code `format` would rewrite. After any agent
   or skill edit, run `python3 scripts/generate_platform_adapters.py --write`; after adding,
   renaming, or removing one, also run `python3 scripts/validate_fleet.py --write-inventory`.
-- **T1 — before push:** `python3 -m unittest discover -s tests`,
-  `python3 scripts/validate_claude_plugin.py` (needs the Claude CLI; exits 2 without it), and
-  `python3 scripts/fleet_doctor.py`, which CI never runs. Exit codes: 1 failed, 2 not computed,
-  3 warnings. Repair Codex agent drift with `python3 scripts/install_codex_agents.py --user`.
+- **T1 — before push:** `python3 -m unittest discover -s tests` and
+  `python3 scripts/validate_claude_plugin.py` (needs the Claude CLI; exits 2 without it). Then
+  check the installed copies, which CI never sees: `claude plugin list` and `codex plugin list`
+  (is sde-agents installed and enabled?) and `python3 scripts/install_codex_agents.py --user
+  --check`; repair Codex agent drift with `python3 scripts/install_codex_agents.py --user`.
 - **T2:** CI on Windows (`.github/workflows/validate.yml`) runs on every PR, push to main, and
   weekly; nothing to run locally.
 - **T3 — before a release or after a Claude CLI upgrade:** `python3 scripts/probe_plugin.py` and

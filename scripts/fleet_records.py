@@ -4,7 +4,7 @@
 This module is the instruments' import path for the fleet's ONE set of readers: the frontmatter
 dialect (`fleet/frontmatter.py`), the filesystem primitives (`fleet/fs.py`), and the member and
 cross-reference records (`fleet/references.py`). Every name is re-exported here unchanged so
-`validate_fleet.py`, `fleet_doctor.py`, the generator, and the tests keep reaching them as
+`validate_fleet.py`, the generator, and the tests keep reaching them as
 `fleet_records.<name>`; the implementations live in the kernel, once.
 
 It records; it never judges. Every policy question -- is this tool adopted, is this description too

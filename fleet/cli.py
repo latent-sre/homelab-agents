@@ -2,8 +2,7 @@
 
 Every verb shares `--root` and `--json`, and every verb's exit code comes from the kernel's
 ladder (`fleet.diagnostics`), so a caller never has to learn one instrument's private codes.
-Phase 1 ships `validate`; later phases add the generator, the doctor, and the probes as verbs
-and reduce the scripts under `scripts/` to shims.
+It has one verb, `validate`.
 """
 
 from __future__ import annotations

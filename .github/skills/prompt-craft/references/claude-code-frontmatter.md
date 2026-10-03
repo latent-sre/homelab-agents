@@ -111,9 +111,7 @@ ignore the field outright (see above), so treat this as unenforced in a plugin u
   are exempt and charge the budget first; the only signal is a debug-log warning. Live: a
   200k-window model rendered 18 of this fleet's 19 entries name-only, while larger-window models
   rendered all in full. Workflows list exactly like skills (`- plugin:name: meta description`)
-  and spend the same budget. `scripts/fleet_doctor.py` estimates this fleet's Claude footprint
-  (`repository.skill-listing-budget`) under those recorded assumptions; it does not measure the
-  active host's context, settings, or complete catalog. Consuming repositories can raise
+  and spend the same budget. Consuming repositories can raise
   `skillListingBudgetFraction` / `skillListingMaxDescChars` in settings, or override outright
   with the `SLASH_COMMAND_TOOL_CHAR_BUDGET` environment variable.
 

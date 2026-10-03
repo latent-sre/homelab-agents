@@ -318,17 +318,13 @@ outside a short, reviewed set of readers ever runs — is far narrower and more 
 "we blocked the writes we thought of," but the load-bearing control remains OS-level least
 privilege.
 
-`scripts/fleet_doctor.py` observes the guard posture above but does not enforce it. It is
-read-only and reports repository, generated, install, CLI, junction, guard, and Codex sync
-posture.
-
 ## Validation
 
 Validation is tiered: depth matches risk, and each tier reuses the previous tier's evidence
 instead of recomputing it. The edit loop runs the validator plus the test module owning the
-touched artifact; a push owes the full offline suite, the platform contract check, and a local
-`scripts/fleet_doctor.py` run — its host-installation view is the one thing CI can never
-substitute for; CI runs on Windows for every PR, push to main, weekly sweep, and dispatch;
+touched artifact; a push owes the full offline suite, the platform contract check, and a hand
+check of the installed copies (`claude plugin list`, `codex plugin list`,
+`install_codex_agents.py --user --check`), which CI can never substitute for; CI runs on Windows for every PR, push to main, weekly sweep, and dispatch;
 releases and CLI upgrades owe the probe and every routing cluster, and `evals/README.md` owns
 when a stored benchmark can stand in for the 'before' side of a paired run.
 The full tier recipe (T0–T3) lives in `AGENTS.md` under "Validate before you push"; this

@@ -20,7 +20,7 @@ that enforce their scoped read-only and live-command policies.
 /plugin install sde-agents@latent-sre
 ```
 
-That installs the agents, the skills, and the two hooks together. Nothing is copied into the
+That installs the agents, the skills, and the read-only guard hook together. Nothing is copied into the
 `~/.claude/agents` or `~/.claude/skills` discovery roots — Claude Code keeps its own cached copy of
 the plugin, which a reinstall replaces, so the fleet you edit here is never the fleet a normal
 session loads. Components are namespaced by the plugin: `sde-agents:homelab-engineer`,
@@ -28,6 +28,10 @@ session loads. Components are namespaced by the plugin: `sde-agents:homelab-engi
 
 To load the plugin from a checkout instead of the marketplace copy, run `claude --plugin-dir .`
 from the repository root.
+
+To check what is installed: `claude plugin list` and `codex plugin list` show whether sde-agents is
+installed and enabled, and `python3 scripts/install_codex_agents.py --user --check` reports whether
+your Codex agents match this checkout.
 
 ## What you get
 

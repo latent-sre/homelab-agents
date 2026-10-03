@@ -1,7 +1,7 @@
 """Member and cross-reference records of the canonical fleet, read once and never judged.
 
 Moved verbatim from `scripts/fleet_records.py`, which re-exports every name here so the
-instruments and tests keep their import paths. The rules in `fleet/rules/` and the doctor read
+instruments and tests keep their import paths. The rules in `fleet/rules/` read
 these records; the judgments stay in the rules.
 
 The inspected tree is DATA. Nothing under the caller-supplied root is imported or executed, so a
@@ -95,7 +95,7 @@ class FleetRecords:
 
     members: tuple[Member, ...] = ()
     # Definitions whose frontmatter the parser refused. These are NOT members -- they carry no
-    # usable identity. The doctor needs their paths to avoid reporting a misleading listing total.
+    # usable identity. Callers get their paths so a count over members cannot silently omit them.
     unparseable: tuple[Path, ...] = ()
 
 

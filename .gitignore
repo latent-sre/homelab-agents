@@ -20,12 +20,8 @@ probe-transcript.jsonl
 .claude/worktrees/
 
 # Codex writes this install marker into a marketplace snapshot when `codex plugin add` runs. On a
-# host whose only copy of the fleet IS that snapshot, the marker sits in the tree permanently, so
-# an unignored one makes `repository.worktree` warn on every run — and a warning is now a non-zero
-# fleet-doctor exit, so the health check would report non-zero forever on that host. A status that
-# is always non-zero teaches an operator to ignore it, which is the same silence the exit code was
-# changed to break. Found on a Linux Codex host within an hour of shipping that change
-# (2026-08-13). Anchored with a leading slash: Codex writes the marker only at the snapshot root,
+# host whose only copy of the fleet IS that snapshot, the marker sits in the tree permanently and
+# would show as an untracked change on every `git status`. Anchored with a leading slash: Codex writes the marker only at the snapshot root,
 # and a slashless pattern matches the basename at EVERY depth — measured, a nested
 # `tests/fixtures/.codex-marketplace-install.json` is reported with the anchor and silently hidden
 # without it. A nested occurrence is somebody's real local addition and must still reach the
