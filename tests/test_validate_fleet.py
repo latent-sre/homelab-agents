@@ -184,6 +184,13 @@ class ValidatorTests(unittest.TestCase):
 
         self.assertEqual([], problems(dot_slash), "a ./ link is the same link")
 
+        def escaping(root: Path) -> None:
+            path = root / "skills/craft/SKILL.md"
+            text = path.read_text(encoding="utf-8") + "See references/../../../README.md too.\n"
+            path.write_text(text, encoding="utf-8")
+
+        self.assertReports(escaping, "does not exist: references/../../../README.md")
+
     def test_the_guard_roster_agrees_with_the_agents(self) -> None:
         self.assertReports(
             lambda root: write(root, "scripts/readonly-guard.py", GUARD.replace(
@@ -252,6 +259,16 @@ class AdapterCheckTests(unittest.TestCase):
             skipped, _, _ = validate_fleet.validate(dst, adapters=False)
         self.assertTrue(any(adapter.name in issue for issue in reported), reported)
         self.assertEqual([], skipped)
+
+    def test_the_validated_tree_supplies_its_own_generator(self) -> None:
+        # With --root pointing elsewhere, a broken generator there must fail validation rather
+        # than be replaced by the executing checkout's healthy copy.
+        with repo_copy() as dst:
+            generator = dst / "scripts" / "generate_platform_adapters.py"
+            text = generator.read_text(encoding="utf-8")
+            generator.write_text(text + "\nthis is not python\n", encoding="utf-8")
+            issues, _, _ = validate_fleet.validate(dst)
+        self.assertTrue(any("platform adapter validation crashed" in i for i in issues), issues)
 
 
 if __name__ == "__main__":

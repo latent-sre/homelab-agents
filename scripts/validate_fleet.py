@@ -14,6 +14,7 @@ inventory first. Standard library only.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -298,6 +299,17 @@ def bundle_references(text: str) -> set[str]:
     }
 
 
+def _bundle_target_exists(base: Path, reference: str) -> bool:
+    """Whether `reference` names an existing file inside the bundle folder it starts with.
+
+    `references/../../x` normalizes out of the bundle, so existence alone would accept a file the
+    generated adapters never package -- a link that resolves only on this machine.
+    """
+    folder = Path(os.path.normpath(base / reference.split("/", 1)[0]))
+    target = Path(os.path.normpath(base / reference))
+    return target != folder and target.is_relative_to(folder) and target.exists()
+
+
 def check_skills(root: Path, skills: dict[str, Definition]) -> list[str]:
     issues: list[str] = []
     for name, skill in skills.items():
@@ -308,9 +320,7 @@ def check_skills(root: Path, skills: dict[str, Definition]) -> list[str]:
         issues += _identity(skill, "skill", name)
         linked = bundle_references(skill.text or "")
         for reference in sorted(linked):
-            if not any(
-                Path(os.path.normpath(base / reference)).exists() for base in (directory, root)
-            ):
+            if not any(_bundle_target_exists(base, reference) for base in (directory, root)):
                 issues.append(f"{path}: referenced file does not exist: {reference}")
         references_dir = directory / "references"
         for file in sorted(p for p in references_dir.rglob("*") if p.is_file()):
@@ -407,10 +417,16 @@ def check_adapters(root: Path) -> list[str]:
     """The generated host adapters and hook file must be byte-current."""
     if not (root / ".claude-plugin" / "plugin.json").is_file():
         return []
-    import generate_platform_adapters  # sibling script; imported late so the CLI starts fast
-
+    # The generator comes from the tree being validated, not this script's own checkout: with
+    # `--root` pointing elsewhere, the executing copy would judge bytes it did not produce.
+    source = root / "scripts" / "generate_platform_adapters.py"
+    if not source.is_file():
+        return [f"{source}: missing platform adapter generator"]
     try:
-        return list(generate_platform_adapters.validate_platform_support(root))
+        spec = importlib.util.spec_from_file_location("validated_tree_generator", source)
+        generator = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(generator)
+        return list(generator.validate_platform_support(root))
     except Exception as exc:  # a broken checker must fail loudly, not certify stale copies
         return [f"{root}: platform adapter validation crashed: {exc}"]
 
