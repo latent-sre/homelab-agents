@@ -57,8 +57,8 @@ work".
 Work lands on the default branch through a topic branch and a merge-commit PR, never a direct
 push. A canonical edit and everything it requires (regenerated adapters, inventory, a roster
 entry) land in the same commit. Get one independent review before merge, and a second for changes
-to the guard or other authority boundaries. `CONTRIBUTING.md` owns branch naming, the
-PR template, and requesting review.
+to the guard or other authority boundaries. `CONTRIBUTING.md` owns branch and commit naming
+(Conventional Commits), the PR template, and requesting review.
 
 ## Hard rules with no playbook exceptions
 

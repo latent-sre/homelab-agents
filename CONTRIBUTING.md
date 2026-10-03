@@ -11,14 +11,30 @@ Validation tiers, change playbooks, and the hard rules are owned by `AGENTS.md`.
 
 ## Branches
 
-Branch names use the expanded conventional form `<type>/<kebab-slug>`, so the branch list reads as a
-change inventory. The types are `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`, `perf`, and
-`build`. Older branches in this repository predate the convention; new work follows it.
+Conventional branch names: `<type>/<kebab-slug>`, using the commit types below
+(`fix/guard-exec-holes`), so the branch list reads as a change inventory.
+
+A branch an AI session creates goes under `ai/` with the same form inside it
+(`ai/fix/guard-exec-holes`), never a vendor prefix such as `claude/`, `codex/`, or `copilot/`, so
+the list shows who did the work without tying it to a tool. `main` is the only other exception;
+older branches predate the convention.
 
 ## Commits
 
-Write every line — commit messages included — in the claim-plus-consequence register: what changed
-*and* what it means, because a reviewer can only disagree with a decision they can see.
+[Conventional Commits](https://www.conventionalcommits.org/): `<type>(<scope>): <summary>`, with
+the scope optional and the summary in the imperative.
+
+- **Types:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`, `perf`, `build`, `revert`.
+- **Scopes** name the area touched: `agents`, `skills`, `guard`, `generator`, `validator`, `probe`,
+  `docs`, `ci`. Omit the scope when a commit spans several.
+- **Breaking changes** for someone who already installed the plugin — a renamed or removed
+  component, a tightened tool grant, a new gate — get a `!` (`feat(agents)!: ...`) and a
+  `BREAKING CHANGE:` footer saying what they will notice.
+- **The body** says what changed *and* what it means, because a reviewer can only disagree with a
+  decision they can see.
+
+Exceptions: the merge commit GitHub writes for a PR, and the message `git revert` generates, keep
+their default form.
 
 Merge commits keep branch history on the default branch, which is why a canonical edit and
 everything it makes necessary land together rather than in a follow-up.

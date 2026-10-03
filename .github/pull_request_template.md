@@ -1,7 +1,7 @@
 <!--
-Title: one imperative sentence that stands alone in a log — "Close two exec holes in the
-read-only guard", not "guard fixes". Someone skimming history a year from now should not have to
-open the PR to know what it did.
+Title: a Conventional Commit header that stands alone in a log — "fix(guard): close two exec
+holes in the read-only guard", not "guard fixes". Someone skimming history a year from now should
+not have to open the PR to know what it did.
 
 Keep the problem, result, verification, and any material risks or gaps. Delete inapplicable
 sections and fields without explaining their removal. An applicable check that did not run stays
@@ -36,14 +36,15 @@ visible with its reason; it is not an inapplicable section.
 
 <!-- Show evidence, don't assert it. Paste the command and the result. Label load-bearing claims
      [verified] (you ran it), [sourced] (cited), or [unverified] (couldn't check) — the same rule
-     the fleet's own agents follow. An unevidenced "tests pass" is a review finding now, not a
-     linter catch — the packet linter that once flagged it retired 2026-09-02.
-     Every box below is checkable in well under a minute; if a box needs a paragraph, it belongs
-     above instead. -->
+     the fleet's own agents follow. CI already runs the validator, the tests, and the plugin
+     contract, so the boxes below cover what it cannot see. Each is checkable in well under a
+     minute; if a box needs a paragraph, it belongs above instead. -->
 
-- [ ] `python3 scripts/validate_fleet.py` — clean
-- [ ] `python3 -m unittest discover -s tests` — all passing (count: )
-- [ ] `python3 scripts/validate_claude_plugin.py` — marketplace and plugin contents passing
+- [ ] CI is green on this PR's head commit
+- [ ] Tried in a live `claude --plugin-dir .` session — or says why it can't be tried
+- [ ] Every generated file in the diff came from `--write`; none was edited by hand
+- [ ] No hostnames, IPs, credentials, or other details of a real lab in the diff (the repo is public)
+- [ ] Docs that describe this behavior are updated (README, AGENTS.md, a roadmap item closed or moved)
 
 <!-- Independent review: reviewer and reviewed commit; a second reviewer when the PR touches the
      guard or another authority boundary. -->
