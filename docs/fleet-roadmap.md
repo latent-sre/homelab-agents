@@ -7,7 +7,7 @@
 
 This file will contain only unfinished, blocked, or explicitly deferred work for the current
 fleet. Landed history lives in Git. Paths under `docs/archive/` and `docs/decisions/` below name
-files removed on 2026-10-03; read one with `git show b78a031:<path>`.
+files removed on 2026-10-03; read one with `git show 690f28f:<path>`.
 
 ## Item contract
 

@@ -2,7 +2,7 @@
 
 This directory holds current work and the maintainer's reference pages. History lives in Git:
 `docs/archive/` and `docs/decisions/` were removed on 2026-10-03, and any file from them can be
-read with `git show b78a031:<path>`.
+read with `git show 690f28f:<path>`.
 
 | Document | State | Read it for |
 |---|---|---|
