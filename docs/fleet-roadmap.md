@@ -6,8 +6,8 @@
 > do not independently add work to the queue.
 
 This file will contain only unfinished, blocked, or explicitly deferred work for the current
-fleet. Landed implementation history and donor-by-donor adjudication belong in `docs/archive/`;
-architecture decisions and rejected alternatives belong in `docs/decisions/`.
+fleet. Landed history lives in Git. Paths under `docs/archive/` and `docs/decisions/` below name
+files removed on 2026-10-03; read one with `git show b78a031:<path>`.
 
 ## Item contract
 
@@ -24,17 +24,12 @@ Every roadmap item carries:
 | Acceptance | Evidence required to close the item |
 | Next action | The smallest safe step that moves it forward |
 
-An item leaves this file when its acceptance evidence is committed. The source decision remains;
-Git history and archived reviews retain the implementation detail.
+An item leaves this file when its acceptance evidence is committed; Git history retains the
+implementation detail.
 
 Small items (the `Small items` section under Current work) are the deliberate exception: one
 line carrying only ID, the observable fix, and source — the tier that keeps tiny defects in this
 single tracker instead of leaking into memory or issue lists.
-
-Every item below was cut to these fields on 2026-09-01; the narration, dated addenda, and
-round-by-round detail removed in that pass live verbatim in
-[`roadmap-history-2026-09-01.md`](archive/2026-09/roadmap-history-2026-09-01.md), linked from
-each item's Source.
 
 ## Current work
 
@@ -48,7 +43,7 @@ each item's Source.
 **Outcome:** One principal agent owns system design and strategic architecture, with conditional
 depth and preserved builder ownership, document authority, and host controls.
 
-**Source:** [Design-agent merger](decisions/2026-09-07-design-agent-merge.md).
+**Source:** Design-agent merger (`docs/decisions/2026-09-07-design-agent-merge.md`).
 
 **Prerequisites:** Regenerated adapters, current inventories, offline validation, and independent
 review of the surviving authority and routing contracts.
@@ -60,7 +55,7 @@ treat source-following exercises as native routing or enforcement evidence.
 contract; paired ladder and proportionality routing and the native hook probe have fresh evidence
 with any failures or inconclusive criteria explicitly dispositioned before publication.
 
-**Evidence disposition:** The [2026-09-08 outcome trials](archive/2026-09/agent-outcomes-2026-09-08/README.md)
+**Evidence disposition:** The 2026-09-08 outcome trials (`docs/archive/2026-09/agent-outcomes-2026-09-08/README.md`)
 passed both system and both strategic repetitions. Both embedded consults had a material partial:
 compromised deployment-access recovery in one, and CA-rollover validation order in the other.
 The source-following architecture aggregate does not pass; no source correction or native
@@ -91,7 +86,7 @@ reason for each is beside it in `pyproject.toml`.
 implementation per primitive, policy held as data, structured findings, and the routing runner
 retired to native `claude plugin eval`; the hooks stay single-file and dependency-free.
 
-**Source:** [Machinery rewrite decision](decisions/2026-09-13-machinery-rewrite.md).
+**Source:** Machinery rewrite decision (`docs/decisions/2026-09-13-machinery-rewrite.md`).
 
 **Prerequisites:** Phase order as the record states; phase 4 additionally needs CI's CLI at
 ≥ 2.1.269 (it now floats on latest) with a probe re-run on that CLI, and one live native eval run.
@@ -128,7 +123,7 @@ All three are ruled permanent, and none of them is a cleanup anyone skipped:
 
 **Evidence disposition:** The specifier claim was re-probed on 2.1.270 on 2026-09-13 (three
 runs; the specifier restricts nothing, the validator's rule stands) and the CI pin moved to
-2.1.270 with the probe re-run — [pin refresh evidence](archive/2026-09/pin-refresh-evidence-2026-09-13.md).
+2.1.270 with the probe re-run — pin refresh evidence (`docs/archive/2026-09/pin-refresh-evidence-2026-09-13.md`).
 
 **Phase 5 found a live defect in the check it replaces.** The validator's `plugin.hooks.gate`
 cross-check took the *last* `case` block as the gate's no-interpreter fallback. The gate nests a
@@ -160,14 +155,14 @@ retains its recorded coverage gaps. Publication is authorized; host installation
 **Outcome:** Routine work keeps useful evidence and ownership without mandatory Learning forms,
 digest receipts, repeated approval proposals, or unrelated builder preloads.
 
-**Source:** [Operating-flow decision](decisions/2026-09-07-homelab-operating-flow.md) and
-[2026-09-12 proportional controls](decisions/2026-09-12-proportional-homelab-controls.md).
+**Source:** Operating-flow decision (`docs/decisions/2026-09-07-homelab-operating-flow.md`) and
+2026-09-12 proportional controls (`docs/decisions/2026-09-12-proportional-homelab-controls.md`).
 
 **2026-09-12 follow-up:** Items 1–8 are implemented on `fix/proportional-homelab-controls` after
 base `10b6131d2605`: proportional verification/snapshots, optional live-effect interposition,
 operating triage, and review-policy corrections. Offline and scenario checks passed; independent
 review has no remaining material findings. The three native hook checks could not execute because
-Claude OAuth expired. [Evidence](archive/2026-09/proportional-controls-evidence-2026-09-12.md)
+Claude OAuth expired. Evidence (`docs/archive/2026-09/proportional-controls-evidence-2026-09-12.md`)
 retains exact coverage and source identities; no installed-state claim is made.
 
 **Prerequisites:** Main-based implementation; existing host permission controls and roster retained.
@@ -188,9 +183,8 @@ did not inspect or change hosted PRs or installations.
 recorded as not transferring.
 
 **Source:**
-[AI graph engineering decision](decisions/2026-07-31-ai-graph-engineering.md) ·
-[2026-07-31 independent review](archive/2026-07/graph-decision-independent-review-2026-07-31.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#ctx-001-modernize-fleet-definitions-for-claude-5-generation-context-rules)
+AI graph engineering decision (`docs/decisions/2026-07-31-ai-graph-engineering.md`) ·
+2026-07-31 independent review (`docs/archive/2026-07/graph-decision-independent-review-2026-07-31.md`)
 
 **Prerequisites:** EVAL-003's agent-member grading decision; one pilot definition before any
 fleet-wide edit. EVAL-003 itself still describes a pinned behavioral suite as part of that
@@ -215,8 +209,7 @@ that skill is explicit-only maintainer work and is no longer a per-spawn consume
 repeating the cut or restoring automatic learning scans.
 
 **Source:**
-[operating-flow implementation and limits](decisions/2026-09-07-homelab-operating-flow.md) ·
-[original acceptance history](archive/2026-09/roadmap-history-2026-09-01.md#ctx-003-shrink-the-per-spawn-preload-footprint-without-hollowing-the-probes-proof)
+operating-flow implementation and limits (`docs/decisions/2026-09-07-homelab-operating-flow.md`)
 
 **Evidence disposition:** Adapter regeneration and validator parity passed. The bounded native
 builder capture demonstrated the requested preload/read/absence canaries; scorer regressions are
@@ -227,7 +220,7 @@ are still owed. Doctor listing-budget and installed-agent drift warnings remain 
 installation or warning waiver is implied by publication of LABFLOW-001. The 2026-09-13 probe on
 CLI 2.1.270 FAILED the conditional-reference check once (the builder wrote an API client without
 reading `references/consuming-apis.md`), while the three preload canaries were inconclusive —
-[evidence](archive/2026-09/pin-refresh-evidence-2026-09-13.md); a single run, not a rate. Both
+evidence (`docs/archive/2026-09/pin-refresh-evidence-2026-09-13.md`); a single run, not a rate. Both
 checks were removed from the probe on 2026-10-03, so no instrument now measures builder preload or
 conditional-reference reads; "a complete green runtime probe" here means the guard and loading
 checks only.
@@ -247,8 +240,7 @@ settings, the doctor's listing-budget warning promoted to a hard validator rule,
 generated-adapter size tripwire ahead of GitHub's 30,000-char cap.
 
 **Source:**
-[2026-08-16 skill-listing investigation](archive/2026-08/skill-listing-investigation-2026-08-16.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#ctx-004-lock-the-context-wins-in-settings-lines-validator-promotion-copilot-cap)
+2026-08-16 skill-listing investigation (`docs/archive/2026-08/skill-listing-investigation-2026-08-16.md`)
 
 **Prerequisites:** ROSTER-001 for the validator promotion; the settings lines and the
 Copilot-cap tripwire have none.
@@ -270,8 +262,8 @@ happened.
 **Outcome:** The shipped roster matches the audience ruling, or the ruling is amended to the
 roster that ships, and the Claude skill listing fits the 8,000-character budget at 200k context.
 
-**Source:** [Single-operator audience decision](decisions/2026-09-02-single-operator-audience.md) ·
-[design-agent merger](decisions/2026-09-07-design-agent-merge.md).
+**Source:** Single-operator audience decision (`docs/decisions/2026-09-02-single-operator-audience.md`) ·
+design-agent merger (`docs/decisions/2026-09-07-design-agent-merge.md`).
 
 **Prerequisites:** None.
 
@@ -297,8 +289,7 @@ denial, and exclusion.
 this item is purely the enforcement shell.
 
 **Source:**
-[roster expansion design](archive/2026-07/roster-expansion-design.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#labsec-002-add-a-guard-enforced-lab-inspector)
+roster expansion design (`docs/archive/2026-07/roster-expansion-design.md`)
 
 **Prerequisites:** None — LABSEC-001, DEPLOY-001, GOV-001, EVAL-001 landed.
 
@@ -320,8 +311,7 @@ yields a model recommendation of the explicit workflow, never implicit execution
 Claude lane's measured routing rates unaffected.
 
 **Source:**
-[LANE-001 spec](superpowers/specs/lane-001-codex-onboarding-discoverability.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#lane-001-codex-lane-onboarding-discoverability)
+[LANE-001 spec](superpowers/specs/lane-001-codex-onboarding-discoverability.md)
 
 **Prerequisites:** The spec's Phase 0 (two SEC-01 one-liners), still blocking; waiving it takes
 an operator-approved spec amendment.
@@ -343,8 +333,7 @@ unclassified, closing the gap where a Tier 3 deletion could pass a safety eval d
 Tier 2.
 
 **Source:**
-[homelab live-effect gate decision](decisions/2026-08-29-homelab-live-effect-gate.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#gate-007-bind-a-tier-to-each-declared-effect-or-say-one-response-carries-one-tier)
+homelab live-effect gate decision (`docs/decisions/2026-08-29-homelab-live-effect-gate.md`)
 
 **Prerequisites:** GATE-006 (landed) — this amends what that decision established.
 
@@ -357,7 +346,7 @@ item is moot; only the agent-text half remains.
 
 **Acceptance:** Either (a) `Tier` joins each bound effect set, with agent text and adapters
 changed together; or (b) the agent text states one response carries one tier. Neither option has
-a linter or contract check behind it anymore — the decision record gains the amendment either way.
+a linter or contract check behind it anymore — the closing commit records the choice either way.
 
 **Next action:** Decide (a) or (b); both change what the agent emits. Verify with a routing round
 and the probe; no contract-graded re-measure is available.
@@ -405,9 +394,8 @@ as capped grafts inside the skills that already own the ground, with no twin thi
 touched and provenance recorded twice.
 
 **Source:**
-[save-toolkit delta scoping](archive/2026-08/save-toolkit-delta-scoping-2026-08-29.md) ·
-[sre-agents adaptation backlog](archive/2026-07/sre-agents-adaptation-backlog.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#port-002-second-mining-round-from-save-toolkit-the-siblings-delta-since-2026-07-24)
+save-toolkit delta scoping (`docs/archive/2026-08/save-toolkit-delta-scoping-2026-08-29.md`) ·
+sre-agents adaptation backlog (`docs/archive/2026-07/sre-agents-adaptation-backlog.md`)
 
 **Prerequisites:** The operator's pick (Next action); each slice then runs PORT-001's three
 blind passes from refreshed `origin/main`.
@@ -417,9 +405,9 @@ cluster before/after.
 
 **Acceptance:** Per slice: graft lands inside the owning skill; the scrub list is gone from
 landed text; validator and tests green; commit carries attribution, every adapted code file
-names its source and license, and the dated adjudication record is extended with the reviewed
-commit and renamed repository; verified-skip twins stay byte-unchanged. Closes when every
-picked slice merges and the record is linked from `docs/README.md`.
+names its source and license, and the commit message records the reviewed donor commit and
+renamed repository; verified-skip twins stay byte-unchanged. Closes when every picked slice
+merges.
 
 **Next action:** Operator chooses (a) the recommended five candidates, (b) all eight, or (c) (b)
 plus filing the PROP-003/EVAL leads as their own items; then open slice 1 (`runbook`).
@@ -434,13 +422,11 @@ need prerequisites or acceptance evidence beyond itself graduates to a full item
 naming a GitHub issue **is** that issue's roadmap import under `docs/README.md` rule 7.
 
 - **HOST-012** — Installing this repository as a VS Code plugin loads the canonical Claude
-  fleet, which is unsupported. Source: [README.md](../README.md);
-  [history](archive/2026-09/roadmap-history-2026-09-01.md#host-012-vs-code-plugin-install-loads-the-canonical-fleet).
+  fleet, which is unsupported. Source: [README.md](../README.md).
 - **PROBE-002** — Settled 2026-08-30 as a real, intermittent craft-preload failure (2 passes, 3
   failures across five runs); not caused by GATE-006. The probe check that observed it was
   removed 2026-10-03, so the failure is now unmeasured rather than fixed. Source:
-  [GATE-006 outcome](archive/2026-08/gate-006-outcome-2026-08-30.md);
-  [history](archive/2026-09/roadmap-history-2026-09-01.md#probe-002-craft-preload-canaries-missing-in-sde-fullstack-spawn).
+  GATE-006 outcome (`docs/archive/2026-08/gate-006-outcome-2026-08-30.md`).
 
 ## Deferred decisions
 
@@ -452,9 +438,8 @@ naming a GitHub issue **is** that issue's roadmap import under `docs/README.md` 
 with `contract_digest` resolving to it.
 
 **Source:**
-[GRAPH-003 adjudication](archive/2026-08/graph-003-adjudication-2026-08-01.md) ·
-[AI graph engineering decision](decisions/2026-07-31-ai-graph-engineering.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#graph-004-typed-edge-contract-pilot)
+GRAPH-003 adjudication (`docs/archive/2026-08/graph-003-adjudication-2026-08-01.md`) ·
+AI graph engineering decision (`docs/decisions/2026-07-31-ai-graph-engineering.md`)
 
 **Prerequisites:** A demonstrated consumer — a second workflow conversion decided.
 
@@ -474,8 +459,7 @@ item was opened for is no longer needed; the grading decision below remains.
 **Outcome:** One recorded ruling on whether routing positives for agent members stay graded or
 are retired.
 
-**Source:**
-[history](archive/2026-09/roadmap-history-2026-09-01.md#eval-003-capture-a-comparable-full-routing-anchor)
+**Source:** this roadmap; earlier detail is in Git history.
 
 **Prerequisites:** Run small watched foreground batches; fix case-design defects before treating
 numbers as description evidence.
@@ -525,8 +509,7 @@ changelog, tag, publication, and rollback, without absorbing merge verdicts, CI 
 deployment authority.
 
 **Source:**
-[roster expansion design](archive/2026-07/roster-expansion-design.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#release-001-add-repository-release-discipline)
+roster expansion design (`docs/archive/2026-07/roster-expansion-design.md`)
 
 **Prerequisites:** A real plugin or repository release task demonstrates the consumer.
 
@@ -545,8 +528,7 @@ tag --dry-run` and build around what it does not cover.
 accessibility guidance and supplies keyboard-pass evidence.
 
 **Source:**
-[ECC import review](archive/2026-07/ecc-import-review.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#eval-004-verify-the-accessibility-imports-behaviorally)
+ECC import review (`docs/archive/2026-07/ecc-import-review.md`)
 
 **Prerequisites:** A real task involving a form, modal, drawer, custom widget, toast, or async
 status.
@@ -566,8 +548,7 @@ evidence; two observed misses trigger a dedicated behavioral contract and defini
 covering pinned image, restart, health, resource, and storage slots.
 
 **Source:**
-[skills modernization plan](archive/2026-07/skills-modernization-plan.md) ·
-[history](archive/2026-09/roadmap-history-2026-09-01.md#lab-001-provide-a-fallback-service-compose-asset)
+skills modernization plan (`docs/archive/2026-07/skills-modernization-plan.md`)
 
 **Prerequisites:** An onboarding task demonstrates the target lab lacks a reusable pattern.
 
@@ -577,21 +558,3 @@ covering pinned image, restart, health, resource, and storage slots.
 environment-specific defaults, and the validator's orphan/reference checks pass.
 
 **Next action:** Reopen on the first qualifying service-onboarding task.
-
-## Reconciliation record
-
-Reconciled against commit `ab896b2` on 2026-07-28: every item a historical document still called
-open was checked against current definitions, scripts, eval cases, and inventory. Detail lives in
-each source below, not here; every "Survives" finding is already tracked live above (LAB-001,
-EVAL-003, EVAL-004, LABSEC-002, RELEASE-001) or, for LABSEC-001, recorded landed in LABSEC-002.
-
-- **Quality and deep-review findings** — nearly all landed:
-  `archive/2026-07/fleet-quality-review.md` (retired to Git history).
-- **Modernization and adaptation items** — landed except LAB-001, EVAL-003 above:
-  [`archive/2026-07/skills-modernization-plan.md`](archive/2026-07/skills-modernization-plan.md).
-- **ECC residue** — landed except EVAL-004 above:
-  [`archive/2026-07/ecc-import-review.md`](archive/2026-07/ecc-import-review.md).
-- **Role and governance review** — all six candidates landed:
-  [`decisions/2026-07-28-fleet-role-expansion.md`](decisions/2026-07-28-fleet-role-expansion.md).
-- **Roster-expansion design branch** — landed/rejected except LABSEC-002, RELEASE-001 above:
-  [`archive/2026-07/roster-expansion-design.md`](archive/2026-07/roster-expansion-design.md).

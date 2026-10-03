@@ -303,8 +303,7 @@ def yaml_single_quoted(value: str) -> str:
     but `''`, so the bytes between the quotes ARE the pattern.
 
     That is not a preference, it is the only form proven to work here: the pilot grader that
-    matched a live dispatch 3/3 used single quotes
-    (`docs/archive/2026-09/native-grader-errored-spawn-2026-09-14.md`). A grader whose pattern the
+    matched a live dispatch 3/3 used single quotes. A grader whose pattern the
     reader mangles does not fail loudly -- it matches nothing, counts zero calls, and a
     `max: 0` tripwire passes forever while enforcing nothing.
 

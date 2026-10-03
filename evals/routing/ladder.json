@@ -2,7 +2,7 @@
   "cluster": "ladder",
   "description": "Routing eval for builder ownership, one principal design owner at system or strategic depth, and eng-ladder routing/assessment. Routine lab operation, code review, prompt authoring, debugging, and reversible embedded builder choices must not draw the design ladder.",
   "members": ["sde-fullstack", "principal-engineer", "eng-ladder"],
-  "notes": "Positives measure eng-ladder firing, not agent quality or correct ownership. Negatives measure only their named forbidden set. The two former principal-versus-distinguished negatives retired with the agent merger: both scenarios now correctly belong to principal. System and strategic reasoning remain separate outcome scenarios in the merger decision record, not firing assertions. The required-consult positive permits principal consultation without assigning the entire task to principal; firing alone cannot distinguish consult from ownership. The reversible embedded-choice negative preserves builder bypass of both principal and eng-ladder.",
+  "notes": "Positives measure eng-ladder firing, not agent quality or correct ownership. Negatives measure only their named forbidden set. The two former principal-versus-distinguished negatives retired with the agent merger: both scenarios now correctly belong to principal. System and strategic reasoning are outcome questions, not firing assertions. The required-consult positive permits principal consultation without assigning the entire task to principal; firing alone cannot distinguish consult from ownership. The reversible embedded-choice negative preserves builder bypass of both principal and eng-ladder.",
   "cases": [
     {
       "id": "pos-engladder-assess",

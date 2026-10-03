@@ -10,7 +10,7 @@ probe-transcript.jsonl
 
 # Acceptance-evidence run logs (probe sessions). Raw session streams can
 # carry repository content and belong beside the round's other transient evidence, never in
-# the tree; the distilled numbers live in the archived evidence note.
+# the tree.
 .probe-run.log
 
 .claude/worktrees/

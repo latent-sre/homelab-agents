@@ -2,7 +2,7 @@
 
 What this repository is building, mapped to the machinery that implements it. This document is
 deliberately mechanism-anchored so it cannot rot into folklore: it names no live roadmap item, no
-count, and no measurement — episodes belong to the dated records under `docs/archive/` — and the
+count, and no measurement — episodes belong in Git history — and the
 fleet validator resolves every concrete path named here against the tree, so a renamed or deleted
 mechanism fails T0 instead of quietly outliving its documentation. `AGENTS.md` links here; this
 file is what a session reads when it needs to know *why* a discipline exists before touching it.
@@ -66,8 +66,6 @@ enforced per host, never inferred from prose.
   offline report that once rendered them together, scripts/capability_graph.py, was retired
   2026-09-01 with no replacement — the separation is now a reviewer discipline, not a generated
   diagram.
-- **The boundary decision.** `docs/decisions/2026-07-31-ai-graph-engineering.md` (accepted) owns
-  what the graph layer is allowed to become and what evidence reopens it.
 
 ## Self-learning — explicit maintainer work
 
@@ -78,8 +76,7 @@ remaining gap, and owner. An unverified observation stays unverified.
 
 The maintainer's retro owns candidate evaluation and promotion when that work is requested. Its
 record vocabulary is writer discipline, not a claim that a retired ledger or packet checker still
-persists or validates state. The scoped retirement and handoff compatibility decision is recorded
-in `docs/decisions/2026-09-07-homelab-operating-flow.md`.
+persists or validates state.
 
 ## The reading rule
 
@@ -95,6 +92,5 @@ do not delete it as prose cleanup. Check the resulting artifact against its actu
 representative task, and state what was not exercised.
 
 Prefer fewer handoffs, one writer per artifact, and one owned record for each fact. Add structure
-only where a remaining handoff, recovery step, or check needs it. The dated records under
-`docs/archive/` retain prior decisions and evidence; consult the relevant record when a proposed
-trim would change that decision.
+only where a remaining handoff, recovery step, or check needs it. Git history retains prior
+decisions and evidence; consult it when a proposed trim would change that decision.

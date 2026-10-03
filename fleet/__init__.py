@@ -27,9 +27,6 @@ Design rules, binding on every module here:
 The plugin hook (`scripts/readonly-guard.py`) does NOT import this package: it is a single
 self-contained file by contract (AGENTS.md, "Keep isolated hooks dependency-free"), and the
 validator reads its roster as data.
-
-The migration that put the instruments on this kernel is recorded in
-`docs/decisions/2026-09-13-machinery-rewrite.md`.
 """
 
 from __future__ import annotations

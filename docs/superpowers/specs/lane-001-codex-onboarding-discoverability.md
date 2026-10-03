@@ -26,7 +26,7 @@ So the Claude routing surface (the `homelab-engineer` description, shipped since
 present in the generated Codex TOML) is inert on Codex, and the explicit-only skills are
 invisible. Field evidence is recorded as learning-ledger candidate `lc_c361b3d3`; the measurement
 boundary that let this ship unnoticed is codified in
-[`2026-07-30 multi-platform packaging`](../../decisions/2026-07-30-multi-platform-packaging.md).
+`docs/decisions/2026-07-30-multi-platform-packaging.md` (retired to Git history).
 
 Operator rulings (2026-08-02): the Codex lane is **supported but limited** — cheap host-neutral
 fixes, lane limits codified, no Codex eval harness.
@@ -135,8 +135,7 @@ behavior this spec relies on.
 
 ## Round exit
 
-On completion, this spec and its plan retire to a dated outcome record under `docs/archive/`
-(docs rule 4); LANE-001 leaves the roadmap when the acceptance evidence is committed.
+On completion, this spec and its plan are deleted (docs rule 4); LANE-001 leaves the roadmap when the acceptance evidence is committed.
 
 ## Appendix — candidate skill description (payload; final text lives in the plan)
 

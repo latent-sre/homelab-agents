@@ -282,8 +282,7 @@ not only the tests. `tests/test_hook_wiring.py` remains the behavioural oracle: 
 rendered command and runs it under `sh`, because a renderer whose output parses is not a hook that
 decides correctly.
 
-The current [bounded-campaign authority](decisions/2026-09-11-bounded-upgrade-campaign.md)
-separates user authorization from host permission. A bounded live request covers in-scope
+The current bounded-campaign authority separates user authorization from host permission. A bounded live request covers in-scope
 execution and recovery; it never bypasses an actual host prompt or denial. Codex may use permitted
 native execution without another human-interposing gate or a root-owned rule. The generated
 Copilot engineer omits `execute`, so its live work requires operator handoff.
@@ -347,8 +346,7 @@ same messages as before, and `python3 -m fleet validate --json` returns them wit
 the hook. `ruff` and the kernel's differential YAML
 tripwire come from the dev group: `uv sync --upgrade-package ruff` (ruff floats, and CI installs
 its latest release; plain `uv sync` keeps the locked one), or the `pip install` line
-`.github/workflows/validate.yml` runs. The rewrite's design and phase plan are in
-`docs/decisions/2026-09-13-machinery-rewrite.md`.
+`.github/workflows/validate.yml` runs.
 
 The validator checks frontmatter, names, descriptions, explicit agent tool authority (against a
 known tool vocabulary), models, bundled skill references, the canonical evidence-label phrasing,

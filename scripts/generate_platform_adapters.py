@@ -749,7 +749,7 @@ def expected_outputs(root: Path, *, verify_rewrites: bool = True) -> dict[Path, 
     # The hook file is generated from the same roster the Copilot adapter reads to decide which
     # agents lose `execute`. One read, one fact: a name added to GUARDED_AGENT_NAMES reaches the
     # armed hook and the host adapters in the same regeneration, and cannot reach one without the
-    # other (`docs/decisions/2026-09-13-machinery-rewrite.md`, phase 5).
+    # other.
     guard_roster = _guard_roster(root)
     outputs[HOOKS_FILE] = _hooks.hooks_json(guard_roster)
     guarded_names = set(guard_roster.names)

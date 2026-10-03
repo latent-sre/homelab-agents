@@ -1,7 +1,7 @@
 # Contributing
 
 This repository is a tooling kit for one home-lab operator, packaged well enough to hand to
-strangers who run the same kind of lab (`docs/decisions/2026-09-02-single-operator-audience.md`).
+strangers who run the same kind of lab.
 Most contributors here are agent sessions, so this file states the procedure a session cannot infer
 from the diff. The binding rules — what a PR must not do — stay in `AGENTS.md` under "Opening a pull
 request"; read both before opening or updating one.
@@ -51,6 +51,5 @@ empty while running; a missing Copilot request leaves it empty because nobody as
 opposite meanings — which is why the inspection above precedes the wait. Never report a PR as
 "awaiting review" when nothing was requested.
 
-Historical Copilot API failures do not establish a universal request ban; see
-`docs/decisions/2026-08-16-pr-review-gate.md`, which records provenance and reopen triggers.
-`AGENTS.md` owns the current policy.
+Historical Copilot API failures do not establish a universal request ban. `AGENTS.md` owns the
+current policy.

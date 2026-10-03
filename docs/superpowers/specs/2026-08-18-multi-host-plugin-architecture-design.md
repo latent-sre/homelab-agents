@@ -3,7 +3,8 @@
 - Date: 2026-08-18
 - Status: Implemented 2026-08-18 on `chore/retire-dead-host-lanes`
 - Evidence: `docs/archive/2026-08/vscode-discovery-investigation-2026-08-18.md` (retired to Git history)
-- Amends: `docs/decisions/2026-07-30-multi-platform-packaging.md` (host table, Copilot lane)
+- Amends: `docs/decisions/2026-07-30-multi-platform-packaging.md` (host table, Copilot lane;
+  retired to Git history)
 
 ## Scope
 

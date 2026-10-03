@@ -30,7 +30,7 @@ jobs:
     # skip on Windows.
     runs-on: windows-latest
     steps:
-      # Actions float on their major tag (docs/decisions/2026-09-23-float-toolchain-versions.md);
+      # Actions float on their major tag;
       # `permissions: contents: read` above caps what a moved tag can do with the job token.
       - name: Check out repository
         uses: actions/checkout@v7
@@ -88,7 +88,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      # LATEST, by operator ruling (docs/decisions/2026-09-23-float-toolchain-versions.md): this
+      # LATEST, by operator ruling: this
       # job tests the CLI the plugin's users actually run. A new release can turn it red with no
       # change in the PR, so the version line below names the CLI that was tested — read it before
       # debugging the diff. This job checks the static platform contract only;

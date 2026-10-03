@@ -11,8 +11,7 @@ no interpreter answers. Both copies were maintained by hand against the roster d
 hook script, and a name reaching only one of them satisfies a substring check while the other
 block silently lets the agent through. Phase 5 of the machinery rewrite makes the scripts' own
 `GUARDED_AGENT_NAMES` the single source and renders both copies from it;
-the committed file is byte-checked exactly like the host adapters
-(`docs/decisions/2026-09-13-machinery-rewrite.md`).
+the committed file is byte-checked exactly like the host adapters.
 
 The shell text is a TEMPLATE, not a builder. It is the fleet's security boundary and the
 most-reviewed code in the tree, so it stays readable verbatim in one place and only the two

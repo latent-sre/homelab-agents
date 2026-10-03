@@ -136,8 +136,7 @@ Name the hosts/services and maintenance window. The campaign reuses existing inv
 procedures, release guidance, and applicable restore evidence; it verifies each deployment and
 recovers failures within the delegated scope. A major version alone does not require a new session.
 After recovery, independent authorized upgrades can continue; unresolved shared failures stop
-related work. The [bounded-campaign decision](docs/decisions/2026-09-11-bounded-upgrade-campaign.md)
-records the behavior and host limits.
+related work.
 
 Claude's shipped live-effect hook still prompts for listed commands and denies them when prompts
 are suppressed; unbound/unparseable forms also ask/deny. The hook is a partial filter: only when
