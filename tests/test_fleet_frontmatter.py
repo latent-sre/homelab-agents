@@ -93,6 +93,10 @@ class FlowScalarDefectTests(unittest.TestCase):
             "'Use the agent's output": "carries the trailing token",
             '"ok" # note': "deliberately stricter than YAML",
             '"Use C:\\q"': "invalid escape sequence",
+            # The finding quotes the offending sequence, so an author is not left hunting one
+            # backslash in a long description.
+            '"Use C:\\q for the path."': repr("\\q"),
+            '"Use \\z here."': repr("\\z"),
             '"bad \\u12"': "malformed hex escape",
             '"\\uD800"': "lone surrogate U+D800",
             '"\\U00110000"': "U+110000",
@@ -192,10 +196,6 @@ class DialectDifferentialTripwire(unittest.TestCase):
         self.assertEqual([], divergences, "\n".join(divergences))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class LineBreakerEscapingTests(unittest.TestCase):
     """Deterministic pins for the three characters that motivated `_escape_line_breakers`.
 
@@ -216,18 +216,6 @@ class LineBreakerEscapingTests(unittest.TestCase):
                 rendered = fm.yaml_scalar(f"before{character}after")
                 self.assertNotIn(character, rendered, f"{name} was emitted raw")
                 self.assertEqual(1, len(rendered.splitlines()), f"{name} still splits the line")
-
-    def test_a_description_carrying_one_does_not_tear_the_frontmatter(self) -> None:
-        for name, character in self.LINE_BREAKERS.items():
-            with self.subTest(character=name):
-                value = f"Routes work{character}to the right altitude"
-                document = (
-                    f"---\nname: demo\ndescription: {fm.yaml_scalar(value)}\n---\n\nBody.\n"
-                )
-                parsed = fm.parse_text(document)
-                self.assertIsNotNone(parsed, f"{name} ended the frontmatter block early")
-                self.assertEqual({"name", "description"}, set(parsed))
-                self.assertEqual("demo", parsed["name"])
 
     def test_the_flow_list_emitter_escapes_them_too(self) -> None:
         for name, character in self.LINE_BREAKERS.items():

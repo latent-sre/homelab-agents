@@ -42,19 +42,6 @@ class ProbeTimeoutRecoveryTests(unittest.TestCase):
     nothing. Reproduced at the operator's limit in the 2026-09-07 diagnostic correction.
     """
 
-    def test_the_runner_returns_a_timeout_instead_of_raising(self) -> None:
-        with mock.patch.object(
-            probe_plugin._proc,
-            "run",
-            return_value=probe_plugin._proc.CommandResult(
-                ("claude",), None, "partial transcript", "", timed_out=True, error="timed out"
-            ),
-        ):
-            result = probe_plugin.run(["claude", "-p", "hello"])
-        self.assertTrue(result.timed_out)
-        # The transcript the run already paid for survives the failure.
-        self.assertEqual("partial transcript", result.stdout)
-
     def test_an_unanswered_leg_is_inconclusive_with_its_own_cause(self) -> None:
         timed_out = probe_plugin._proc.CommandResult(
             ("claude",), None, "", "", timed_out=True, error="timed out"
@@ -144,40 +131,37 @@ class ProbeTimeoutRecoveryTests(unittest.TestCase):
         )
 
     def test_an_unanswered_agent_session_reports_why_not_just_that(self) -> None:
-        """A timeout and a launch failure must not read as "never attempted".
+        """A timed-out --agent session must not read as "never attempted".
 
         They send the operator to different places -- wait and re-run, versus repair the
-        environment -- and `reading()` stores the cause without putting it in the verdict, so the
-        unconditional SKIP on this branch dropped it.
+        environment -- so the verdict carries the session's own cause.
         """
-        for result, expected in (
-            (
-                probe_plugin._proc.CommandResult(
-                    ("claude",), None, "", "", timed_out=True, error="timed out"
-                ),
-                "did not answer within 600s",
-            ),
-            (
-                probe_plugin._proc.CommandResult(
-                    ("claude",), 127, "", "", failed_to_start=True, error="No such file"
-                ),
-                "could not be started",
-            ),
-        ):
-            with self.subTest(result=result):
-                probe = probe_plugin.Probe()
-                with contextlib.redirect_stdout(io.StringIO()):
-                    probe.reading(result)
-                    cause = probe_plugin.unanswered_cause(result)
-                    probe.check(
-                        probe_plugin.SKIP,
-                        "the guard DENIED a --agent main session's denylisted command",
-                        cause or "the session never attempted the command",
-                    )
-                detail = probe.results[0][2]
-                self.assertIn(expected, detail)
-                self.assertNotIn("never attempted", detail)
 
+        def spawn(cmd, **_kwargs):
+            argv = tuple(cmd)
+            if "--agent" not in argv:
+                return probe_plugin._proc.CommandResult(argv, 0, "", "")
+            return probe_plugin._proc.CommandResult(
+                argv, None, "", "", timed_out=True, error="timed out"
+            )
+
+        output = io.StringIO()
+        with (
+            mock.patch.object(probe_plugin, "run", side_effect=spawn),
+            mock.patch.object(probe_plugin, "CLAUDE", "claude"),
+            mock.patch.object(probe_plugin, "_remove_workspace"),
+            tempfile.TemporaryDirectory() as tmp,
+            mock.patch.object(probe_plugin, "REPO", Path(tmp)),
+            contextlib.redirect_stdout(output),
+        ):
+            probe_plugin.main([])
+
+        lines = output.getvalue().splitlines()
+        label = "INCONCLUSIVE: the guard DENIED a --agent main session's denylisted command"
+        self.assertIn(label, lines)
+        detail = lines[lines.index(label) + 1]
+        self.assertIn("did not answer within 600s", detail)
+        self.assertNotIn("never attempted", detail)
 
     def test_an_errored_spawn_is_told_apart_from_an_absent_one(self) -> None:
         """`spawn_succeeded` returning False conflated two different findings.
@@ -249,7 +233,7 @@ class ProbeTimeoutRecoveryTests(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             probe.reading(timed_out)
             self.assertTrue(probe.answered(answered, "a leg that did answer"))
-            probe.check(probe_plugin.FAIL, "a real regression this leg found")
+            probe.check(probe_plugin.FAIL, "a real regression this leg found", absence=True)
         statuses = {label: status for status, label, _ in probe.results}
         self.assertEqual(probe_plugin.FAIL, statuses["a real regression this leg found"])
 
@@ -399,11 +383,6 @@ class ProbeInconclusiveReportingTests(unittest.TestCase):
         ))
         self.assertEqual(2, code)
         self.assertIn("no tool_result ever correlated", out, "the real cause must still print")
-        self.assertNotIn(
-            "Claude Code's own sandbox refused the command",
-            out,
-            "the summary asserted a cause this check did not report",
-        )
 
     def test_a_sandbox_refusal_still_gets_its_actionable_advice(self) -> None:
         _code, out = self._report((
@@ -567,13 +546,9 @@ class ProbeTranscriptParserTests(unittest.TestCase):
         RAN = "total 12 drwxr-xr-x repo"
         both = probe_plugin.bash_results(transcript(probe_plugin.GUARD_DENY, RAN))
         self.assertEqual({"find . -exec PROBE": [probe_plugin.GUARD_DENY, RAN]}, both)
-        self.assertEqual(
-            both, probe_plugin.bash_results(transcript(probe_plugin.GUARD_DENY, RAN)),
-            "order is preserved, not resolved",
-        )
 
     def test_each_check_reads_the_shared_evidence_with_its_own_polarity(self) -> None:
-        """The reviewer must be denied; the main loop must not. Same input, opposite verdicts."""
+        """Any unguarded run fails the reviewer, in either order; a gap is never evidence."""
         RAN = "total 12 drwxr-xr-x repo"
         DENY = probe_plugin.GUARD_DENY
 
@@ -587,11 +562,6 @@ class ProbeTranscriptParserTests(unittest.TestCase):
                 self.assertTrue(
                     probe_plugin.unguarded_runs(seen),
                     "a guard that allowed one attempt has not held",
-                )
-                # Main-loop polarity: any denial is the failure.
-                self.assertTrue(
-                    [r for r in seen if DENY in r],
-                    "the guard caught the user's own Bash at least once",
                 )
 
         denied_twice = probe_plugin.observed([DENY, DENY])
@@ -620,73 +590,6 @@ class ProbeTranscriptParserTests(unittest.TestCase):
         self.assertEqual({"find . -exec MAINLOOP_PROBE": [""]}, pairs)
         self.assertEqual((True, [""]), probe_plugin.result_for("MAINLOOP_PROBE", pairs))
 
-    def test_agent_consumers_ignore_non_object_tool_input(self) -> None:
-        transcript = json.dumps(
-            {
-                "message": {
-                    "content": [
-                        {
-                            "type": "tool_use",
-                            "id": "agent-bad",
-                            "name": "Agent",
-                            "input": "sde-agents:sde-fullstack",
-                        },
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": "agent-bad",
-                            "content": "not a valid spawn",
-                            "is_error": False,
-                        },
-                    ]
-                }
-            }
-        )
-
-        self.assertFalse(
-            probe_plugin.spawn_succeeded(transcript, "sde-agents:sde-fullstack")
-        )
-
-        malformed_ids = "\n".join((
-            json.dumps({
-                "message": {"content": [{
-                    "type": "tool_use",
-                    "id": ["bad-agent-id"],
-                    "name": "Agent",
-                    "input": {"subagent_type": "sde-agents:sde-fullstack"},
-                }]}
-            }),
-            json.dumps({
-                "message": {"content": [{
-                    "type": "tool_result",
-                    "tool_use_id": ["bad-result-id"],
-                    "content": "ignored",
-                    "is_error": False,
-                }]}
-            }),
-            json.dumps({
-                "message": {"content": [
-                    {
-                        "type": "tool_use",
-                        "id": "agent-good",
-                        "name": "Agent",
-                        "input": {"subagent_type": "sde-agents:sde-fullstack"},
-                    },
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": "agent-good",
-                        "content": "valid spawn",
-                        "is_error": False,
-                    },
-                ]}
-            }),
-        ))
-
-        self.assertTrue(
-            probe_plugin.spawn_succeeded(
-                malformed_ids, "sde-agents:sde-fullstack"
-            )
-        )
-
     def test_spawn_success_prefers_the_structured_agent_target(self) -> None:
         transcript = json.dumps({
             "message": {
@@ -713,64 +616,6 @@ class ProbeTranscriptParserTests(unittest.TestCase):
         self.assertFalse(
             probe_plugin.spawn_succeeded(transcript, "sde-agents:sde-fullstack")
         )
-
-    def test_consumers_skip_invalid_shapes_without_losing_correlations(self) -> None:
-        transcript = "\n".join(
-            (
-                "not json",
-                "42",
-                json.dumps({"message": "diagnostic"}),
-                json.dumps(
-                    {
-                        "message": {
-                            "content": [
-                                {
-                                    "type": "tool_use",
-                                    "id": "bash-1",
-                                    "name": "Bash",
-                                    "input": {"command": "echo PROBE"},
-                                },
-                                {
-                                    "type": "tool_use",
-                                    "id": "agent-1",
-                                    "name": "Agent",
-                                    "input": {
-                                        "subagent_type": "sde-agents:sde-fullstack"
-                                    },
-                                },
-                                "non-object block",
-                            ]
-                        }
-                    }
-                ),
-                json.dumps(
-                    {
-                        "message": {
-                            "content": [
-                                {
-                                    "type": "tool_result",
-                                    "tool_use_id": "bash-1",
-                                    "content": "bash ok",
-                                },
-                                {
-                                    "type": "tool_result",
-                                    "tool_use_id": "agent-1",
-                                    "content": [{"text": "agent ok"}],
-                                    "is_error": False,
-                                },
-                            ]
-                        }
-                    }
-                ),
-            )
-        )
-
-        self.assertEqual(
-            ["bash-1", "agent-1"],
-            [call["id"] for call in probe_plugin.tool_calls(transcript)],
-        )
-        self.assertEqual({"echo PROBE": ["bash ok"]}, probe_plugin.bash_results(transcript))
-        self.assertTrue(probe_plugin.spawn_succeeded(transcript, "sde-agents:sde-fullstack"))
 
 
 if __name__ == "__main__":

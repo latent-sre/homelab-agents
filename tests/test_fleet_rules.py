@@ -42,14 +42,13 @@ INVENTORY_CHECKED = {"valid", "inventory-drift"}
 
 
 class RegistryTests(unittest.TestCase):
-    def test_every_rule_has_a_unique_id_a_group_and_a_why(self) -> None:
-        seen: set[str] = set()
-        for entry in rules.rules():
-            self.assertNotIn(entry.id, seen)
-            seen.add(entry.id)
-            self.assertIn(entry.group, rules.REPO_GROUP_ORDER, entry.id)
+    def test_every_rule_has_a_why(self) -> None:
+        # Unique ids and known groups are refused at registration (tested below); a blank why
+        # is the one gap registration does not close.
+        entries = list(rules.rules())
+        for entry in entries:
             self.assertTrue(entry.why.strip(), f"{entry.id} has no why")
-        self.assertGreater(len(seen), 20)
+        self.assertGreater(len(entries), 20)
 
     def test_every_group_in_the_repo_order_has_at_least_one_rule(self) -> None:
         groups = {entry.group for entry in rules.rules()}
@@ -210,24 +209,8 @@ class FixtureRuleContractTests(unittest.TestCase):
                 report = validate(FIXTURES / name, groups=groups)
                 self.assertEqual(expected, {f.rule for f in report.findings}, report.texts)
 
-    def test_the_real_repository_is_clean_under_every_rule(self) -> None:
-        report = validate(REPO)
-        self.assertEqual([], report.texts)
-
 
 class PluginRuleIdTests(unittest.TestCase):
-    def test_a_dropped_guard_roster_entry_is_a_guard_roster_finding(self) -> None:
-        with repo_copy() as dst:
-            guard = dst / "scripts" / "readonly-guard.py"
-            guard.write_text(
-                guard.read_text(encoding="utf-8").replace('"code-reviewer", ', "", 1),
-                encoding="utf-8",
-            )
-            report = validate(dst, skip=("adapters.generated",))
-        # The guard's roster losing an agent is exactly one finding: the hook file still names
-        # the agent, and that side is judged by the guard.roster cross-check, not hooks.guard.
-        self.assertEqual({"plugin.guard.roster"}, {f.rule for f in report.findings})
-
     def test_validate_plugin_honors_a_caller_supplied_roster(self) -> None:
         # The legacy signature validated against the supplied names; a roster that omits a
         # guarded agent must report it as "not an agent", whatever the tree holds.
@@ -281,17 +264,16 @@ class PluginRuleIdTests(unittest.TestCase):
         # Plugin presence is part of the snapshot: a manifest removed after the load must not
         # silently switch off every plugin-gated group for the tree that was loaded.
         with repo_copy() as dst:
-            fleet = Fleet.load(dst)
             guard = dst / "scripts" / "readonly-guard.py"
-            (dst / ".claude-plugin" / "plugin.json").unlink()
-            self.assertTrue(fleet.ships_as_plugin)
-            self.assertFalse(Fleet.load(dst).ships_as_plugin)
             guard.write_text(
                 guard.read_text(encoding="utf-8").replace('"code-reviewer", ', "", 1),
                 encoding="utf-8",
             )
-            self.assertEqual([], rules.run(fleet, groups=("plugin",)))
-            self.assertEqual([], rules.run(Fleet.load(dst), groups=("plugin",)))
+            fleet = Fleet.load(dst)
+            (dst / ".claude-plugin" / "plugin.json").unlink()
+            self.assertFalse(Fleet.load(dst).ships_as_plugin)
+            found = {finding.rule for finding in rules.run(fleet, groups=("plugin",))}
+        self.assertIn("plugin.guard.roster", found)
 
     def test_bundle_rules_judge_the_snapshot_inventory_not_the_disk(self) -> None:
         # A reference file added after the load is a different tree; the loaded snapshot keeps

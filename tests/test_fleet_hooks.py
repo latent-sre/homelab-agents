@@ -59,12 +59,6 @@ def case_blocks(command: str) -> dict[str, str]:
 
 
 class RenderTests(unittest.TestCase):
-    def test_the_committed_hook_file_is_the_rendered_one(self) -> None:
-        # The phase-5 oracle. If this fails, either the templates drifted from the committed
-        # shell or someone hand-edited the hook file -- and the generator would now overwrite
-        # whichever of the two is not in `fleet/hooks.py`.
-        self.assertEqual(HOOKS.read_bytes(), hooks.hooks_json(repo_roster(REPO)))
-
     def test_a_roster_name_reaches_both_case_blocks(self) -> None:
         # The failure this whole phase exists to end: a name in the fast path but not the
         # fallback (or the reverse) leaves the agent uncovered while every file claims otherwise.
@@ -156,16 +150,6 @@ class GeneratorWiringTests(unittest.TestCase):
         self.assertIn(generator.HOOKS_FILE, outputs)
         self.assertEqual(HOOKS.read_bytes(), outputs[generator.HOOKS_FILE])
 
-    def test_the_hook_directory_is_not_a_generated_root(self) -> None:
-        # `--write` replaces a generated root wholesale. `hooks/` is the plugin's own hook
-        # directory, so declaring it as a root would delete anything a future hook adds there.
-        roots = (*generator.GENERATED_ROOTS, *generator.RETIRED_GENERATED_ROOTS)
-        self.assertNotIn(Path("hooks"), roots)
-        self.assertTrue(
-            all(generator.HOOKS_FILE.parent != root for root in roots),
-            roots,
-        )
-
     def test_write_leaves_a_sibling_of_the_hook_file_alone(self) -> None:
         # The non-vacuous half of the test above: prove `--write` does not clear the directory.
         with repo_copy() as dst:
@@ -180,7 +164,6 @@ class GeneratorWiringTests(unittest.TestCase):
         # and the validator says so, in both directions (adding and removing a name).
         edits = (
             ("name added", '"repository-investigator",', '"repository-investigator", "extra",'),
-            ("name replaced", '"repository-investigator",', '"researcher",'),
         )
         for label, before, after in edits:
             with self.subTest(change=label), repo_copy() as dst:

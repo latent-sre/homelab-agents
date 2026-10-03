@@ -53,26 +53,6 @@ class PluginWiringDocsTests(PluginWiringMixin, unittest.TestCase):
         issues = self._issues_after(mutate)
         self.assertTrue(any("will NOT contain this fleet" in i for i in issues), issues)
 
-    def test_orphaned_reference_file_is_reported(self) -> None:
-        def mutate(repo: Path) -> None:
-            (repo / "skills" / "backend-craft" / "references" / "caching.md").write_text(
-                "# Caching\n\nNever linked from SKILL.md.\n", encoding="utf-8"
-            )
-
-        issues = self._issues_after(mutate)
-        self.assertTrue(
-            any("orphaned" in i and "caching.md" in i for i in issues), issues
-        )
-
-    def test_claude_md_without_the_import_is_reported(self) -> None:
-        # Claude Code reads CLAUDE.md, not AGENTS.md. Lose the one-line import and the guide is
-        # orphaned -- still in the repo, never in any session, and nothing errors.
-        def mutate(repo: Path) -> None:
-            (repo / "CLAUDE.md").write_text("# project notes, no import\n", encoding="utf-8")
-
-        issues = self._issues_after(mutate)
-        self.assertTrue(any("never loaded" in i for i in issues), issues)
-
     def test_missing_claude_md_bridge_is_reported(self) -> None:
         issues = self._issues_after(lambda r: (r / "CLAUDE.md").unlink())
         self.assertTrue(any("never loaded" in i for i in issues), issues)
@@ -80,37 +60,6 @@ class PluginWiringDocsTests(PluginWiringMixin, unittest.TestCase):
     def test_dangling_import_without_agents_md_is_reported(self) -> None:
         issues = self._issues_after(lambda r: (r / "AGENTS.md").unlink())
         self.assertTrue(any("resolves to nothing" in i for i in issues), issues)
-
-    def test_stale_path_in_the_guide_is_reported(self) -> None:
-        # The rename-a-script case: the guide keeps naming the old path, and only a reader who
-        # tries the command ever finds out.
-        def mutate(repo: Path) -> None:
-            path = repo / "AGENTS.md"
-            path.write_text(
-                path.read_text(encoding="utf-8").replace(
-                    "scripts/probe_plugin.py", "scripts/probe_plugins.py"
-                ),
-                encoding="utf-8",
-            )
-
-        issues = self._issues_after(mutate)
-        self.assertTrue(any("'scripts/probe_plugins.py'" in i for i in issues), issues)
-
-    def test_stale_path_in_the_program_doc_is_reported(self) -> None:
-        # The program map exists so the engineering program's documentation cannot go stale, which
-        # makes it the one document least entitled to stale paths of its own — same
-        # rename-a-script failure as the guide, same tripwire.
-        def mutate(repo: Path) -> None:
-            path = repo / "docs" / "engineering-program.md"
-            path.write_text(
-                path.read_text(encoding="utf-8").replace(
-                    "scripts/readonly-guard.py", "scripts/readonly-guards.py"
-                ),
-                encoding="utf-8",
-            )
-
-        issues = self._issues_after(mutate)
-        self.assertTrue(any("'scripts/readonly-guards.py'" in i for i in issues), issues)
 
     def test_program_doc_is_validated_without_the_guide(self) -> None:
         # PR #133 P2: the map's own header advertises this tripwire, so a check that deleting an

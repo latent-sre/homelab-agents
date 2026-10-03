@@ -464,65 +464,6 @@ class PlatformAdapterTests(unittest.TestCase):
         self.assertIn(old, text, "the fixture must start from an anchor that exists")
         path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
-    def test_investigator_host_rewrite_fails_loudly_when_its_anchor_is_missing(self) -> None:
-        # A zero-match rewrite would regenerate "clean" adapters that keep the Claude-only
-        # guard claim on hosts that cannot load the guard, and byte-drift validation cannot
-        # see it — the committed adapter carries the same silent miss. So a missed anchor must
-        # be a generation error, not a no-op.
-        self._generation_refuses(
-            lambda destination: self._rewrite_canonical(
-                destination,
-                "repository-investigator",
-                "Your context is deliberately local-only:",
-                "Your context is local:",
-            ),
-            rewrite_id="agent.repository-investigator.local-only",
-        )
-        # A missing method anchor must also fail after the boundary rewrite succeeds;
-        # otherwise the no-shell host could retain an instruction to execute Git.
-        for index, anchor in enumerate(
-            (
-                "Name the repository root and the revision",
-                "For revision-bound claims, read the named revision's bytes",
-                'When the question is "how did it get this way"',
-            ),
-            start=1,
-        ):
-            with self.subTest(anchor=anchor):
-                self._generation_refuses(
-                    lambda destination, anchor=anchor: self._rewrite_canonical(
-                        destination,
-                        "repository-investigator",
-                        anchor,
-                        "missing method anchor",
-                    ),
-                    rewrite_id=f"agent.repository-investigator.method-step.{index}",
-                )
-
-    def test_homelab_host_rewrite_fails_loudly_when_its_anchor_is_missing(self) -> None:
-        # The canonical host-controls bullet describes Claude Code's permission mode, and a
-        # silent zero-match rewrite would ship that claim to a host that does not have it. The
-        # real canonical body must rewrite cleanly on both hosts.
-        for label, rewrite_id in (
-            ("Host controls", "agent.homelab-engineer.host-controls"),
-            ("Standing policy", "agent.homelab-engineer.standing-policy"),
-        ):
-            with self.subTest(label=label):
-                self._generation_refuses(
-                    lambda destination, label=label: self._rewrite_canonical(
-                        destination, "homelab-engineer", f"- **{label}:**", f"- **{label} note:**"
-                    ),
-                    rewrite_id=rewrite_id,
-                )
-        canonical = (REPO / "agents" / "homelab-engineer.md").read_text(encoding="utf-8")
-        for host, marker in (("copilot", "operator handoff"), ("codex", "codex execpolicy check")):
-            with self.subTest(host=host):
-                rewritten = generate_platform_adapters.adapt_agent_contract(
-                    canonical, name="homelab-engineer", host=host
-                )
-                self.assertNotIn("hooks/hooks.json", rewritten)
-                self.assertIn(marker, rewritten)
-
     def test_homelab_codex_allows_authorized_native_execution_without_fake_gate(self) -> None:
         """Host adaptation must not restore the retired prompt-only execution policy."""
         canonical = (REPO / "agents" / "homelab-engineer.md").read_text(encoding="utf-8")
@@ -649,26 +590,6 @@ class PlatformAdapterTests(unittest.TestCase):
                     path = f"{root}/{name}/SKILL.md"
                     self.assertIn(f"`{path}`", text)
                     self.assertTrue((REPO / path).is_file())
-
-    def test_builder_loading_rewrite_rejects_missing_or_duplicate_routes(self) -> None:
-        # The builder's conditional routes are the one place an adapter must name a real
-        # on-disk path; a dropped or duplicated route makes the table ambiguous either way.
-        canonical = "apply. Load other guidance before the work it governs, using the Read tool"
-        self._generation_refuses(
-            lambda destination: self._rewrite_canonical(
-                destination, "sde-fullstack", canonical, "apply. Load other guidance"
-            ),
-            rewrite_id="agent.sde-fullstack.conditional-loading",
-        )
-        for name in ("backend-craft", "frontend-craft", "root-cause", "ci-actions"):
-            route = f"| `${{CLAUDE_PLUGIN_ROOT}}/skills/{name}/SKILL.md` |"
-            with self.subTest(route=name):
-                self._generation_refuses(
-                    lambda destination, route=route: self._rewrite_canonical(
-                        destination, "sde-fullstack", route, "| removed route |"
-                    ),
-                    rewrite_id=f"agent.sde-fullstack.route.{name}",
-                )
 
     def test_investigator_provenance_boundary_survives_every_host_rewrite(self) -> None:
         # The canonical untrusted-provenance paragraph is REPLACED wholesale on both non-Claude

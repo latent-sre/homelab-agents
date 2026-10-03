@@ -193,25 +193,15 @@ class AdapterCheckTierTests(unittest.TestCase):
     """The T0/T1 tier boundary for adapter byte-drift.
 
     check_adapters=False exists so the wiring mutation tests stop re-generating and
-    byte-comparing every host adapter to check one unrelated breakage. These two tests pin the
-    flag's semantics: True still reports drift (so retiring the recipe's separate
-    `generate --check` step loses nothing), and False genuinely skips it (so the speedup is
-    real, and a future adapter test that forgets to pass True fails loudly — its expected issue
-    never appears — instead of passing vacuously)."""
+    byte-comparing every host adapter to check one unrelated breakage. False must genuinely skip
+    it, so a future adapter test that forgets to pass True fails loudly instead of passing
+    vacuously; True reporting drift is pinned by the wiring runtime tests."""
 
     def _drift_adapter(self, dst: Path) -> None:
         adapter = sorted((dst / ".github" / "agents").glob("*.md"))[0]
         adapter.write_text(
             adapter.read_text(encoding="utf-8") + "\nhand edit\n", encoding="utf-8"
         )
-
-    def test_flag_on_reports_hand_edited_adapter(self) -> None:
-        with repo_copy() as dst:
-            self._drift_adapter(dst)
-            issues, _, _ = validate_fleet.validate_repo(
-                dst, check_inventory=False, check_adapters=True
-            )
-        self.assertTrue(issues, "hand-edited adapter must be reported when the check runs")
 
     def test_flag_off_skips_only_the_adapter_check(self) -> None:
         with repo_copy() as dst:

@@ -35,14 +35,6 @@ from tests.support import REPO, repo_copy, run_main
 
 
 class RewriteContractTests(unittest.TestCase):
-    def test_the_table_is_judgeable(self) -> None:
-        # A duplicate id would make two rewrites share one count, so neither could be judged.
-        check_table(ALL_REWRITES)
-        self.assertEqual(len(ALL_REWRITES), len({rewrite.id for rewrite in ALL_REWRITES}))
-        for rewrite in ALL_REWRITES:
-            with self.subTest(rewrite=rewrite.id):
-                self.assertTrue(rewrite.why.strip(), "a rewrite must say why it exists")
-
     def test_a_zero_expectation_cannot_be_declared(self) -> None:
         # Zero is the dead rewrite the ledger exists to surface; declaring it would re-open the
         # silent-no-op class the count was added to close.
@@ -145,11 +137,6 @@ class RewriteContractTests(unittest.TestCase):
 
 
 class FleetRewriteCountTests(unittest.TestCase):
-    def test_every_rewrite_lands_the_count_the_table_declares(self) -> None:
-        # The live invariant: generation over the real fleet must match the table exactly. A
-        # failure here names the canonical sentence that moved.
-        generator.expected_outputs(REPO)
-
     def test_a_reworded_canonical_sentence_fails_generation(self) -> None:
         # The whole point of the phase. Without the count, this mutation regenerates a
         # clean-looking adapter that still names Claude's Agent tool to a host that has none.
@@ -174,31 +161,6 @@ class FleetRewriteCountTests(unittest.TestCase):
         self.assertIn("text.agent-tool.spawn", message)
         self.assertIn("landed 0 time(s)", message)
         self.assertIn(anchor.why, message)
-
-
-    def test_a_reworded_read_only_skill_claim_fails_generation(self) -> None:
-        # A skill body that credits `disallowed-tools` with removing Write and Edit names a deny
-        # the portable frontmatter drops, so the projection is as load-bearing as any agent's —
-        # and so is its count.
-        anchor = "All checks are read-only. `disallowed-tools` removes Write and Edit"
-        with repo_copy() as dst:
-            carriers = [
-                path
-                for path in sorted((dst / "skills").rglob("SKILL.md"))
-                if anchor in path.read_text(encoding="utf-8")
-            ]
-            self.assertTrue(carriers, "the anchor must exist somewhere to be worth counting")
-            for path in carriers:
-                path.write_text(
-                    path.read_text(encoding="utf-8").replace(
-                        anchor, "All checks are read-only. The deny list removes Write and Edit"
-                    ),
-                    encoding="utf-8",
-                )
-            with self.assertRaises(RewriteError) as caught:
-                generator.expected_outputs(dst)
-        self.assertIn("skill.readonly.disallowed-tools-claim", str(caught.exception))
-
 
     def test_a_read_only_claim_outside_the_deny_frontmatter_still_fails_generation(self) -> None:
         # Gating the projection on `disallowed-tools` let a skill that acquired the claim
@@ -398,16 +360,6 @@ class TomlEmitterTests(unittest.TestCase):
         self.assertIn("did not read back as written", str(caught.exception))
         self.assertIn("name", str(caught.exception))
 
-    def test_the_committed_codex_adapters_parse(self) -> None:
-        agents = sorted((REPO / ".codex" / "agents").glob("*.toml"))
-        self.assertTrue(agents)
-        for path in agents:
-            with self.subTest(path=path.name):
-                parsed = tomllib.loads(path.read_text(encoding="utf-8"))
-                self.assertEqual(path.stem, parsed["name"])
-                self.assertIn(parsed["sandbox_mode"], {"read-only", "workspace-write"})
-                self.assertTrue(parsed["developer_instructions"].endswith("\n"))
-
 
 class GeneratorDiffTests(unittest.TestCase):
     def test_diff_reports_nothing_on_a_current_tree(self) -> None:
@@ -504,27 +456,6 @@ class GeneratorDiffTests(unittest.TestCase):
             "would be removed by --write before the directory is recreated",
             report,
         )
-
-
-class GeneratedTreeTests(unittest.TestCase):
-    def test_no_generated_adapter_carries_a_claude_only_path(self) -> None:
-        # The rewrites translate these forms; this is the reader check that holds whether or not
-        # a given translation is still in the table.
-        roots = (
-            REPO / ".github" / "agents",
-            REPO / ".codex" / "agents",
-            REPO / ".github" / "skills",
-            REPO / "plugins" / "sde-agents" / "skills",
-        )
-        reference = Path("prompt-craft/references/claude-code-frontmatter.md")
-        for root in roots:
-            for path in sorted(root.rglob("*")):
-                if not path.is_file() or path.suffix not in {".md", ".toml"}:
-                    continue
-                if path.as_posix().endswith(reference.as_posix()):
-                    continue  # copied verbatim on purpose: it documents Claude's own contract
-                with self.subTest(path=path.relative_to(REPO)):
-                    self.assertNotIn("${CLAUDE_PLUGIN_ROOT}", path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

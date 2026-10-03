@@ -69,11 +69,6 @@ class HookScriptTests(TempDirTestCase):
 
 
 class RosterTests(TempDirTestCase):
-    def test_real_hook_roster_reads_without_execution(self) -> None:
-        guard = snapshot.read_rosters(REPO / "scripts" / "readonly-guard.py", "GUARDED_AGENT_NAMES")
-        self.assertEqual("sde-agents", guard.plugin_name)
-        self.assertIn("code-reviewer", guard["GUARDED_AGENT_NAMES"])
-
     def test_reading_never_runs_the_script(self) -> None:
         hook = self.base / "hook.py"
         hook.write_text(

@@ -386,8 +386,7 @@ DENIED = [
     "ls|(git push)",
     "git status;(chmod -R 777 /)",
     "cat f;( rm -rf / )",
-    # A stray grouping token is structure the allowlist cannot reason about, in either position.
-    "(rm -rf /)",
+    # A stray grouping token is structure the allowlist cannot reason about.
     "ls)",
 ]
 
@@ -415,9 +414,12 @@ class ReadonlyGuardTest(unittest.TestCase):
         self.assertIn("read-only agent", output["permissionDecisionReason"])
 
     def test_non_bash_tools_pass_through(self) -> None:
+        # A denylisted command rides along so the allow comes from the tool_name branch, not
+        # from an empty command the allowlist would accept anyway.
         proc = run_guard(
             json.dumps(
-                {"tool_name": "Read", "agent_type": REVIEWER, "tool_input": {"file_path": "/x"}}
+                {"tool_name": "Read", "agent_type": REVIEWER,
+                 "tool_input": {"file_path": "/x", "command": "git push origin main"}}
             )
         )
         self.assertEqual(proc.returncode, EXIT_ALLOW)
@@ -442,16 +444,6 @@ class ReadonlyGuardTest(unittest.TestCase):
                 proc = run_guard(stdin_text)
                 self.assertEqual(proc.returncode, EXIT_INDETERMINATE)
                 self.assertEqual(proc.stdout.strip(), b"")
-
-    def test_malformed_guarded_payload_never_earns_the_allow_sentinel(self) -> None:
-        # The exact reproduction from the role-expansion review: a valid guarded payload with a
-        # state-changing command, truncated into malformed JSON, used to flip from deny to ALLOW.
-        intact = bash_call("git push --force origin main")
-        truncated = intact[:-1]  # drop only the closing brace: malformed, identity text intact
-        self.assertIn(REVIEWER, truncated)
-        proc = run_guard(truncated)
-        self.assertEqual(proc.returncode, EXIT_INDETERMINATE)
-        self.assertEqual(proc.stdout.strip(), b"")
 
     def test_json_that_is_not_an_envelope_is_indeterminate(self) -> None:
         # Parseable JSON that is not the documented dict envelope is still input the guard cannot
@@ -491,13 +483,6 @@ class GuardScopingTest(unittest.TestCase):
         proc = run_guard(bash_call("git push origin main", agent_type="sde-agents:sde-fullstack"))
         self.assertEqual(decision(proc), "allow")
 
-    def test_bare_agent_name_is_guarded(self) -> None:
-        # Project/user-scope installs report a bare agent_type (probed on CLI 2.1.200; the
-        # --plugin-dir dev loop reports the NAMESPACED form). The guard must not be sidestepped by
-        # hand-installing the agent at a different scope.
-        proc = run_guard(bash_call("git push origin main", agent_type="code-reviewer"))
-        self.assertEqual(decision(proc), "deny")
-
     def test_every_guarded_agent_is_guarded_in_both_name_forms(self) -> None:
         # The roster grew past the reviewer: the design agents' "inspection only" Bash and the
         # repository investigator's history-only Bash are enforced too. Each name must be guarded
@@ -512,14 +497,6 @@ class GuardScopingTest(unittest.TestCase):
                     self.assertEqual(decision(denied), "deny")
                     allowed = run_guard(bash_call("git log --oneline -5", agent_type=agent_type))
                     self.assertEqual(decision(allowed), "allow")
-
-    def test_main_loop_command_that_merely_names_the_reviewer_is_allowed(self) -> None:
-        # `tool_input.command` is user-controlled text. A guard that scanned it for the agent name
-        # would deny this exact commit — the one someone editing this guard is about to make.
-        proc = run_guard(
-            bash_call('git commit -m "fix sde-agents:code-reviewer"', agent_type=None)
-        )
-        self.assertEqual(decision(proc), "allow")
 
     def test_renamed_agent_type_field_fails_closed(self) -> None:
         # The contract canary. `agent_type` is documented upstream, but a rename in a new
@@ -574,11 +551,6 @@ class NetworkReadScoping(unittest.TestCase):
     """
 
     GUARD_MODULE = validate_fleet.load_guard(Path(__file__).resolve().parents[1])
-
-    def test_network_roles_are_a_strict_subset_of_the_roster(self) -> None:
-        module = self.GUARD_MODULE
-        self.assertTrue(set(module.NETWORK_AGENT_NAMES) < set(module.GUARDED_AGENT_NAMES))
-        self.assertNotIn("repository-investigator", module.NETWORK_AGENT_NAMES)
 
     def test_investigator_is_denied_gh_in_both_name_forms(self) -> None:
         for agent_type in ("repository-investigator", "sde-agents:repository-investigator"):

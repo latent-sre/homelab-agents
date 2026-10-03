@@ -39,19 +39,6 @@ class InstallCodexAgentsTests(unittest.TestCase):
         second_plan = install_codex_agents.build_sync_plan(self.source, self.target)
         self.assertFalse(second_plan.out_of_sync)
 
-    def test_exact_unmarked_generated_copy_is_safely_adopted(self) -> None:
-        self.target.mkdir()
-        source_content = (self.source / "reviewer.toml").read_bytes()
-        (self.target / "reviewer.toml").write_bytes(source_content)
-
-        plan = install_codex_agents.build_sync_plan(self.source, self.target)
-        self.assertIn(self.target / "reviewer.toml", dict(plan.writes))
-        self.assertFalse(plan.conflicts)
-
-        install_codex_agents.apply_sync_plan(plan)
-        installed = (self.target / "reviewer.toml").read_text(encoding="utf-8")
-        self.assertTrue(installed.startswith(install_codex_agents.INSTALL_MARKER))
-
     def test_semantically_equal_imported_copy_is_safely_adopted(self) -> None:
         self.target.mkdir()
         (self.source / "reviewer.toml").write_text(

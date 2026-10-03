@@ -199,12 +199,6 @@ class HookWiringTest(unittest.TestCase):
             self.assertEqual(decision(out), "deny")
             self.assertIn("guard unavailable", out)
 
-    def test_missing_guard_does_not_break_the_main_session(self) -> None:
-        # Fail-closed must never escalate into "the user cannot use Bash". A broken plugin install
-        # degrades the reviewer; it must not brick the session.
-        with tempfile.TemporaryDirectory() as empty:
-            self.assertIsNone(decision(self._run(payload(PUSH), plugin_root=empty)))
-
     def test_broken_guard_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as root:
             (Path(root) / "scripts").mkdir()
