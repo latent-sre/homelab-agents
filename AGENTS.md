@@ -50,8 +50,8 @@ mutation. Do not call something "enforced" in prose unless a check stands behind
 that names an external authority compares against a value obtained from that authority, never a
 copy the checked party wrote.
 
-Rarer work — adding an agent or skill, editing a workflow, changing a validated record shape,
-retiring a tripwire — is in `docs/fleet-development.md` under "Change playbooks for less frequent
+Rarer work — adding an agent or skill, changing a validated record shape, retiring a tripwire —
+is in `docs/fleet-development.md` under "Change playbooks for less frequent
 work".
 
 ## Opening a pull request
@@ -75,8 +75,7 @@ PR template, and requesting review.
   `fleet/` (re-exported by `scripts/fleet_records.py`), and use the kernel's copy of every other
   primitive; never write a second one.
 - **Authority is the host's own control, never prose:** Claude's guard, VS Code's omitted
-  `execute`, Codex's `sandbox_mode`. Never reference `workflows/` from another host; nothing runs
-  it there.
+  `execute`, Codex's `sandbox_mode`.
 - **Proportionality.** No check that re-proves an existing fact, no speed claim without a
   before/after on one machine, and no new mechanism without a task using it now — otherwise record
   it in `docs/fleet-roadmap.md`. Nothing enforces this.

@@ -118,8 +118,8 @@ class SkillListingBudgetCheck(support.TempDirTestCase):
     On a 200k-context model the skill listing is capped at 8,000 characters and over-budget
     plugin entries degrade to bare names (probed on CLI 2.1.233), so the failure this check
     watches for is invisible at runtime: routing quietly stops and nothing says so. Each test
-    here makes one branch of the computation fire — over/under, the workflow entries, and the
-    disable-model-invocation exclusion — because a sum that silently skipped a component would
+    here makes one branch of the computation fire — over/under and the disable-model-invocation
+    exclusion — because a sum that silently skipped a component would
     report headroom the model does not have.
     """
 
@@ -128,7 +128,6 @@ class SkillListingBudgetCheck(support.TempDirTestCase):
         *,
         skills: dict[str, str],
         dmi: dict[str, str] | None = None,
-        workflow_description: str | None = None,
         label: str = "fleet",
     ) -> Path:
         root = self.base / label
@@ -142,15 +141,6 @@ class SkillListingBudgetCheck(support.TempDirTestCase):
             flag = "disable-model-invocation: true\n" if dmi and name in dmi else ""
             (directory / "SKILL.md").write_text(
                 f"---\nname: {name}\ndescription: {description}\n{flag}---\n\nBody.\n",
-                encoding="utf-8",
-            )
-        if workflow_description is not None:
-            (root / "workflows").mkdir()
-            (root / "workflows" / "wf.js").write_text(
-                "export const meta = {\n"
-                "  name: 'wf',\n"
-                f"  description: '{workflow_description}',\n"
-                "}\n",
                 encoding="utf-8",
             )
         return root
@@ -183,19 +173,6 @@ class SkillListingBudgetCheck(support.TempDirTestCase):
         check = self._check(self._tree(skills={"one": "short description"}))
         self.assertEqual("pass", check.status)
         self.assertIn("headroom", check.summary)
-
-    def test_workflow_meta_descriptions_count_toward_the_budget(self) -> None:
-        # Skills alone fit; the workflow's entry tips the sum. If workflow parsing silently
-        # broke, this tree would report headroom the model does not have — exactly the
-        # under-report the docstring names.
-        skills = {f"skill-{i}": "d" * 900 for i in range(8)}
-        without = self._check(self._tree(skills=skills))
-        self.assertEqual("pass", without.status)
-        with_workflow = self._check(
-            self._tree(skills=skills, workflow_description="w" * 900, label="with-workflow")
-        )
-        self.assertEqual("warn", with_workflow.status)
-        self.assertEqual(9, with_workflow.details["entries"])
 
     def test_disable_model_invocation_entries_cost_nothing_but_are_reported(self) -> None:
         # The DMI skill's description would tip the budget if counted; its absence from the
@@ -233,23 +210,6 @@ class SkillListingBudgetCheck(support.TempDirTestCase):
         check = self._check(root)
         self.assertEqual("inconclusive", check.status)
 
-    def test_a_workflow_name_colliding_with_a_skill_counts_both_entries(self) -> None:
-        # Keyed into one dict by name, the collision silently overwrote the skill's entry — an
-        # undercount toward a false pass with no inconclusive verdict (DOCTOR-004). The model's
-        # listing shows both entries, so the sum must count both.
-        root = self._tree(skills={"twin": "d" * 400}, label="name-collision")
-        (root / "workflows").mkdir()
-        (root / "workflows" / "wf.js").write_text(
-            "export const meta = {\n"
-            "  name: 'twin',\n"
-            f"  description: '{'D' * 400}',\n"
-            "}\n",
-            encoding="utf-8",
-        )
-        check = self._check(root)
-        self.assertEqual(2, check.details["entries"])
-        self.assertGreater(check.details["total_chars"], 800)
-
     def test_an_unparseable_skill_definition_blocks_the_verdict(self) -> None:
         # The unparseable file is omitted from the sum, so a verdict over the remainder would
         # report headroom the model does not have — fictitious-pass, the review finding's exact
@@ -264,39 +224,6 @@ class SkillListingBudgetCheck(support.TempDirTestCase):
         self.assertEqual("inconclusive", check.status)
         self.assertIn("skills/broken/SKILL.md", str(check.details["unreadable"]))
 
-    def test_workflow_extraction_takes_the_top_level_description_not_a_nested_decoy(self) -> None:
-        # An unscoped regex would take the first `description:` in the file — here a tiny nested
-        # one inside phases — and undercount the listing by the whole real entry.
-        root = self._tree(skills={"one": "short"}, label="nested-meta")
-        (root / "workflows").mkdir()
-        (root / "workflows" / "wf.js").write_text(
-            "export const meta = {\n"
-            "  name: 'wf',\n"
-            "  phases: [{ title: 'Scan', description: 'tiny' }],\n"
-            f"  description: '{'D' * 900}',\n"
-            "}\n",
-            encoding="utf-8",
-        )
-        check = self._check(root)
-        self.assertEqual(2, check.details["entries"])
-        # The 900-char top-level description dominates the total; the 4-char decoy cannot.
-        self.assertGreater(check.details["total_chars"], 900)
-
-    def test_a_workflow_with_only_a_nested_description_blocks_the_verdict(self) -> None:
-        # The nested value is not the listing field; treating it as one would report a
-        # near-empty entry for a workflow whose real listing cost is unknown.
-        root = self._tree(skills={"one": "short"}, label="nested-only-meta")
-        (root / "workflows").mkdir()
-        (root / "workflows" / "wf.js").write_text(
-            "export const meta = {\n"
-            "  name: 'wf',\n"
-            "  phases: [{ title: 'Scan', description: 'tiny' }],\n"
-            "}\n",
-            encoding="utf-8",
-        )
-        check = self._check(root)
-        self.assertEqual("inconclusive", check.status)
-
     def test_legacy_dmi_cost_exceeding_headroom_is_named_in_the_pass(self) -> None:
         # A pass whose headroom is smaller than the excluded DMI cost does not hold on
         # pre-2.1.233 hosts, and the message must say so rather than leaving it to arithmetic.
@@ -307,18 +234,6 @@ class SkillListingBudgetCheck(support.TempDirTestCase):
         self.assertEqual("pass", check.status)
         self.assertTrue(check.details["legacy_dmi_over_headroom"])
         self.assertIn("over budget despite this pass", check.summary)
-
-    def test_a_workflow_without_an_extractable_description_blocks_the_verdict(self) -> None:
-        # workflows/ is auto-discovered, so a meta this extractor cannot read is a real listing
-        # entry with an unknown cost — silently skipping it shrinks the sum toward a false pass.
-        root = self._tree(skills={"one": "short"}, label="broken-workflow")
-        (root / "workflows").mkdir()
-        (root / "workflows" / "wf.js").write_text(
-            "export const meta = {\n  name: 'wf',\n}\n", encoding="utf-8"
-        )
-        check = self._check(root)
-        self.assertEqual("inconclusive", check.status)
-        self.assertIn("workflows/wf.js", str(check.details["unreadable"]))
 
     def test_the_real_repository_computes_a_verdict(self) -> None:
         # Not pinned to warn or pass: the description diet this check exists to motivate will

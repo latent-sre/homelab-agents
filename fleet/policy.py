@@ -63,11 +63,6 @@ class Policy:
     def fleet_mcp_tools(self) -> frozenset[str]:
         return self.evidence_mcp_tools
 
-    @property
-    def workflow_evidence_enum(self) -> tuple[str, ...]:
-        # ("verified", "sourced", "unverified"), derived so the triad has one authoring point.
-        return tuple(stem.split("[", 1)[1].split("]", 1)[0] for stem in self.evidence_label_stems)
-
 
 def _strings(table: Mapping[str, object], key: str, where: str) -> list[str]:
     value = table.get(key)

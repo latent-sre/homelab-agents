@@ -11,7 +11,7 @@ registration order, and the findings of a run of definition-scoped rules are re-
 definition-major (every finding about `agents/a.md`, in rule order, before any about
 `agents/b.md`), which is how the legacy per-definition loops emitted them. A caller comparing
 two reports therefore sees the same sequence the fleet has always produced. Rules self-gate on
-the snapshot (no plugin manifest, no `workflows/`) rather than on the caller, so a synthetic
+the snapshot (no plugin manifest, no guide) rather than on the caller, so a synthetic
 fixture under `tests/fixtures/` makes no claims it does not carry.
 """
 
@@ -65,7 +65,6 @@ REPO_GROUP_ORDER: tuple[str, ...] = (
     "routing",
     "conformance",
     "references",
-    "workflows",
     "inventory",
 )
 
@@ -189,5 +188,4 @@ from fleet.rules import (  # noqa: E402,F401
     routing,
     scalars,
     skills,
-    workflows,
 )

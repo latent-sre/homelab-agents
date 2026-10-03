@@ -12,7 +12,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
 import sys
 from collections import Counter
@@ -37,13 +36,11 @@ try:
         fleet_records,
         generate_platform_adapters,
         install_codex_agents,
-        validate_fleet,
     )
 except ModuleNotFoundError:
     import fleet_records  # type: ignore[no-redef]
     import generate_platform_adapters  # type: ignore[no-redef]
     import install_codex_agents  # type: ignore[no-redef]
-    import validate_fleet  # type: ignore[no-redef]
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -182,70 +179,6 @@ _SKILL_LISTING_BUDGET_CHARS = 8000
 _SKILL_LISTING_MAX_DESC_CHARS = 1536
 
 
-def _workflow_listing_entries(
-    root: Path, plugin_name: str
-) -> tuple[list[tuple[str, str]], list[str]]:
-    """((name, description) entries, unextractable-file paths) for workflows/*.js meta literals.
-
-    Workflows appear in the model's skill listing exactly like skills (observed live on CLI
-    2.1.233: `- sde-agents:deep-review: <meta description>`), so a budget sum that skipped them
-    would under-report by each workflow's full entry. String spans are located on the
-    validator's blanked text -- quotes survive blanking while contents (including escaped
-    quotes) do not -- so the first matching close quote is the real end of the literal, and the
-    raw slice between the quotes is the description as the runtime reads it.
-    """
-    entries: list[tuple[str, str]] = []
-    failed: list[str] = []
-    workflows_dir = root / "workflows"
-    if not workflows_dir.is_dir():
-        return entries, failed
-    for path in sorted(workflows_dir.glob("*.js")):
-        text = path.read_text(encoding="utf-8")
-        blanked = validate_fleet._blank_js_strings_and_comments(text)
-        # Bound the search to the meta object's TOP LEVEL. An unscoped file-wide regex would take
-        # whichever `description:` appears first — a nested `phases: [{description: 'tiny'}]` or
-        # a schema constant later in the body — and silently undercount the listing by the whole
-        # real entry (PR #141 round-2 finding). Blanked text has no braces inside strings, so
-        # brace depth is reliable.
-        fields: dict[str, str] = {}
-        declaration = validate_fleet._META_DECLARATION_RE.search(blanked)
-        if declaration is not None:
-            open_index = declaration.end() - 1
-            depth = 0
-            close_index = None
-            for index in range(open_index, len(blanked)):
-                if blanked[index] in "{[":
-                    depth += 1
-                elif blanked[index] in "}]":
-                    depth -= 1
-                    if depth == 0:
-                        close_index = index
-                        break
-            if close_index is not None:
-                meta_blanked = blanked[open_index + 1 : close_index]
-                for key in ("name", "description"):
-                    for match in re.finditer(rf"\b{key}\s*:\s*(['\"`])", meta_blanked):
-                        prefix = meta_blanked[: match.start()]
-                        if prefix.count("{") + prefix.count("[") != prefix.count(
-                            "}"
-                        ) + prefix.count("]"):
-                            continue  # nested inside phases/args/etc., not the listing field
-                        end = meta_blanked.find(match.group(1), match.end())
-                        if end == -1:
-                            break
-                        start = open_index + 1 + match.end()
-                        fields[key] = text[start : open_index + 1 + end]
-                        break
-        if "description" in fields:
-            entries.append((fields.get("name", path.stem), fields["description"]))
-        else:
-            # workflows/ is auto-discovered, so every .js here IS a listed workflow and its meta
-            # must carry a description. Skipping it would shrink the sum toward a false pass —
-            # the caller turns this into an inconclusive verdict, never a smaller total.
-            failed.append(path.relative_to(root).as_posix())
-    return entries, failed
-
-
 def _skill_listing_budget_check(root: Path) -> Check:
     try:
         manifest = json.loads(
@@ -290,9 +223,6 @@ def _skill_listing_budget_check(root: Path) -> Check:
                 dmi_chars += entry_cost
                 continue
             listed.append((member.name, member.description))
-        workflow_entries, workflow_failed = _workflow_listing_entries(root, plugin_name)
-        listed.extend(workflow_entries)
-        unreadable += workflow_failed
     except (OSError, ValueError, KeyError) as exc:
         return Check(
             "repository.skill-listing-budget",
@@ -306,14 +236,12 @@ def _skill_listing_budget_check(root: Path) -> Check:
         return Check(
             "repository.skill-listing-budget",
             "inconclusive",
-            f"{len(unreadable)} skill/workflow definition(s) could not be parsed, so the "
+            f"{len(unreadable)} skill definition(s) could not be parsed, so the "
             f"listing sum would be an undercount and any pass would claim fictitious headroom.",
             {"unreadable": unreadable},
         )
-    # A list, not a dict: skills and workflow metas share this namespace, and keying a dict by
-    # name would let a collision silently overwrite one entry — an undercount toward a false
-    # pass, the direction every other branch of this check refuses. The model's listing shows
-    # both colliding entries, so the sum counts both.
+    # A list, not a dict: keying by name would let a collision silently overwrite one entry — an
+    # undercount toward a false pass, the direction every other branch of this check refuses.
     entry_lengths = [
         (
             f"{plugin_name}:{name}",

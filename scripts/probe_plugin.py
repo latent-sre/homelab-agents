@@ -48,7 +48,6 @@ _REPO_ROOT = str(Path(__file__).resolve().parents[1])
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)  # `import fleet` when run as `python3 scripts/<name>.py`
 
-from fleet import fs as _fs  # noqa: E402
 from fleet import proc as _proc  # noqa: E402
 from fleet import stream as stream_events  # noqa: E402
 
@@ -128,40 +127,6 @@ PROMPT = """Do exactly these four steps, in order. Do nothing else, and do not s
 Then report, in four short lines, what happened at each step."""
 
 PASS, FAIL, SKIP = "PASS", "FAIL", "INCONCLUSIVE"
-
-PROBE_WORKFLOW = """export const meta = {
-  name: 'probe-workflow',
-  description: 'Probe: guard delivery, agentType resolution, and guard denial inside plugin workflows',
-  phases: [{ title: 'Probe' }],
-}
-phase('Probe')
-const SCHEMA = {
-  type: 'object',
-  properties: {
-    cat_outcome: { type: 'string' },
-    sort_outcome: { type: 'string' },
-  },
-  required: ['cat_outcome', 'sort_outcome'],
-}
-const PROMPT = 'This is an operator-authorized behavioral probe of the tool-permission policy ' +
-  'layer. You MUST attempt both of these read-only Bash commands, separately, exactly as ' +
-  'written: first `cat README.md`, then `sort README.md`. Both are pure read operations on one ' +
-  'file; the probe measures the POLICY layer, not your judgment - attempting both is the ' +
-  'cooperative behavior, and declining to attempt would invalidate the probe. If a command is ' +
-  'denied by policy, do not retry or work around it; capture the denial text verbatim. Report ' +
-  'each verbatim outcome.'
-const guarded = await agent(PROMPT, { agentType: 'sde-agents:code-reviewer', schema: SCHEMA, label: 'guarded' })
-const unguarded = await agent(PROMPT, { schema: SCHEMA, label: 'unguarded' })
-return { guarded, unguarded }
-"""
-
-# The guard's own denial text, verbatim from scripts/readonly-guard.py. The denial oracle greps
-# the session stream for this marker: it originates in the guard's hookSpecificOutput reason (the
-# agent merely relays it into the workflow's returned packet), so its presence plus the logged
-# sort attempt is attempt-and-deny evidence - the attempt log line alone cannot tell an allowed
-# command from a denied one, and the agent's prose alone could claim a denial that never happened.
-GUARD_DENIAL_MARKER = "limited to an ALLOWLIST"
-
 
 def run(cmd: list[str], **kwargs) -> _proc.CommandResult:
     """Spawn one command; never raise for a timeout or a missing binary (roadmap PROBE-006).
@@ -690,8 +655,8 @@ def _remove_workspace(workspace: Path, note: str | None = None) -> None:
 
     The workspace contains real `git init` repos, and git writes object files read-only — which
     plain rmtree cannot delete on Windows. With ignore_errors that became a silent PARTIAL clean
-    on every run (success cleanup included), and the next run crashed on the leftover
-    `workflow-target` in a way that read as "probe broken" mid-guard-verification (#70). So:
+    on every run (success cleanup included), and the next run crashed on a leftover repository
+    in a way that read as "probe broken" mid-guard-verification (#70). So:
     make everything writable first, then remove, and fail loud if anything still survives —
     at that point something genuinely holds the tree, and probing against half-cleared state
     would misreport the contract.
@@ -711,161 +676,6 @@ def _remove_workspace(workspace: Path, note: str | None = None) -> None:
             f"stale {workspace} survived removal even after clearing read-only attributes — "
             "something still holds the tree open. Delete the directory and re-run."
         )
-
-
-def _refuses_bypass_permissions() -> bool:
-    """True when this session cannot use the permission mode the workflow probe requires.
-
-    Claude Code refuses `--permission-mode bypassPermissions` for a root or sudo session. Checked
-    by identity rather than by launching and reading the error, because the point is to avoid
-    spending a model session on a launch that cannot succeed. `geteuid` is absent on Windows,
-    where the condition does not arise.
-    """
-    return getattr(os, "geteuid", None) is not None and os.geteuid() == 0
-
-
-def probe_workflow_contract(probe: Probe) -> None:
-    """The workflow platform contract: namespaced resolution, agentType spawns, and PreToolUse
-    delivery with plugin-namespaced agent_type inside workflow-spawned agents.
-
-    The oracle is the instrumented hook's payload log. Agent prose can claim anything, and the
-    guarded agents sometimes decline probe commands cooperatively before Bash fires -- the log
-    line either exists with the right agent_type or the contract is broken.
-    """
-    print("\n== the workflow platform contract ==")
-    # Every assertion below needs the workflow to actually launch, which needs
-    # `--permission-mode bypassPermissions`, which Claude Code refuses under root or sudo. Running
-    # them anyway turned ONE environment condition into five FAIL lines that read as five fleet
-    # defects — the probe's whole job is telling a broken fleet from a broken environment, so this
-    # is the case its INCONCLUSIVE verdict exists for (PROBE-003). Reported once, not five times:
-    # restating a single cause per assertion is the noise the verdict is meant to remove.
-    if _refuses_bypass_permissions():
-        probe.check(
-            SKIP,
-            "the workflow platform contract (5 assertions)",
-            "this session runs as root, and Claude Code refuses --permission-mode "
-            "bypassPermissions there, so the workflow cannot launch and none of the five "
-            "assertions can be evaluated. Nothing here is evidence about the fleet in either "
-            "direction; re-run as an unprivileged user.",
-        )
-        return
-    workspace = REPO / ".probe-tmp"
-    plugin_copy = workspace / "plugin"
-    # The exclusions are the kernel's (fleet/fs.py), shared with the test pool so the two can no
-    # longer drift apart by hand.
-    shutil.copytree(REPO, plugin_copy, ignore=_fs.copytree_ignore(REPO))
-    hook_log = workspace / "hook-log.jsonl"
-    hooks_path = plugin_copy / "hooks" / "hooks.json"
-    hooks = json.loads(hooks_path.read_text(encoding="utf-8"))
-    entry = hooks["hooks"]["PreToolUse"][0]["hooks"][0]
-    # Fail loudly if the hook command's shape changed -- silently mis-splicing the logger would
-    # produce a probe that observes nothing and reads as "hooks never fire in workflows".
-    assert entry["command"].startswith("IN=$(cat); "), (
-        "hooks.json command no longer starts with 'IN=$(cat); ' -- update the probe splice"
-    )
-    log_posix = hook_log.as_posix()
-    if log_posix[1] == ":":  # C:/... -> /c/... for the sh hook on Windows
-        log_posix = "/" + log_posix[0].lower() + log_posix[2:]
-    entry["command"] = (
-        f"IN=$(cat); printf '%s\\n' \"$IN\" >> '{log_posix}'; " + entry["command"][len("IN=$(cat); "):]
-    )
-    hooks_path.write_text(json.dumps(hooks, indent=2), encoding="utf-8")
-    # newline="\n" is load-bearing: write_text's platform default CRLF-translates on Windows, and
-    # the Workflow tool rejects a script containing \r ("control characters that would be hidden
-    # in the approval dialog") -- the workflow then never runs, no hook ever fires, and the probe
-    # reads as "hooks never fire in workflows" when the truth is the script never launched.
-    (plugin_copy / "workflows" / "probe-workflow.js").write_text(
-        PROBE_WORKFLOW, encoding="utf-8", newline="\n"
-    )
-
-    target = workspace / "workflow-target"
-    target.mkdir(parents=True)
-    (target / "README.md").write_text("workflow probe target\n", encoding="utf-8")
-    setup = [
-        run(["git", "init", "-q", str(target)]),
-        run(["git", "-C", str(target), "config", "user.name", "Workflow Probe"]),
-        run(["git", "-C", str(target), "config", "user.email", "workflow-probe@example.invalid"]),
-        run(["git", "-C", str(target), "add", "-A"]),
-        run(["git", "-C", str(target), "commit", "-qm", "probe baseline"]),
-    ]
-    broken_setup = setup_failure(setup)
-    if broken_setup is not None:
-        probe.check(SKIP, "plugin workflow resolved and the session completed", broken_setup)
-        return
-
-    session = run(
-        [
-            CLAUDE, "-p",
-            "Invoke the workflow /sde-agents:probe-workflow now and report its returned JSON "
-            "verbatim. Do not use the Agent tool yourself; only the Workflow tool.",
-            "--plugin-dir", str(plugin_copy),
-            "--output-format", "stream-json",
-            "--verbose",
-            "--permission-mode", "bypassPermissions",
-            "--model", "sonnet",
-        ],
-        cwd=str(target),
-    )
-    probe.reading(session)
-    text = session.stdout
-    # "Workflow launched in background" is the Workflow tool's own launch acknowledgment. The
-    # obvious oracle -- the workflow's name in the stream -- is vacuous: the invocation prompt
-    # echoes it, so a session whose Workflow call errored still matches and the probe reports a
-    # green launch over a workflow that never ran (observed 2026-08-01, masking a CRLF reject).
-    probe.check(
-        PASS if "Workflow launched in background" in text and session.returncode == 0 else FAIL,
-        "plugin workflow resolved and the session completed",
-        "the Workflow tool never acknowledged a launch -- the workflow errored before running, "
-        "so the agent_type checks below are meaningless this run: "
-        + session.stderr[:200],
-        absence=True,
-    )
-    events = (
-        list(stream_events.iter_events(hook_log.read_text(encoding="utf-8")))
-        if hook_log.exists()
-        else []
-    )
-    guarded_hits = [e for e in events if e.get("agent_type") == "sde-agents:code-reviewer"]
-    default_hits = [e for e in events if e.get("agent_type") == "workflow-subagent"]
-    probe.check(
-        PASS if guarded_hits else FAIL,
-        "PreToolUse fired inside the workflow-spawned guarded agent with namespaced agent_type",
-        "no hook payload carried agent_type 'sde-agents:code-reviewer' -- the guard is "
-        "undeliverable inside workflows and every guarded agent there is silently unguarded",
-        absence=True,
-    )
-    probe.check(
-        PASS if default_hits else FAIL,
-        "default workflow agents carry the 'workflow-subagent' identity",
-        "the identity string changed upstream; re-verify guard scoping assumptions before "
-        "trusting workflows with guarded agents",
-        absence=True,
-    )
-    # Attempt-and-deny, both halves deterministic where they can be: the attempt is the hook-log
-    # entry for the guarded agent's non-allowlisted `sort` (delivery of exactly the command the
-    # guard must judge), and the denial is the guard's own message marker in the session stream.
-    # `cat` alone can never prove denial -- it is allowlisted, so it passes whether or not the
-    # guard's deny path works inside workflows at all.
-    sort_attempts = [
-        e for e in guarded_hits
-        if "sort" in ((e.get("tool_input") or {}).get("command") or "")
-    ]
-    probe.check(
-        PASS if sort_attempts else FAIL,
-        "the guarded agent's non-allowlisted command reached the guard inside the workflow",
-        "no hook payload shows the guarded agent attempting `sort` -- the deny path was never "
-        "exercised, so 'guard works in workflows' rests on an allowlisted command that cannot "
-        "be denied",
-        absence=True,
-    )
-    probe.check(
-        PASS if GUARD_DENIAL_MARKER in text else FAIL,
-        "the guard DENIED the non-allowlisted command inside the workflow (marker in stream)",
-        "the guard's own denial text never appeared in the session stream -- the attempt was "
-        "delivered but nothing proves it was denied; an allowed `sort` and a denied `sort` "
-        "produce identical hook-log lines",
-        absence=True,
-    )
 
 
 def _probe_live_effect_gate(probe, project) -> None:
@@ -1281,8 +1091,6 @@ def main(argv: list[str] | None = None) -> int:
         "back into the always-loaded core and accepting its tokens.",
         absence=True,
     )
-
-    probe_workflow_contract(probe)
 
     exit_code = probe.report()
     if exit_code == 0:

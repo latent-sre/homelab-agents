@@ -34,8 +34,7 @@ honest and the whole template short.
 
 Choose the independent review coverage required by `AGENTS.md`, then inspect actual activity,
 scope, and reviewed commit before requesting or waiting. Codex and Copilot are available request
-paths, not two obligatory passes. The explicitly invoked two-lane deep-review workflow is an
-optional workflow, not the default PR requirement.
+paths, not two obligatory passes.
 
 **Codex — you may request it.** `@codex review` and the separate `@codex security review` are
 supported triggers, and an enabled Codex review can start automatically on open or ready. Request it

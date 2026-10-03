@@ -19,7 +19,6 @@ class PolicyLoadTests(unittest.TestCase):
         self.assertIn("Bash", p.roles["repository-investigator"].required)
         self.assertTrue(p.evidence_mcp_tools <= p.roles["researcher"].required)
         self.assertTrue(p.evidence_mcp_tools <= p.roles["application-security-auditor"].forbidden)
-        self.assertEqual(("verified", "sourced", "unverified"), p.workflow_evidence_enum)
 
     def test_validator_constants_are_views_of_the_policy(self) -> None:
         p = policy.POLICY

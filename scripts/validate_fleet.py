@@ -54,7 +54,6 @@ from fleet.rules import plugin as _plugin  # noqa: E402
 from fleet.rules import references as _references  # noqa: E402
 from fleet.rules import routing as _routing  # noqa: E402
 from fleet.rules import skills as _skills  # noqa: E402
-from fleet.rules import workflows as _workflows  # noqa: E402
 from fleet.rules.adapters import load_platform_adapter_generator  # noqa: E402,F401
 from fleet.snapshot import TOOL_ENTRY_RE, Fleet  # noqa: E402
 
@@ -78,8 +77,6 @@ MCP_EXACT_TOOL_RE = _agents.MCP_EXACT_TOOL_RE
 MCP_SERVER_GRANT_RE = _agents.MCP_SERVER_GRANT_RE
 EVIDENCE_LABEL_STEMS = POLICY.evidence_label_stems
 EVIDENCE_LABEL_RE = _agents.EVIDENCE_LABEL_RE
-WORKFLOW_EVIDENCE_ENUM = POLICY.workflow_evidence_enum
-WORKFLOW_EVIDENCE_ENUM_RE = _workflows.WORKFLOW_EVIDENCE_ENUM_RE
 PACKET_HEADING_RE = _agents.PACKET_HEADING_RE
 PERISHABLE_TOKENS = dict(POLICY.perishable_tokens)
 GUIDE_IMPORT = POLICY.guide_import
@@ -91,8 +88,6 @@ INLINE_CODE_RE = _references.INLINE_CODE_RE
 GUIDE_PATH_TOKEN_RE = _guide.GUIDE_PATH_TOKEN_RE
 _CASE_BLOCK_RE = _plugin.CASE_BLOCK_RE
 _flow_scalar_defect = fleet_records._frontmatter.flow_scalar_defect
-_blank_js_strings_and_comments = _workflows._blank_js_strings_and_comments
-_META_DECLARATION_RE = _workflows._META_DECLARATION_RE
 load_module_by_content = modules.load_module_by_content
 _execute_source = modules.execute_source
 render_inventory = _inventory.render_inventory
@@ -152,12 +147,6 @@ def validate_bare_skill_references(root: Path, skill_names: list[str]) -> list[s
 
 def validate_perishable_tokens(root: Path) -> list[str]:
     return texts(_references.perishable_tokens(Fleet.load(root)))
-
-
-validate_workflow_evidence_enums = _workflows.validate_workflow_evidence_enums
-validate_workflow_line_endings = _workflows.validate_workflow_line_endings
-validate_workflow_meta_contract = _workflows.validate_workflow_meta_contract
-validate_workflow_host_boundary = _workflows.validate_workflow_host_boundary
 
 
 def validate_inventory(root: Path, expected: str) -> list[str]:

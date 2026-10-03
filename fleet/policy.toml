@@ -154,9 +154,7 @@ required = ["@external_research"]
 forbidden = ["Agent", "Bash", "Edit", "Glob", "Grep", "NotebookEdit", "Read", "Write"]
 
 # Canonical evidence-label phrasing; an agent may extend a definition but must contain these
-# exact stems so the triad cannot drift file by file. The workflow packet schemas carry the same
-# triad as a bare enum, derived from these stems so it has exactly one authoring point -- a
-# drifted enum surfaces as a schema failure five retries deep inside a live workflow run.
+# exact stems so the triad cannot drift file by file.
 [evidence]
 stems = [
     "**[verified]** (you ran or observed it",

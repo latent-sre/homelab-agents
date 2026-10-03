@@ -52,7 +52,7 @@ select = ["E", "F", "W", "I", "B", "UP"]
 #
 # What is left is no longer a backlog. Each of the three is exempted for a stated reason:
 #
-# * probe_plugin holds the probe's live-model stimulus -- a prompt and a workflow source -- in
+# * probe_plugin holds the probe's live-model stimulus -- its prompts -- in
 #   triple-quoted constants whose long physical lines cannot carry a `noqa`, and cannot be
 #   rewrapped without changing what the probe measures and breaking comparability with the
 #   recorded probe evidence. Reflowing a measurement to satisfy a formatter is the wrong trade.

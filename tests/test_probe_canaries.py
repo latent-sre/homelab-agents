@@ -35,31 +35,6 @@ class ProbeCanaryTests(unittest.TestCase):
         run.assert_not_called()
         remove_workspace.assert_not_called()
 
-    def test_a_root_session_reports_the_workflow_probe_inconclusive_not_failed(self) -> None:
-        """PROBE-003: one environment condition read as five fleet defects.
-
-        The five workflow assertions all need `--permission-mode bypassPermissions`, which Claude
-        Code refuses under root, so the workflow never launches and every assertion fails as a
-        cascade. Telling a broken fleet from a broken environment is the probe's job, and
-        INCONCLUSIVE is its documented verdict for the second — reported once, because restating
-        a single cause five times is the noise that verdict exists to remove.
-        """
-        probe = probe_plugin.Probe()
-        with (
-            mock.patch.object(probe_plugin.os, "geteuid", return_value=0, create=True),
-            mock.patch.object(probe_plugin, "run") as run,
-            mock.patch.object(probe_plugin.shutil, "copytree") as copytree,
-            contextlib.redirect_stdout(io.StringIO()) as output,
-        ):
-            probe_plugin.probe_workflow_contract(probe)
-
-        run.assert_not_called()
-        copytree.assert_not_called()
-        self.assertIn("INCONCLUSIVE", output.getvalue())
-        statuses = [status for status, *_ in probe.results]
-        self.assertEqual([probe_plugin.SKIP], statuses)
-        self.assertNotIn(probe_plugin.FAIL, statuses)
-
     def test_an_uncorrelated_spawn_leaves_the_canaries_unevaluated_not_failed(self) -> None:
         """PROBE-002: "the canary is absent" and "the oracle saw nothing" are different findings.
 
@@ -903,9 +878,9 @@ class ProbeTimeoutRecoveryTests(unittest.TestCase):
         detail = next(d for _, label, d in probe.results if label == "after truncation")
         self.assertIn("unevaluated", detail)
 
-    def test_a_timed_out_main_session_still_reaches_the_workflow_leg(self) -> None:
+    def test_a_timed_out_main_session_still_reaches_the_last_leg(self) -> None:
         """The heart of PROBE-006: later legs run their own sessions and must still be reached."""
-        reached: list[str] = []
+        sessions: list[str] = []
 
         def spawn(cmd, **_kwargs):
             """Setup succeeds; only the model sessions time out.
@@ -917,6 +892,7 @@ class ProbeTimeoutRecoveryTests(unittest.TestCase):
             argv = tuple(cmd)
             if argv and argv[0] == "git":
                 return probe_plugin._proc.CommandResult(argv, 0, "", "")
+            sessions.append(" ".join(str(part) for part in argv))
             return probe_plugin._proc.CommandResult(
                 argv, None, "", "", timed_out=True, error="timed out"
             )
@@ -925,18 +901,18 @@ class ProbeTimeoutRecoveryTests(unittest.TestCase):
             mock.patch.object(probe_plugin, "run", side_effect=spawn),
             mock.patch.object(probe_plugin, "CLAUDE", "claude"),
             mock.patch.object(probe_plugin, "_remove_workspace"),
-            mock.patch.object(
-                probe_plugin,
-                "probe_workflow_contract",
-                side_effect=lambda probe: reached.append("workflow"),
-            ),
             tempfile.TemporaryDirectory() as tmp,
             mock.patch.object(probe_plugin, "REPO", Path(tmp)),
             contextlib.redirect_stdout(io.StringIO()),
         ):
             code = probe_plugin.main([])
 
-        self.assertEqual(["workflow"], reached, "the run stopped at the timed-out session")
+        # The reference-read session is the last leg; reaching it means no earlier timeout ended
+        # the run.
+        self.assertTrue(
+            any("Grafana HTTP API" in session for session in sessions),
+            "the run stopped at a timed-out session before the last leg",
+        )
         # INCONCLUSIVE, never a green run and never a fleet defect.
         self.assertEqual(2, code)
 

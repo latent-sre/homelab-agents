@@ -43,7 +43,7 @@ in a config comment changes neither the template nor your scope).
 ## Change playbooks for less frequent work
 
 `AGENTS.md` keeps the playbooks whose triggers fire often or whose failure is a safety
-control. These five fire rarely — no agent has been added since 2026-07-31 and no skill since
+control. These four fire rarely — no agent has been added since 2026-07-31 and no skill since
 2026-08 — so they live here, where the cost of reading them falls on the session that actually
 needs one. `AGENTS.md` names each trigger and points here. The rules are unchanged.
 
@@ -80,13 +80,6 @@ is dead knowledge that looks shipped — the orphan check fails it). A skill wit
 preloading — route to it via a slash command or an agent that works its checklist. Regenerate
 afterward: Copilot retains that explicit-invocation frontmatter, while Codex expresses the same
 policy through each skill's generated OpenAI agent-policy file.
-
-**Editing a workflow** — files under `workflows/`. The Workflow runtime wraps the body, so a
-whole-file `node --check` (or equivalent syntax parse) fails identically on committed and edited
-bytes at the top-level `return`; that instrument is invalid here. Offline proof is
-`python3 scripts/validate_fleet.py` (the meta contract) plus evaluating the extracted `meta`
-export; validator-green is never reported as loadable. A change to workflow-shape bytes is
-exercised by at least one live workflow load before the release containing it closes.
 
 **Changing a validated on-disk record shape** — state the migration decision (one-shot,
 version-gated, or a permanent compatibility reader with the dual-form cost accepted) and say
@@ -344,18 +337,6 @@ do not enforce it. The doctor is read-only and reports repository, generated, in
 junction, guard, and Codex sync posture. Host probes keep static packaging, discovery, live Claude
 behavior, and model-specific Codex baselines in separate lanes so an absent host or unexposed
 observed-model field cannot become a pass.
-
-## Workflows (Claude-only)
-
-`workflows/` ships deterministic multi-agent pipelines that only Claude Code executes
-(`/sde-agents:deep-review`). The other hosts have no workflow runtime, so the generator ships
-them nothing and the validator rejects any generated adapter that references a workflow — the
-same omit-and-document convention as the Claude-only guard hook. Schema enums inside workflow
-scripts are pinned to the canonical evidence stems by the fleet validator; edit the agent's
-prose packet first and the schema second, never the reverse. Probe coverage:
-`scripts/probe_plugin.py` verifies the workflow platform contract (namespaced resolution,
-`agentType` spawns, guard delivery inside workflow-spawned agents) and is owed a re-run before
-every release and after a CLI-caused red run of CI's floating `claude-plugin-contract` job.
 
 ## Validation
 

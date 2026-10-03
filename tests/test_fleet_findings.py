@@ -28,9 +28,9 @@ class FindingTests(unittest.TestCase):
                     Path("/repo/agents/a.md"),
                 ),
                 Finding(
-                    "workflow.meta-contract",
-                    "/repo/workflows/x.js:7: body references meta",
-                    Path("/repo/workflows/x.js"),
+                    "skill.bundle",
+                    "/repo/skills/x/SKILL.md:7: links a missing file",
+                    Path("/repo/skills/x/SKILL.md"),
                     7,
                 ),
                 Finding("doctor.note", "advisory", None, severity="warning"),
@@ -40,7 +40,7 @@ class FindingTests(unittest.TestCase):
         self.assertEqual(
             [
                 "/repo/agents/a.md: missing explicit tools authority",
-                "/repo/workflows/x.js:7: body references meta",
+                "/repo/skills/x/SKILL.md:7: links a missing file",
                 "advisory",
             ],
             report.texts,
