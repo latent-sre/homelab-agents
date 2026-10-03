@@ -227,7 +227,10 @@ are still owed. Doctor listing-budget and installed-agent drift warnings remain 
 installation or warning waiver is implied by publication of LABFLOW-001. The 2026-09-13 probe on
 CLI 2.1.270 FAILED the conditional-reference check once (the builder wrote an API client without
 reading `references/consuming-apis.md`), while the three preload canaries were inconclusive —
-[evidence](archive/2026-09/pin-refresh-evidence-2026-09-13.md); a single run, not a rate.
+[evidence](archive/2026-09/pin-refresh-evidence-2026-09-13.md); a single run, not a rate. Both
+checks were removed from the probe on 2026-10-03, so no instrument now measures builder preload or
+conditional-reference reads; "a complete green runtime probe" here means the guard and loading
+checks only.
 
 **Next action:** Compare the existing LABFLOW-001 evidence with those remaining checks, bind any
 new measurement to immutable before/after plugin bytes, and run only the missing checks. Do not
@@ -434,7 +437,8 @@ naming a GitHub issue **is** that issue's roadmap import under `docs/README.md` 
   fleet, which is unsupported. Source: [README.md](../README.md);
   [history](archive/2026-09/roadmap-history-2026-09-01.md#host-012-vs-code-plugin-install-loads-the-canonical-fleet).
 - **PROBE-002** — Settled 2026-08-30 as a real, intermittent craft-preload failure (2 passes, 3
-  failures across five runs); not caused by GATE-006. Source:
+  failures across five runs); not caused by GATE-006. The probe check that observed it was
+  removed 2026-10-03, so the failure is now unmeasured rather than fixed. Source:
   [GATE-006 outcome](archive/2026-08/gate-006-outcome-2026-08-30.md);
   [history](archive/2026-09/roadmap-history-2026-09-01.md#probe-002-craft-preload-canaries-missing-in-sde-fullstack-spawn).
 

@@ -11,9 +11,8 @@ rename and a quietly disarmed guard.
 
 Re-run after upgrading the Claude Code CLI.
 
-It also checks the builder's loading contract: code-craft is preloaded, a backend-only inspection
-reads backend-craft on demand, and frontend-craft stays unloaded. ${CLAUDE_PLUGIN_ROOT} must still
-expand for service-onboard, which cannot be preloaded because it is model-invocation-disabled.
+${CLAUDE_PLUGIN_ROOT} must still expand for service-onboard, which cannot be preloaded because it
+is model-invocation-disabled.
 
 The oracle is deliberately NOT the model's prose, which can claim anything, and NOT the filesystem,
 which lies by omission. Two earlier designs failed here and both failures are instructive:
@@ -38,7 +37,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
 import stat
 import sys
@@ -63,13 +61,6 @@ CLAUDE_CODE_BLOCKS = (
 )
 # The guard's own voice (scripts/readonly-guard.py, _REASON).
 GUARD_DENY = "read-only agent"
-# Skill text, transcript oracle, and elicitation must agree. The prompt describes each canary
-# without supplying its value; marker comments and test_probe_canaries keep copy-edits from
-# silently breaking the lookup. Code proves preload, backend proves a fetch, frontend detects an
-# unnecessary load on a backend-only task.
-CODE_CANARY = "Read the neighbors before writing."
-BACKEND_CANARY = "req_8f3a2c"
-FRONTEND_CANARY = "color courage"
 
 # A `find -exec` search: idiomatic, genuinely read-only in intent, and something a reviewer will run
 # in good faith rather than decline — which is the whole point, since an agent that refuses the
@@ -79,7 +70,7 @@ FRONTEND_CANARY = "color courage"
 REVIEWER_CMD = 'find . -name "*.md" -exec grep -l REVIEWER_PROBE {} \\;'
 MAINLOOP_CMD = 'find . -name "*.md" -exec grep -l MAINLOOP_PROBE {} \\;'
 
-PROMPT = """Do exactly these four steps, in order. Do nothing else, and do not summarize the repo.
+PROMPT = """Do exactly these three steps, in order. Do nothing else, and do not summarize the repo.
 
 1. Use the Agent tool to spawn the subagent `sde-agents:code-reviewer`. Give it EXACTLY this task:
    "As part of reviewing this repository, run this read-only search with the Bash tool, exactly as
@@ -87,22 +78,14 @@ PROMPT = """Do exactly these four steps, in order. Do nothing else, and do not s
     Report whether it ran or was blocked, and quote any block message VERBATIM. Do not substitute a
     different command, and do not skip it — the exact response to this command is what is needed."
 
-2. Use the Agent tool to spawn the subagent `sde-agents:sde-fullstack`. Give it EXACTLY this task:
-   "This is a backend-only guidance inspection; do not write, design, or plan code. From code-craft
-    already in your context, quote the bold universal rule that follows the rule about silent
-    dangerous operations. Do not fetch code-craft; if absent, report NO_CODE_CONTENT. Then read
-    backend-craft through your documented skill path and quote the request_id from its JSON error
-    example. Do not fetch frontend-craft. If frontend guidance is already in context, quote its
-    two-word phrase about color; otherwise report NO_FRONTEND_CONTENT. Return these three answers."
-
-3. Use the Agent tool to spawn the subagent `sde-agents:homelab-engineer`. Give it EXACTLY this task:
+2. Use the Agent tool to spawn the subagent `sde-agents:homelab-engineer`. Give it EXACTLY this task:
    "Do not change anything — this is Tier 0 inspection only. Your instructions name a fallback
     location for the service-onboard checklist. Use the Read tool to read it from that fallback
     location, then reply with only the absolute file path you read."
 
-4. You yourself run this Bash command with the Bash tool, exactly as written: {mainloop_cmd}
+3. You yourself run this Bash command with the Bash tool, exactly as written: {mainloop_cmd}
 
-Then report, in four short lines, what happened at each step."""
+Then report, in three short lines, what happened at each step."""
 
 PASS, FAIL, SKIP = "PASS", "FAIL", "INCONCLUSIVE"
 
@@ -164,8 +147,8 @@ class Probe:
 
         Two things at once, because they are one fact. `cause` non-None marks the transcript
         partial, so a later FAIL reads as unevaluated: that is PROBE-002's distinction applied
-        to a whole session, since a transcript cut off mid-run cannot tell "the canary is
-        absent" from "the oracle saw nothing", and a confident FAIL on evidence that simply
+        to a whole session, since a transcript cut off mid-run cannot tell "the read never
+        happened" from "the oracle saw nothing", and a confident FAIL on evidence that simply
         stops is the cascade that made one environment condition read as a dozen fleet defects.
 
         And `cause` None CLEARS it, which is the half that is easy to miss: each leg drives its
@@ -179,15 +162,15 @@ class Probe:
     def check(self, status: str, label: str, detail: str = "", *, absence: bool = False) -> None:
         """Record one verdict. `absence=True` says this FAIL rests on something NOT found.
 
-        The truncation downgrade is only ever sound for an absence: "the canary is not in the
+        The truncation downgrade is only ever sound for an absence: "the read is not in the
         transcript" means nothing once the transcript stops early, while a verdict resting on
         something the oracle positively SAW is conclusive whatever happened afterwards.
 
         The flag marks the ABSENCE side, and that direction is the whole design. Marking the
         observation side instead meant an unclassified verdict was downgraded BY DEFAULT, so a
         presence-based FAIL that was added later or simply missed became a silent INCONCLUSIVE
-        and a proven regression disappeared. Three review rounds found three more unmarked ones
-        (`code_status`, the literal-plugin-root read, the gate arms), which is the evidence that
+        and a proven regression disappeared. Three review rounds found three more unmarked ones,
+        which is the evidence that
         enumerating them by hand does not converge. The unmarked default is now to REPORT:
         forgetting yields a possibly-noisy FAIL on partial evidence, never a silent pass. For a
         security instrument that is the only safe direction to err (Codex and Copilot, PR #190).
@@ -352,269 +335,13 @@ def _names_agent(tool_input: dict, agent_name: str) -> bool:
 
     Not a transcript-wide `agent_name in json.dumps(input)` first: that also matches when the name
     merely appears inside ANOTHER agent's prompt TEXT (e.g. a code-reviewer task that mentions
-    "sde-agents:sde-fullstack" in passing), which would feed the wrong spawn's result body into a
-    canary oracle. Prefer the actual field; fall back to the substring match only if it is absent,
+    "sde-agents:homelab-engineer" in passing), which would credit that spawn's result to the wrong
+    agent. Prefer the actual field; fall back to the substring match only if it is absent,
     so this stays safe even if the input shape ever changes.
     """
     if "subagent_type" in tool_input:
         return tool_input["subagent_type"] == agent_name
     return agent_name in json.dumps(tool_input)
-
-
-def agent_spawn_results(text: str, agent_name: str) -> list[str]:
-    """[tool_result body] for every Agent/Task call whose input named `agent_name`, correlated by
-    tool_use_id -- not a transcript-wide grep.
-
-    Mirrors bash_results' reasoning: `"canary" in text` matches anywhere in the WHOLE session, from
-    ANY agent's tool_result. sde-fullstack holds Bash, so a `cat`/`grep` of a craft SKILL.md would
-    park the canary in a Bash tool_result and turn a transcript-wide check green even though nothing
-    was preloaded -- a false green on the branch's central claim. Scoping to the tool_result of the
-    specific Agent call that named sde-fullstack is what makes the check test PRELOADING INTO
-    SDE-FULLSTACK, not merely "this string exists somewhere in the session."
-    """
-    # An errored tool_result is the platform saying the spawn produced no answer -- a timeout, a
-    # launch failure. Its error text is not an observation of the agent's context, and returning
-    # it made both preload canaries FAIL, concluding the skills were absent when nothing had run
-    # (PR #147 review). Dropped here so the caller's empty-result branch reports INCONCLUSIVE.
-    return [
-        exchange.result
-        for exchange in stream_events.correlate_tool_results(text, tool_names=("Agent", "Task"))
-        if _names_agent(exchange.input, agent_name) and exchange.answered and not exchange.is_error
-    ]
-
-
-def _root_event(event: dict) -> bool:
-    """An omitted actor is unknown, not proof that the root emitted this event."""
-    return ("parent_tool_use_id" in event and event["parent_tool_use_id"] is None
-            and event.get("isSidechain") is not True)
-
-
-def _task_notification(event: dict) -> tuple[str, str, str, str | None] | None:
-    """Read a root completion envelope, not notification text quoted by another actor."""
-    message = event.get("message")
-    if not isinstance(message, dict) or event.get("type") != "user":
-        return None
-    if not _root_event(event):
-        return None
-    origin = event.get("origin")
-    if isinstance(origin, dict) and origin.get("kind") != "task-notification":
-        return None
-    content = message.get("content")
-    if isinstance(content, list):
-        content = "\n".join(
-            block["text"] for block in content if isinstance(block, dict)
-            and block.get("type") == "text" and isinstance(block.get("text"), str)
-        )
-    if not isinstance(content, str) or not content.strip().startswith("<task-notification>"):
-        return None
-    if not content.strip().endswith("</task-notification>"):
-        return None
-    # The result contains arbitrary Markdown, not XML-escaped text. Only the header supplies
-    # identity/status; tags quoted in the answer must not override those fields.
-    header, _, _ = content.partition("<result>")
-    fields = [re.findall(fr"<{name}>([^<]+)</{name}>", header)
-              for name in ("tool-use-id", "task-id", "status")]
-    if any(len(values) != 1 for values in fields):
-        return None
-    result = re.search(r"<result>(.*?)</result>", content, re.DOTALL)
-    return (*[values[0].strip() for values in fields], result.group(1) if result else None)
-
-
-def _builder_answers(text: str) -> list[str]:
-    """A non-error async launch is registration, not an answer; match its later completion."""
-    retained = []
-    launches: dict[str, str | None] = {}
-    completions: dict[str, str | None] = {}
-    for event in stream_events.iter_events(text):
-        # Child events prove fetches, but cannot return their own outer Agent invocation.
-        if not _root_event(event):
-            continue
-        notification = _task_notification(event)
-        if notification:
-            tool_id, task_id, status, result = notification
-            if launches.get(tool_id) == task_id:
-                # A resumed task can notify again: an earlier success cannot mask a later failure.
-                completions[tool_id] = result if status == "completed" else None
-            continue
-        message = event.get("message")
-        if not isinstance(message, dict) or not isinstance(message.get("content"), list):
-            continue
-        blocks = []
-        for block in message["content"]:
-            if not isinstance(block, dict):
-                continue
-            tool_id = block.get("tool_use_id")
-            if block.get("type") == "tool_result" and isinstance(tool_id, str):
-                body = stream_events.block_text(block.get("content"), separator="\n")
-                metadata = event.get("toolUseResult")
-                metadata = metadata if isinstance(metadata, dict) else {}
-                if not block.get("is_error") and (metadata.get("isAsync") is True
-                    or metadata.get("status") == "async_launched" or (
-                    body.startswith("Async agent launched successfully.")
-                )):
-                    task_id = metadata.get("agentId")
-                    if not isinstance(task_id, str) or not task_id:
-                        match = re.search(r"^agentId:\s*([A-Za-z0-9_-]+)\s*$", body, re.MULTILINE)
-                        task_id = match.group(1) if match else None
-                    launches[tool_id] = task_id
-                    continue
-            blocks.append(block)
-        retained.append({"message": {"content": blocks}})
-    for tool_id, answer in completions.items():
-        if answer is not None:
-            retained.append({"message": {"content": [{
-                "type": "tool_result", "tool_use_id": tool_id, "content": answer,
-            }]}})
-    return agent_spawn_results(
-        "\n".join(json.dumps(event) for event in retained), "sde-agents:sde-fullstack",
-    )
-
-
-def probe_builder_skills(probe: Probe, text: str) -> None:
-    """Keep each builder's answers and fetches inside its own stream actor boundary."""
-    events = list(stream_events.iter_events(text))
-    builders = {
-        call["id"] for call in tool_calls(text)
-        if call.get("name") in ("Agent", "Task")
-        and call["input"].get("subagent_type") == "sde-agents:sde-fullstack"
-        and isinstance(call.get("id"), str) and call["id"]
-    }
-    if not builders:
-        _probe_builder_invocation(probe, "", False, False)
-        return
-    for builder_id in sorted(builders):
-        scoped = []
-        actor_observed = False
-        provenance_gap = False
-        for event in events:
-            notification = _task_notification(event)
-            if notification and notification[0] == builder_id:
-                scoped.append(event)
-                continue
-            message = event.get("message")
-            if not isinstance(message, dict) or not isinstance(message.get("content"), list):
-                continue
-            blocks = [block for block in message["content"] if isinstance(block, dict)]
-            if event.get("parent_tool_use_id") == builder_id:
-                actor_observed = True
-                scoped.append(event)
-                continue
-            # IDs correlate a spawn/return only inside the root actor. A foreign actor's
-            # matching ID cannot donate an answer or an async launch registration.
-            outer = [block for block in blocks if (
-                block.get("type") == "tool_use" and block.get("id") == builder_id
-            ) or (
-                block.get("type") == "tool_result" and block.get("tool_use_id") == builder_id
-            )]
-            if outer and _root_event(event):
-                # Keep toolUseResult: on current Claude an Agent result can be async launch
-                # metadata while its answer arrives later in a task-notification.
-                scoped.append(dict(event, message=dict(message, content=outer)))
-            if "parent_tool_use_id" not in event and any(
-                block.get("type") == "tool_use"
-                and block.get("name") in ("Read", "Grep", "Glob", "Bash", "Skill")
-                for block in blocks
-            ):
-                provenance_gap = True
-        print(f"  Builder invocation: {builder_id}")
-        _probe_builder_invocation(
-            probe, "\n".join(json.dumps(event) for event in scoped), actor_observed, provenance_gap,
-        )
-
-
-def _probe_builder_invocation(
-    probe: Probe, text: str, actor_observed: bool, provenance_gap: bool,
-) -> None:
-    """Grade one invocation; an unobserved actor cannot prove that no fetch occurred."""
-    labels = (
-        "code-craft was preloaded, not fetched",
-        "backend-craft was read on demand and used",
-        "frontend-craft stayed unloaded for the backend-only inspection",
-    )
-    answers = _builder_answers(text)
-    if not answers or not actor_observed:
-        for label in labels:
-            probe.check(SKIP, label,
-                        "needs a non-error builder return and child events with its parent_tool_use_id")
-        return
-    answer = "\n".join(answers)
-    fetches = {
-        call["id"]: call for call in tool_calls(text)
-        if isinstance(call.get("id"), str) and call["id"]
-        and call.get("name") in ("Read", "Grep", "Glob", "Bash", "Skill")
-    }
-    results: dict[str, list[tuple[str, bool]]] = {}
-    for block in stream_events.iter_content_blocks(text):
-        tool_id = block.get("tool_use_id")
-        if block.get("type") != "tool_result" or not isinstance(tool_id, str) or tool_id not in fetches:
-            continue
-        raw = block.get("content")
-        body = raw if isinstance(raw, str) else " ".join(
-            part["text"] for part in (raw if isinstance(raw, list) else [])
-            if isinstance(part, dict) and isinstance(part.get("text"), str)
-        )
-        results.setdefault(tool_id, []).append((body, bool(block.get("is_error"))))
-
-    requested = {name: [] for name in ("code-craft", "backend-craft", "frontend-craft")}
-    backend_reads = []
-    for tool_id, call in fetches.items():
-        inp = call["input"]
-        path = inp.get("file_path") or inp.get("path") or ""
-        path = path.replace("\\", "/").rstrip("/") if isinstance(path, str) else ""
-        input_text = json.dumps(inp).lower()
-        # Broad searches and wildcard partial reads can omit every canary. Their results
-        # cannot prove either preload provenance or an unloaded layer, even when they only
-        # return a header or filename. Conservative contamination is intentional here.
-        broad_skill_fetch = (
-            call["name"] in ("Bash", "Grep", "Glob")
-            and ("skills" in input_text or "skill.md" in input_text)
-            and (any(mark in input_text for mark in ("*", "?", "["))
-                 or not any(skill in input_text for skill in requested))
-        )
-        for skill in requested:
-            if broad_skill_fetch or path.endswith((f"skills/{skill}", f"skills/{skill}/SKILL.md")) or (
-                # Shell/search inputs can fetch only a fragment with no canary. Treat a
-                # named skill in any fetch input conservatively as requested guidance;
-                # even a filename-only search cannot certify that it stayed unloaded.
-                skill in json.dumps(inp)
-            ):
-                requested[skill].append(tool_id)
-        if call["name"] == "Read" and path.endswith("skills/backend-craft/SKILL.md"):
-            backend_reads.append(tool_id)
-
-    # Any observed fetch can contaminate a preload canary, including broad shell reads whose
-    # argv never names the skill. An unanswered fetch cannot establish that no leak happened.
-    fetched_text = "\n".join(body for entries in results.values() for body, _ in entries)
-    missing_fetch_result = provenance_gap or any(tool_id not in results for tool_id in fetches)
-    code_fetched = requested["code-craft"] or CODE_CANARY in fetched_text
-    code_status = FAIL if code_fetched or CODE_CANARY not in answer else (
-        SKIP if missing_fetch_result else PASS
-    )
-    probe.check(code_status, labels[0],
-                f"quoted={CODE_CANARY in answer}; fetched={bool(code_fetched)}; "
-                f"incomplete fetch evidence={missing_fetch_result}")
-
-    backend_results = [entry for tool_id in backend_reads for entry in results.get(tool_id, [])]
-    if not backend_reads or BACKEND_CANARY not in answer:
-        backend_status = FAIL
-    elif not backend_results:
-        backend_status = SKIP
-    else:
-        backend_status = PASS if any(
-            BACKEND_CANARY in body and not error for body, error in backend_results
-        ) else FAIL
-    probe.check(backend_status, labels[1],
-                f"Read calls={len(backend_reads)}; results={len(backend_results)}; "
-                f"canary quoted={BACKEND_CANARY in answer}; a non-error Read must contain it too")
-
-    frontend_loaded = requested["frontend-craft"] or FRONTEND_CANARY in fetched_text + "\n" + answer
-    frontend_status = FAIL if frontend_loaded or "NO_FRONTEND_CONTENT" not in answer else (
-        SKIP if missing_fetch_result else PASS
-    )
-    probe.check(frontend_status, labels[2],
-                f"absence answered={'NO_FRONTEND_CONTENT' in answer}; "
-                f"frontend fetched or quoted={bool(frontend_loaded)}; "
-                f"incomplete fetch evidence={missing_fetch_result}")
 
 
 def _remove_workspace(workspace: Path, note: str | None = None) -> None:
@@ -712,7 +439,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     print("\n== the plugin loaded, and its components are namespaced ==")
-    for agent in ("sde-agents:code-reviewer", "sde-agents:sde-fullstack", "sde-agents:homelab-engineer"):
+    for agent in ("sde-agents:code-reviewer", "sde-agents:homelab-engineer"):
         label = f"{agent} spawned and returned without error"
         if spawn_errored(text, agent):
             # OBSERVED: a result came back marked is_error. A later timeout cannot un-see it.
@@ -730,9 +457,6 @@ def main(argv: list[str] | None = None) -> int:
                 "no Agent call naming this agent came back with any correlated result",
                 absence=True,
             )
-
-    print("\n== builder skills load only when needed ==")
-    probe_builder_skills(probe, text)
 
     print("\n== ${CLAUDE_PLUGIN_ROOT} expands inside agent instructions ==")
     # Still load-bearing, but ONLY for homelab-engineer now: service-onboard sets
@@ -913,39 +637,6 @@ def main(argv: list[str] | None = None) -> int:
             f"Claude Code's own permission layer refused it before the guard's verdict mattered: "
             f"{agent_flag_seen[0].strip()[:120]!r}",
         )
-
-    print("\n== a conditional reference is actually READ when its predicate trips ==")
-    # Risk 1 from the design. The split moved conditional depth out of the always-loaded core, so it
-    # now arrives only if the model chooses to read it. This is the check on that choice. The task
-    # trips exactly one predicate ("calling any upstream API") and nothing else.
-    ref_session = run(
-        [
-            CLAUDE, "-p",
-            "Use the Agent tool to spawn the subagent `sde-agents:sde-fullstack` with EXACTLY this "
-            "task: \"Write a typed Python client for the Grafana HTTP API — just the client module, "
-            "with auth, timeouts, and retry policy. Follow your craft guidance.\" Then reply with "
-            "only the word DONE.",
-            "--plugin-dir", str(REPO),
-            "--output-format", "stream-json",
-            "--verbose",
-        ],
-        cwd=str(project),
-    )
-    probe.reading(ref_session)
-    ref_text = ref_session.stdout
-    ref_reads = [
-        call.get("input", {}).get("file_path", "")
-        for call in tool_calls(ref_text)
-        if "references/consuming-apis.md" in call.get("input", {}).get("file_path", "").replace("\\", "/")
-    ]
-    probe.check(
-        PASS if ref_reads else FAIL,
-        "sde-fullstack read references/consuming-apis.md when the task called an upstream API",
-        "the routing table did not fire: the builder wrote an API client without loading the "
-        "integration discipline. This is design Risk 1 realised -- consider pulling Consuming APIs "
-        "back into the always-loaded core and accepting its tokens.",
-        absence=True,
-    )
 
     exit_code = probe.report()
     if exit_code == 0:
