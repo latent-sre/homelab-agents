@@ -9,9 +9,9 @@ The hook names its roster TWICE -- once in the `case "$IN"` fast path, which dec
 interpreter runs at all, and once in the `case "$SQ"` identity fallback, which fails closed when
 no interpreter answers. Both copies were maintained by hand against the roster declared in the
 hook script, and a name reaching only one of them satisfies a substring check while the other
-block silently lets the agent through. Phase 5 of the machinery rewrite makes the scripts' own
-`GUARDED_AGENT_NAMES` the single source and renders both copies from it;
-the committed file is byte-checked exactly like the host adapters.
+block silently lets the agent through. The guard script's own `GUARDED_AGENT_NAMES` is the single
+source and both copies are rendered from it; the committed file is byte-checked exactly like the
+host adapters.
 
 The shell text is a TEMPLATE, not a builder. It is the fleet's security boundary and the
 most-reviewed code in the tree, so it stays readable verbatim in one place and only the two

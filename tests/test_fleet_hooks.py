@@ -3,10 +3,10 @@
 Risk hypothesis: `hooks/hooks.json` names each roster TWICE -- once in the `case "$IN"` fast path
 that decides whether the interpreter runs, once in the `case "$SQ"` identity fallback that fails
 closed when none answers. Maintained by hand, a name could reach one block and not the other, and
-the hook would still exit 0 for the agent it was supposed to cover. Phase 5 of the machinery
-rewrite makes the guard script's `GUARDED_AGENT_NAMES` the single source; these
-tests pin that the committed file IS that rendering, that a roster edit reaches both blocks, and
-that the generator refuses the shapes it cannot render honestly.
+the hook would still exit 0 for the agent it was supposed to cover. The guard script's
+`GUARDED_AGENT_NAMES` is the single source; these tests pin that the committed file IS that
+rendering, that a roster edit reaches both blocks, and that the generator refuses the shapes it
+cannot render honestly.
 
 `tests/test_hook_wiring.py` remains the behavioural oracle: it runs the rendered shell string
 under `sh`. Nothing here replaces that -- a renderer whose output parses is not a hook that
