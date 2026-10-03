@@ -391,8 +391,9 @@ settling directories those items pinned in full, plus `2026-08-01-self-improve/f
 `2026-08-18-ctx-002/disposition/` (the latter's own unconditional trigger, independent of the
 still-open LANE-001) — bringing the total to 11,440 lines across 12 top-level directories. The
 2026-09-14 native-migration anchor then added a thirteenth, and nearly doubled the tree on its own:
-**22,562 lines across 13 top-level directories**. Ten `benchmark.json` files account for 10,965 of
-those lines, because each records `fired_per_run` for every case — the audit trail that lets a
+22,562 lines across 13 top-level directories. Removing the host-conformance lane (2026-10-03) took
+its only run, `2026-07-31-p0-p1/`, leaving **22,254 lines across 12 top-level directories**. Ten
+`benchmark.json` files account for 10,965 of those lines, because each records `fired_per_run` for every case — the audit trail that lets a
 surprising verdict be explained from the artifact instead of by paying for the batch again. That
 is the trade this directory exists to make, but it is also why a full anchor is captured
 deliberately rather than routinely.
