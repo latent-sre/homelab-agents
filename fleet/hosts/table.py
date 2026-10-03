@@ -466,9 +466,9 @@ AGENT_REWRITES: tuple[Rewrite, ...] = (
     ),
     Rewrite(
         id="agent.homelab-engineer.host-controls",
-        why="The canonical bullet describes Claude Code's permission mode. Codex has a real "
-        "sandbox and approval policy; Copilot has neither and no execute tool, so live effects "
-        "there become an operator handoff. A missing bullet must stop generation rather than "
+        why="The canonical bullet describes Claude Code's permission mode. Codex has a sandbox "
+        "and approval policy; Copilot and VS Code run the execute tool under their own "
+        "approval prompts and settings. A missing bullet must stop generation rather than "
         "describe a control the host does not have.",
         find=r"^- \*\*Host controls:\*\*.*?(?=\n- \*\*|\n\n)",
         replace={
@@ -478,11 +478,10 @@ AGENT_REWRITES: tuple[Rewrite, ...] = (
             "When effective host permissions allow the authorized\n  action without prompting, "
             "execute normally. Do not invent a prompt requirement or\n  route around an actual "
             "restriction.",
-            "copilot": "- **Host controls:** this generated profile has no execute tool on "
-            "Copilot or VS Code.\n  Live effects "
-            "therefore require operator handoff: give\n  the prepared command and mark execution "
-            "pending. Do not substitute another tool to evade\n  the profile's execution "
-            "restriction.",
+            "copilot": "- **Host controls:** on Copilot and VS Code your terminal commands run "
+            "under the host's\n  own approval prompts and settings; the fleet adds no check of "
+            "its own. Traverse actual\n  prompts without duplicating them in chat. Never change "
+            "those settings or substitute another\n  tool to escape a restriction.",
         },
         expect=2,
         regex=True,
@@ -492,9 +491,8 @@ AGENT_REWRITES: tuple[Rewrite, ...] = (
     ),
     Rewrite(
         id="agent.homelab-engineer.standing-policy",
-        why="The standing-policy bullet describes Claude's allow rules. Codex has operator/host "
-        "rules of its own; on Copilot no permission rule can add the execute tool this profile "
-        "lacks, so the handoff must report a missing capability, not a missing decision.",
+        why="The standing-policy bullet describes Claude's allow rules; Codex has operator/host "
+        "rules of its own. On Copilot the canonical bullet already holds as written.",
         find=r"^- \*\*Standing policy:\*\*.*?(?=\n- \*\*|\n\n)",
         replace={
             "codex": "- **Standing policy:** respect the effective operator/host rules. An allow "
@@ -502,11 +500,9 @@ AGENT_REWRITES: tuple[Rewrite, ...] = (
             "task scope. Do not require\n  a root-owned rule or edit policy to authorize your "
             "own work. Full access does not authorize\n  unrelated work or an undisclosed "
             "destructive consequence.",
-            "copilot": "- **Standing policy:** host permission rules do not add an execute tool "
-            "to this profile.\n  Retain the user's authorization in the handoff; report the "
-            "missing execution capability,\n  not a missing user decision.",
         },
-        expect=2,
+        hosts=("codex",),
+        expect=1,
         regex=True,
         dotall=True,
         multiline=True,

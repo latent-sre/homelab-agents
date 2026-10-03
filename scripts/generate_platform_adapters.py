@@ -217,10 +217,7 @@ def render_copilot_agent(
     fields, body, _ = _definition_parts(source)
     name = fields["name"]
     guarded = name in guarded_names
-    # The homelab profile depends on a scoped live-effect hook rather than the
-    # read-only guard, but this host can scope neither. Its handoff must be a
-    # missing capability, not a prose promise beside an execute grant.
-    tools = _copilot_tools(fields, guarded=guarded or name == "homelab-engineer")
+    tools = _copilot_tools(fields, guarded=guarded)
     description = adapt_agent_text(
         fields["description"], name=name, host="copilot", ledger=ledger
     )
@@ -243,16 +240,6 @@ def render_copilot_agent(
                 "uses a session-wide read-only Bash guard, but Copilot and VS Code PreToolUse",
                 "payloads do not identify the active agent. Treat shell inspection as unavailable",
                 "and use read/search tools instead.",
-            ]
-        )
-    elif name == "homelab-engineer":
-        adapter_lines.extend(
-            [
-                "",
-                "This profile receives no shell/execute tool because this host cannot scope",
-                "Claude's live-effect hook to the active agent. Prepare changes with read/search/",
-                "edit tools and hand live execution to the operator; do not substitute another",
-                "tool to bypass this restriction.",
             ]
         )
     if _has_external_evidence_tools(fields):

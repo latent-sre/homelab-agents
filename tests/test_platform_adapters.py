@@ -395,21 +395,23 @@ class PlatformAdapterTests(unittest.TestCase):
         self.assertNotIn("sandbox and command-approval prompt must interpose", rewritten)
         self.assertNotIn("only an exec-policy rule under a root-owned path", rewritten)
 
-    def test_homelab_copilot_handoff_tracks_missing_capability_not_missing_consent(self) -> None:
-        """The native-execution path cannot accidentally grant the no-shell host a tool."""
+    def test_homelab_copilot_executes_under_the_hosts_own_prompts(self) -> None:
+        """VS Code/Copilot homelab-engineer holds execute, and its contract names the host's
+        approval prompts as the control it must not change to escape a restriction."""
         canonical = (REPO / "agents" / "homelab-engineer.md").read_text(encoding="utf-8")
-        rewritten = generate_platform_adapters.adapt_agent_contract(
-            canonical, name="homelab-engineer", host="copilot"
+        rewritten = " ".join(
+            generate_platform_adapters.adapt_agent_contract(
+                canonical, name="homelab-engineer", host="copilot"
+            ).split()
         )
-        self.assertIn("has no execute tool", rewritten)
-        self.assertIn("mark execution pending", rewritten)
-        self.assertIn("not a missing user decision", rewritten)
-        self.assertIn("Do not substitute another tool", " ".join(rewritten.split()))
+        self.assertIn("run under the host's own approval prompts", rewritten)
+        self.assertIn("Never change those settings", rewritten)
+        self.assertNotIn("no execute tool", rewritten)
         fields = validate_fleet.parse_frontmatter(
             REPO / ".github" / "agents" / "homelab-engineer.agent.md"
         )
         self.assertIsNotNone(fields)
-        self.assertNotIn("execute", validate_fleet.split_tools(fields["tools"]))
+        self.assertIn("execute", validate_fleet.split_tools(fields["tools"]))
 
     def test_homelab_duplicate_transport_policy_is_rejected(self) -> None:
         """Two competing transport bullets must not yield a plausible generated control."""

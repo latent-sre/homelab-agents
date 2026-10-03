@@ -21,8 +21,9 @@ A drill that touches the live service is Tier 3; establish the recovery prerequi
 - **Claude Code:** an active engineer continues; other contexts return prepared live steps through
   the caller to that engineer with existing authorization. No mandatory fresh session or repeated
   consent. Routing is cooperative; do not evade the engineer-scoped hook by changing context.
-- **Copilot / VS Code:** prepare only and hand live commands to the operator, even when direct
-  invocation exposes main-chat execution. Skills do not inherit the profile's omitted execute tool.
+- **Copilot / VS Code:** inside the homelab-engineer agent, run live commands through its execute
+  tool under the host's own approval prompts; every other context, including direct invocation,
+  prepares the commands and hands live work to that agent.
 - **Codex:** use the full active engineer policy if loaded; otherwise read the active installed
   profile identified by effective host configuration or disclosed metadata. Never guess its path
   or substitute a repository profile. If unavailable/unverifiable, prepare and hand off through

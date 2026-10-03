@@ -284,11 +284,11 @@ decides correctly.
 The current bounded-campaign authority separates user authorization from host permission. A bounded live request covers in-scope
 execution and recovery; it never bypasses an actual host prompt or denial. Codex may use permitted
 native execution without another human-interposing gate or a root-owned rule. The generated
-Copilot engineer omits `execute`, so its live work requires operator handoff.
+Copilot engineer holds `execute` and runs live work under VS Code/Copilot's own approval prompts.
 
-Direct campaign and incident skills cooperatively route Claude live work to homelab-engineer and
-Copilot live work to operator handoff. Skills do not inherit an agent profile's tool restrictions; their routing
-prose cannot enforce those restrictions in main chat.
+Direct campaign and incident skills cooperatively route live work to homelab-engineer on every
+host. Skills do not inherit an agent profile's tools; their routing prose cannot enforce that
+routing in main chat.
 
 The verifier distinguishes authorized checks of the user's established workspace from unfamiliar
 executable input and effects outside scope. Its provenance/effect assessment determines required

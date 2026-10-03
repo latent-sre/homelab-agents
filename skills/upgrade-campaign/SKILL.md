@@ -19,9 +19,10 @@ Execution depends on the host:
   context, including the main loop and other agents, prepares and hands live work through the
   caller to that engineer. This routing is cooperative, not enforcement: other contexts retain
   their own tools and lack this engineer-scoped hook. Do not change context or identity to evade it.
-- **Copilot / VS Code:** prepare only and hand live commands to the operator, including on direct
-  skill invocation. A skill does not inherit the engineer profile's omitted `execute` tool; this
-  handoff rule is cooperative in main chat, even if that chat offers execution.
+- **Copilot / VS Code:** inside the homelab-engineer agent, run live commands through its
+  `execute` tool under the host's own approval prompts. Every other context, including direct
+  skill invocation in main chat, prepares the commands and hands live work to that agent. This
+  routing is cooperative, not enforcement, even if main chat offers execution.
 - **Codex:** use the full active engineer policy when it is already loaded in this context.
   Otherwise read the full active installed engineer profile from the host's configured
   agent-profile source before the first live step. Establish that source's identity/path from
