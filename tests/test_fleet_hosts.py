@@ -389,39 +389,6 @@ class GeneratorDiffTests(unittest.TestCase):
             self.assertIn("same lines, different bytes", report[0])
             self.assertIn(target.as_posix(), report[0])
 
-    def test_diff_reports_a_retired_root_that_write_would_delete(self) -> None:
-        # Deleting the retired trees is the only destructive part of `--write`, and they appear
-        # in no expected-output map, so the preview has to name them itself.
-        with repo_copy() as dst:
-            retired = dst / "platforms" / "portable"
-            retired.mkdir(parents=True)
-            (retired / "stale.md").write_text("x", encoding="utf-8")
-            report = generator.diff_generated_outputs(dst)
-            code, _ = run_main(generator.main, "--diff", "--root", str(dst))
-            self.assertTrue((retired / "stale.md").is_file(), "--diff must not write")
-        self.assertEqual(1, code)
-        self.assertIn("retired generated root", "\n".join(report))
-        self.assertIn("platforms/portable/stale.md", "\n".join(report))
-
-
-    def test_a_retired_root_that_is_a_file_previews_and_removes_cleanly(self) -> None:
-        # `rglob` finds nothing in a regular file, so the preview promised a zero-file removal
-        # while `--write` aborted on the same path with NotADirectoryError.
-        with repo_copy() as dst:
-            retired = dst / "platforms" / "portable"
-            retired.parent.mkdir(parents=True, exist_ok=True)
-            retired.write_text("not a directory", encoding="utf-8")
-            report = generator.diff_generated_outputs(dst)
-            self.assertIn(
-                "--- platforms/portable: retired generated root is a file, "
-                "would be removed by --write",
-                report,
-            )
-            self.assertTrue(retired.exists(), "--diff must not write")
-            generator.write_generated_outputs(dst)
-            self.assertFalse(retired.exists(), "--write must clear the retired root it promised")
-
-
     def test_diff_reports_an_active_root_that_is_a_file(self) -> None:
         # `--write` unlinks such a root before recreating the directory; a preview listing only
         # the child files it then adds would hide the removal entirely.

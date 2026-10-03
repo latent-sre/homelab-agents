@@ -72,14 +72,6 @@ GENERATED_ROOTS = (
     COPILOT_SKILLS,
     CODEX_SKILLS,
 )
-# Retired roots stay declared so `--write` deletes obsolete generated copies instead of leaving a
-# second plausible fleet behind. `.claude/agents` was loaded as duplicate agents; the former
-# Copilot CLI skill root had no consumer after that lane was retired.
-RETIRED_GENERATED_ROOTS = (
-    Path("platforms/portable"),
-    Path(".claude/agents"),
-    Path("platforms/copilot/skills"),
-)
 HOOKS_FILE = Path("hooks/hooks.json")
 # Generated files that are NOT inside a generated root. `--write` replaces a root wholesale, which
 # is right for a directory whose every entry it produces; `hooks/` is not that directory -- it is
@@ -914,31 +906,6 @@ def diff_generated_outputs(root: Path) -> list[str]:
                 f"--- {relative.as_posix()}: generated root is a file, "
                 f"would be removed by --write before the directory is recreated"
             )
-
-    for relative in RETIRED_GENERATED_ROOTS:
-        try:
-            retired = _safe_generated_root(root, relative, operation="inspect")
-        except ValueError as exc:
-            report.append(f"--- {relative.as_posix()}: cannot inspect retired root safely: {exc}")
-            continue
-        if not retired.exists():
-            continue
-        # `--write` deletes these outright; a preview that omitted them would hide the only
-        # destructive part of the operation.
-        if not retired.is_dir():
-            # Not a tree to walk: `rglob` would find nothing and the preview would promise a
-            # zero-file removal, which is how it came to disagree with the write.
-            report.append(
-                f"--- {relative.as_posix()}: retired generated root is a file, "
-                f"would be removed by --write"
-            )
-            continue
-        removed = sorted(p for p in retired.rglob("*") if p.is_file())
-        report.append(
-            f"--- {relative.as_posix()}: retired generated root, {len(removed)} file(s) "
-            f"would be removed by --write"
-        )
-        report.extend(f"-  {p.relative_to(root).as_posix()}" for p in removed)
     return report
 
 
@@ -1008,23 +975,6 @@ def validate_generated_outputs(root: Path) -> list[str]:
         )
     except (OSError, ValueError) as exc:
         return [f"{root}: cannot inspect generated platform adapters: {exc}"]
-    for relative in RETIRED_GENERATED_ROOTS:
-        retired = root / relative
-        try:
-            _safe_generated_root(root, relative, operation="inspect")
-        except ValueError as exc:
-            issues.append(
-                f"{retired}: cannot inspect retired generated adapter root safely: {exc} "
-                f"To repair, remove the offending link, junction, or reparse point before "
-                f"regenerating adapters."
-            )
-            continue
-        if retired.exists():
-            issues.append(
-                f"{retired}: retired generated adapter root still exists. Both the old shared "
-                f"copy and the host-specific copies could be reviewed or packaged as "
-                f"authoritative; run `python scripts/generate_platform_adapters.py --write`."
-            )
     for relative in sorted(set(expected) - actual):
         issues.append(
             f"{root / relative}: missing generated {_output_kind(relative)}. "
@@ -1211,7 +1161,7 @@ def validate_platform_support(root: Path) -> list[str]:
 
 
 def _safe_generated_root(root: Path, relative: Path, *, operation: str) -> Path:
-    if relative not in (*GENERATED_ROOTS, *RETIRED_GENERATED_ROOTS):
+    if relative not in GENERATED_ROOTS:
         raise ValueError(f"refusing to {operation} undeclared generated path: {relative}")
 
     resolved_root = root.resolve()
@@ -1277,9 +1227,9 @@ def _safe_generated_file(root: Path, relative: Path, *, operation: str) -> Path:
 
 
 def _remove_generated_root(target: Path) -> None:
-    """Clear a generated or retired root, whatever shape it is on disk.
+    """Clear a generated root, whatever shape it is on disk.
 
-    A declared root that is a regular file is still an obsolete artifact and still has to go;
+    A declared root that is a regular file still has to go;
     `shutil.rmtree` refuses one, which aborted the whole write on a path the preview had already
     promised to remove. The link guard runs before this, so nothing here follows a link.
     """
@@ -1293,7 +1243,7 @@ def _remove_generated_root(target: Path) -> None:
 
 
 def write_generated_outputs(root: Path) -> int:
-    for relative_root in (*RETIRED_GENERATED_ROOTS, *GENERATED_ROOTS):
+    for relative_root in GENERATED_ROOTS:
         _safe_generated_root(root, relative_root, operation="replace")
     # Standalone outputs are preflighted with the roots, BEFORE anything is deleted. Checking them
     # only in the write loop means a link or a malformed shape raises after the adapter trees have
@@ -1303,8 +1253,6 @@ def write_generated_outputs(root: Path) -> int:
     for relative_file in GENERATED_FILES:
         _safe_generated_file(root, relative_file, operation="replace")
     expected = expected_outputs(root)
-    for relative_root in RETIRED_GENERATED_ROOTS:
-        _remove_generated_root(_safe_generated_root(root, relative_root, operation="replace"))
     for relative_root in GENERATED_ROOTS:
         target = _safe_generated_root(root, relative_root, operation="replace")
         _remove_generated_root(target)
