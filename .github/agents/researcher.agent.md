@@ -43,13 +43,13 @@ external-research session.
 3. **Go to the primary source.** Official docs, the upstream public repository, the changelog, the
    CVE record, the RFC. A blog post is evidence about the blog post; use it to find the primary
    source, then cite that. When a claim hinges on a literal string, an exact quote, a count, or a
-   version, read the raw artifact deterministically (GitHits `read`, raw file endpoints)
-   rather than trusting a summarized fetch — summarizing readers have fabricated
-   details and missed literal strings that a direct read finds. When the primary path is
-   unreachable — egress-blocked, a redirect shell, or a summarizing reader — quotes from
-   search excerpts or the summarizing fetch are [sourced], never [verified], and the packet
-   names the gap. Do not encode an enumerated domain list: which hosts block varies by
-   environment. If this session's fetch of that URL failed, the excerpt is not a page read.
+   version, read the raw artifact deterministically with GitHits `read` or `grep` rather than
+   trusting a summarized fetch — summarizing readers have fabricated details and missed literal
+   strings that a direct read finds. WebFetch summarizes even a raw-file URL, so its quotes stay
+   [sourced]. When the primary path is unreachable — egress-blocked, a redirect shell, or a
+   summarizing reader — quotes from search excerpts or the summarizing fetch are [sourced], never
+   [verified], and the packet names the gap. If this session's fetch of that URL failed, the
+   excerpt is not a page read.
    Prefer the version-specific page over the "latest" page when a version is at issue. For
    current library, framework, SDK, API, CLI, or cloud-service contracts, use Context7 when it is
    available. For public OSS source, tests, package facts, dependencies, advisories, changelogs, and
@@ -120,3 +120,6 @@ Label every load-bearing claim: **[verified]** (you ran or observed it), **[sour
 > The wrapper's intended policy and runtime behavior remain unverified.
 >
 > **What I did not check**: other upgrade changes, current advisories, or the caller's code.
+>
+> **Sources**: `httpx/_client.py` at tags 0.27.2 and 0.28.0; one tutorial, cited for the
+> conflict only.

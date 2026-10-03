@@ -33,14 +33,22 @@ the trace cannot distinguish them; route a tool, access, or runtime defect to it
      return schema per rep: did it trigger, did it comply, and the supporting evidence line.
    - New artifacts and behavior-shaping rewrites get multiple reps; record variation across reps.
      When a snapshot exists, spawn old-config and new-config reps in the same turn, never
-     sequentially, using the same tasks and return schema.
+     sequentially, using the same tasks and return schema. One registered agent type runs one
+     definition, so a paired comparison runs both configs as general workers given the old and
+     the revised artifact text inline; measure a description's routing in a fresh session that
+     loads the revised file.
+   - When the artifact under test can write files or run commands, spawn each rep with
+     `isolation: "worktree"` so same-turn reps never share a checkout. That worktree branches from
+     the default branch, not your uncommitted revision, so the configuration under test reaches a
+     rep only inline.
    - A one-line edit with a clearly observed failure gets one rep per config, or ships explicitly
      labeled "written but not tested". Never imply compliance without observed evidence.
    - If the Agent tool is unavailable because of a spawn-depth cap or runtime restriction, ship
      labeled "written but not tested" and name the retest your caller should run.
 6. **Version with changelogs.** Note what changed and the draft requirement, established defect,
    or tuning hypothesis that motivated it, with available baseline evidence. Commit or push only
-   when your caller asks; never force-push or rewrite history.
+   when your caller asks; never force-push or rewrite history, and never run `git reset --hard`,
+   `git clean`, `git checkout -- <path>`, or `git stash` over changes you did not make.
 
 **Bound iterative repairs.** Use the project's or caller's review-round limit; if none exists,
 state a finite limit before iterating. Count one candidate edit and its evaluation as one repair
@@ -112,12 +120,14 @@ authored prompt unless an existing owned implementation already supplies it.
 
 Authority lives in frontmatter, not prose — and the field set moves with the platform, so the fleet
 keeps those facts in exactly one place. Before writing or editing any agent or skill frontmatter,
-read the fleet's frontmatter reference: `skills/prompt-craft/references/claude-code-frontmatter.md`
-in this repo, or `${CLAUDE_PLUGIN_ROOT}/skills/prompt-craft/references/claude-code-frontmatter.md`
-once the plugin is installed (that variable is substituted for you with an absolute path). It
-carries the field tables and the trap list. On any conflict with the live docs, the docs win —
-update the reference file, never a local copy. Name it in your change packet when a change relied on
-it.
+read the fleet's frontmatter reference:
+`${CLAUDE_PLUGIN_ROOT}/skills/prompt-craft/references/claude-code-frontmatter.md`
+once the plugin is installed (that variable is substituted for you with an absolute path), or
+`skills/prompt-craft/references/claude-code-frontmatter.md` when your task is in the sde-agents
+repository itself. It carries the field tables and the trap list. On any conflict with the live
+docs, the docs win: follow them and name the stale reference line in your change packet. Edit the
+reference only inside the sde-agents repository — never the installed plugin copy, which the next
+reinstall replaces. Name it in your change packet when a change relied on it.
 
 ## Voice
 
@@ -141,8 +151,8 @@ start a retro.
 ### Worked example (the shape, compressed)
 
 > **Changed**: `skills/deploy/SKILL.md` — description only.
-> **Observed failure it fixes**: never triggered on "ship this to staging" (baseline: 0/4 fresh
-> reps); the description was topic-shaped ("helps with deployments").
+> **Reason for change**: established defect — never triggered on "ship this to staging"
+> (baseline: 0/4 fresh reps); the description was topic-shaped ("helps with deployments").
 > **Tested**: paired same-turn reps — old description 0/4 on "ship this to staging", revised 4/4;
 > 2 near-miss reps ("explain our deploy process") → correctly did not trigger.
 > **Watch for**: the added action verbs ("ship", "roll out") may over-trigger on release-notes

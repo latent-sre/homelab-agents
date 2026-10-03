@@ -181,14 +181,29 @@ TEXT_REWRITES: Final[tuple[Rewrite, ...]] = (
         expect=4,
     ),
     Rewrite(
+        id="text.agent-tool.worktree-isolation",
+        why='`isolation: "worktree"` is an option of Claude\'s Agent tool, and branching from the '
+        "default branch is Claude's behavior for it; another host isolates reps through its own "
+        "mechanism, or not at all.",
+        find='spawn each rep with\n     `isolation: "worktree"` so same-turn reps never share a '
+        "checkout. That worktree branches from\n     the default branch, not your uncommitted "
+        "revision, so the configuration under test reaches a\n     rep only inline.",
+        replace="give each rep\n     its own checkout through the host's isolation mechanism so "
+        "same-turn reps never share one,\n     and pass the configuration under test inline; if "
+        "the host has no such mechanism, say so in\n     the change packet.",
+        expect=2,
+    ),
+    Rewrite(
         id="text.worker-context-inheritance",
         why="Claude's worker isolation is a runtime guarantee; elsewhere the context a worker "
         "receives depends on the host's fork or context mode, so the guarantee becomes an "
         "instruction to choose that mode explicitly.",
         find=r"- \*\*Workers never see the parent conversation\.\*\* A spawned worker gets its "
-        r"definition, the project context, the skills supplied to it, and your prompt — nothing "
-        r"else unless you explicitly fork, resume, or supply it\. Construct exactly the context "
-        r"each one needs; underspecified handoffs are the #1 multi-agent bug\.",
+        r"definition, the project context, the skills supplied to it, and your prompt, plus what "
+        r"the host injects at startup \(the frontmatter reference below lists it, including a git "
+        r"status snapshot no prompt can withhold\) — nothing else unless you explicitly fork, "
+        r"resume, or supply it\. Construct exactly the context each one needs; underspecified "
+        r"handoffs are the #1 multi-agent bug\.",
         replace="- **Never rely on implicit context inheritance.** A spawned worker receives only "
         "what the host's selected context or fork mode supplies. Choose that mode explicitly "
         "when available, and construct exactly the prompt and context the worker needs; "

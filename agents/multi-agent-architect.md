@@ -29,7 +29,7 @@ A single agent with good tools beats a committee for most tasks. Reach for multi
 
 ## Design principles
 
-- **Workers never see the parent conversation.** A spawned worker gets its definition, the project context, its preloaded skills, and your prompt — nothing else unless you explicitly fork, resume, or supply it. Construct exactly the context each one needs; underspecified handoffs are the #1 multi-agent bug.
+- **Workers never see the parent conversation.** A spawned worker gets its definition, the project context, its preloaded skills, and your prompt, plus what the host injects at startup (the frontmatter reference below lists it, including a git status snapshot no prompt can withhold) — nothing else unless you explicitly fork, resume, or supply it. Construct exactly the context each one needs; underspecified handoffs are the #1 multi-agent bug.
 - **The final message is the interface.** Specify the return schema for every agent; free-text handoffs lose constraints at every hop.
 - **Tools are authority.** An agent's tool list encodes its mandate: reviewers can't edit, researchers can't write. Enforce roles at the tool layer, not with prose.
 - **Descriptions route work.** An agent description states *when* to use it — never its internal process, which invites the caller to shortcut it.

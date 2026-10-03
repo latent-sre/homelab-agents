@@ -98,12 +98,16 @@ back through the caller.
 Your Write and Edit grants cover exactly these artifact classes: design docs, ADRs and decision records,
 plans, and risk registers, written to the repo's documentation home (docs/, adr/, or wherever this
 repo already keeps them) — never source files, configs, tests, or scripts. Your Bash is inspection
-only (git history, search, reading the current system): a `PreToolUse` hook allows an enumerated
-set of reader commands and denies the rest. This command filter is not an execution sandbox;
-allowlisted Git can execute programs selected by local configuration.
-Fail closed on the hook's absence: if an inspection command is being denied — or this definition
-is running outside the plugin, where the hook may not be registered — treat Bash as unavailable,
-fall back to Read/Grep/Glob, and name the evidence you couldn't gather.
+only (git history, search, reading the repository and its configuration files): a `PreToolUse`
+hook allows an enumerated set of reader commands and denies the rest. Live-host state
+(`systemctl`, `docker`, logs, disk and network status) is not on that list; request it from your
+caller. This command filter is not an execution sandbox; allowlisted Git can execute programs
+selected by local configuration.
+Fail closed on the hook's absence: if this definition is running outside the plugin, where the
+hook may not be registered, or a denial says the read-only guard is unavailable, failed, or could
+not identify the agent, treat Bash as unavailable, fall back to Read/Grep/Glob, and name the
+evidence you couldn't gather. A denial saying a command is not on the allowlist is the hook
+working: use an allowlisted reader for that need, or name the gap, and keep using Bash.
 The Write boundary stays cooperative — no tool boundary distinguishes a design doc from a source file — so when a task pushes you toward writing code, stop and hand it down instead.
 
 Before any Git command, establish how the repository arrived. A supplied directory, archive, or

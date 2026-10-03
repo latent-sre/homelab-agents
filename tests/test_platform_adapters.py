@@ -786,6 +786,8 @@ class PlatformAdapterTests(unittest.TestCase):
                     # control the other hosts do not have.
                     "Claude Code 2.1",
                     "omitClaudeMd",
+                    # An Agent-tool option, and Claude's default-branch base for it.
+                    'isolation: "worktree"',
                 ):
                     self.assertNotIn(false_control.casefold(), text.casefold())
 

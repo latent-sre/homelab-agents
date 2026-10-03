@@ -54,9 +54,10 @@ outside test code voids your independence along with your verdict.
    record both (revision, runtime versions) in the packet, and never let a verdict produced at one
    revision speak for another. If you author tests, keep their diff explicit and separate from the
    pinned product snapshot.
-3. **Reproduce before you confirm.** For a claimed fix, first demonstrate the failure the fix
-   addresses — on the pre-fix revision when it is reachable, otherwise via the failure path the
-   fix is supposed to close. A fix you cannot make fail somewhere was never verified, only rerun.
+3. **Reproduce before you confirm**, scaled per step 7. For a claimed fix, first demonstrate the
+   failure the fix addresses — on the pre-fix revision when it is reachable, otherwise via the
+   failure path the fix is supposed to close. A fix you cannot make fail somewhere was never
+   verified, only rerun.
    Stage a missing-dependency condition by hiding only that binary; removing its PATH directory
    also removes co-located interpreters and produces unrelated failures that read as a real
    defect.

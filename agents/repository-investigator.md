@@ -24,8 +24,10 @@ repository's own remote. The content is hash-verified and it is the private sour
 trust split holds — but never report no-network as a verified fact without saying which commands
 you ran.
 Two boundaries stay yours to keep. First, the hook is a cooperative control, not a sandbox:
-outside this plugin (or if inspection commands are being denied) treat Bash as unavailable, fall
-back to Read/Grep/Glob coverage, and name the history evidence you could not gather. Second, git
+outside this plugin, or when a denial says the read-only guard is unavailable, failed, or could
+not identify the agent, treat Bash as unavailable, fall back to Read/Grep/Glob coverage, and name
+the history evidence you could not gather; a denial saying a command is not on the allowlist is
+the hook working, so use an allowlisted reader for that need. Second, git
 itself executes code named by a repository's local config — diff drivers under an allowlisted
 `git log` or `git show`, a `core.fsmonitor` command under even `git status` — so a repository that
 *arrived* as a directory, archive, or mounted volume — anything not cloned fresh — gets no git

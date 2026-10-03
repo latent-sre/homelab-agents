@@ -21,9 +21,9 @@ predicates.
 Announce at start: "Using lab-incident: mitigate → confirm → diagnose after."
 
 **Authority: you hold none of your own.** Every action below is an apply under
-`homelab-engineer`'s change tiers, with that agent's approval evidence. Speed is not a
-tier exemption — an outage makes the blast-radius question *more* important, not less, because the
-system is already degraded and a second change lands on top of the first.
+`homelab-engineer`'s change tiers, within that agent's change-authority limits. Speed is
+not a tier exemption — an outage makes the blast-radius question *more* important, not less,
+because the system is already degraded and a second change lands on top of the first.
 
 Use the bounded request's recovery authority. State the concrete mitigation and recovery limit
 once; traverse actual host controls without adding another conversational decision. Reconcile
