@@ -71,13 +71,13 @@ class RegistryTests(unittest.TestCase):
             (dst / "skills" / "runbook" / "references" / "orphan.md").write_text(
                 "x", encoding="utf-8"
             )
-            # The guide rule trips three ids at once: a stale path, a dropped alias, and (with
-            # the bridge line gone) a lost import.
+            # The guide rule trips two ids at once: a stale path and (with the bridge line gone)
+            # a lost import.
             guide_doc = dst / "AGENTS.md"
             guide_doc.write_text(
-                guide_doc.read_text(encoding="utf-8")
-                .replace("scripts/validate_fleet.py", "scripts/validate_fleets.py", 1)
-                .replace("`fable`", "`fable-classic`"),
+                guide_doc.read_text(encoding="utf-8").replace(
+                    "scripts/validate_fleet.py", "scripts/validate_fleets.py", 1
+                ),
                 encoding="utf-8",
             )
             (dst / "CLAUDE.md").write_text("no bridge\n", encoding="utf-8")
@@ -94,7 +94,7 @@ class RegistryTests(unittest.TestCase):
         self.assertIn("plugin.guard.roster", rules.emitted_ids())
         self.assertIn("skill.bundle.orphans", rules.emitted_ids())
         self.assertLessEqual(
-            {"guide.stale-path", "guide.model-aliases", "guide.bridge"}, seen, sorted(seen)
+            {"guide.stale-path", "guide.bridge"}, seen, sorted(seen)
         )
 
     def test_definition_scoped_rules_are_the_per_definition_checks(self) -> None:

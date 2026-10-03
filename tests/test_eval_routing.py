@@ -1404,18 +1404,12 @@ class CopilotReviewTest(MainIntegrationTest):
         self.assertTrue(removed, "a refused measurement must not leave its traces behind")
 
     def test_the_t3_reuse_checklist_names_the_conditions_that_decide_comparability(self) -> None:
-        """AGENTS.md is always loaded, so a stale checklist there outranks the eval docs in
-        practice: it told maintainers to compare a flag that was measured to change nothing.
-
-        Now that the contract derives from the artifact, AGENTS.md must say so rather than
-        restate a list — and the conditions this finding was about must still be reached.
+        """A stale checklist once told maintainers to compare a flag that was measured to change
+        nothing. The contract now derives from the artifact, and the conditions this finding was
+        about must still be reached by the rule `evals/README.md` owns.
         """
         assert_compared_by_the_reuse_rule(self, "components_observed", "max_turns",
                                           "models_observed")
-        agents = " ".join((REPO / "AGENTS.md").read_text(encoding="utf-8").split())
-        bullet = agents[agents.index("T3 — release/CLI upgrade"):][:1300]
-        self.assertIn("the artifact, not a list restated here", bullet)
-        self.assertNotIn("clean_room_requested` is NOT one of them", bullet)
 
 
 class CodexSixthRoundTest(MainIntegrationTest):
@@ -1466,15 +1460,6 @@ class CodexSixthRoundTest(MainIntegrationTest):
         assert_compared_by_the_reuse_rule(self, "max_turns", "models_observed")
         readme = (REPO / "evals" / "README.md").read_text(encoding="utf-8")
         self.assertNotIn("clean-room setting", readme)
-
-    def test_the_agents_playbook_defers_to_that_owner_rather_than_restating_it(self) -> None:
-        """The same list stated twice drifts: this copy was still naming the flag measured to
-        change nothing, three edits after the T3 bullet stopped."""
-        text = (REPO / "AGENTS.md").read_text(encoding="utf-8")
-        playbook = text[text.index("**Editing a description**"):][:800]
-        self.assertIn("the list is the T3 one above", playbook)
-        self.assertIn("`evals/README.md` owns it", playbook)
-        self.assertNotIn("clean-room setting", text)
 
 
 class CodexSeventhRoundTest(MainIntegrationTest):

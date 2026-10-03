@@ -4,9 +4,8 @@ What this repository is building, mapped to the machinery that implements it. Th
 deliberately mechanism-anchored so it cannot rot into folklore: it names no live roadmap item, no
 count, and no measurement — episodes belong to the dated records under `docs/archive/` — and the
 fleet validator resolves every concrete path named here against the tree, so a renamed or deleted
-mechanism fails T0 instead of quietly outliving its documentation. `AGENTS.md` carries the
-compressed form every session loads; this file is what a session reads when it needs to know *why*
-a discipline exists before touching it.
+mechanism fails T0 instead of quietly outliving its documentation. `AGENTS.md` links here; this
+file is what a session reads when it needs to know *why* a discipline exists before touching it.
 
 The premise all four strands share: **a session is stateless.** Whatever it learned, decided, or
 verified dies at exit unless it lands in an artifact, and the next session will read that artifact

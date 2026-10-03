@@ -49,9 +49,9 @@ def _stale_path_findings(root: Path, doc: Path) -> list[Finding]:
 @rule(
     "guide",
     group="guide",
-    why="Claude Code loads CLAUDE.md, not AGENTS.md: a lost import orphans the guide, a renamed "
-    "script leaves it pointing at nothing, an alias change leaves it teaching a stale policy.",
-    emits=("guide", "guide.bridge", "guide.stale-path", "guide.model-aliases"),
+    why="Claude Code loads CLAUDE.md, not AGENTS.md: a lost import orphans the guide, and a "
+    "renamed script leaves it pointing at nothing.",
+    emits=("guide", "guide.bridge", "guide.stale-path"),
 )
 def agent_guide(fleet: Fleet) -> list[Finding]:
     """Self-gating: a repo with no AGENTS.md makes no guide claims; same for the program map."""
@@ -93,17 +93,4 @@ def agent_guide(fleet: Fleet) -> list[Finding]:
         )
 
     findings += _stale_path_findings(root, guide)
-
-    text = fs.read_text(guide)
-    for alias in sorted(POLICY.model_aliases):
-        if f"`{alias}`" not in text:
-            findings.append(
-                Finding(
-                    "guide.model-aliases",
-                    f"{guide}: the model-alias paraphrase omits `{alias}`; [models] aliases in "
-                    f"fleet/policy.toml is the source of truth — fix the paraphrase, never the "
-                    f"source.",
-                    guide,
-                )
-            )
     return findings

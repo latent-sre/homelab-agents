@@ -45,8 +45,8 @@ visible with its reason; it is not an inapplicable section.
 - [ ] `python3 -m unittest discover -s tests` — all passing (count: )
 - [ ] `python3 scripts/validate_claude_plugin.py` — marketplace and plugin contents passing
 
-<!-- Independent review: reviewer, reviewed commit and scope; why a second review applies;
-     material final delta and its focused follow-up, or why a non-material delta needs none. -->
+<!-- Independent review: reviewer and reviewed commit; a second reviewer when the PR touches the
+     guard, the gate, or another authority boundary. -->
 
 **Conditional gates — fill only the rows this PR trips, and delete the rest:**
 

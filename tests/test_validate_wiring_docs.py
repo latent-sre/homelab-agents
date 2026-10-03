@@ -148,18 +148,6 @@ class PluginWiringDocsTests(PluginWiringMixin, unittest.TestCase):
         issues = self._issues_after(mutate)
         self.assertEqual([], issues)
 
-    def test_alias_drift_in_the_guide_is_reported(self) -> None:
-        # Add an alias to ALIAS_MODELS (or drop one) and the guide's paraphrase must follow.
-        def mutate(repo: Path) -> None:
-            path = repo / "AGENTS.md"
-            path.write_text(
-                path.read_text(encoding="utf-8").replace("`fable`", "`fable-classic`"),
-                encoding="utf-8",
-            )
-
-        issues = self._issues_after(mutate)
-        self.assertTrue(any("omits `fable`" in i for i in issues), issues)
-
     def test_repo_with_no_guide_at_all_is_valid(self) -> None:
         # The check is self-gating: a repo that makes no guide claims has nothing to drift.
         def mutate(repo: Path) -> None:
