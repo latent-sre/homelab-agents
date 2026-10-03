@@ -48,7 +48,11 @@ def main_session(**overrides: object) -> list[dict]:
         use("b1", "Bash", {"command": probe_plugin.REVIEWER_CMD}),
         result("b1", str(overrides.get("reviewer_result", DENIED))),
         use("b2", "Bash", {"command": probe_plugin.MAINLOOP_CMD}),
-        result("b2", str(overrides.get("mainloop_result", "./README.md"))),
+        result(
+            "b2",
+            str(overrides.get("mainloop_result", "./README.md")),
+            is_error=bool(overrides.get("mainloop_error")),
+        ),
     ]
 
 
@@ -134,6 +138,16 @@ class ScriptedRunTests(unittest.TestCase):
                 self.assertEqual(1, code)
                 failed = [line for line in out.splitlines() if line.startswith("  [FAIL]")]
                 self.assertEqual([f"  [FAIL] {label}"], failed, out)
+
+    def test_an_errored_main_loop_result_does_not_prove_the_guard_stayed_silent(self) -> None:
+        # A permission refusal or validation error can arrive before the hook runs, so a result
+        # without the guard's text only counts when it is not an error.
+        blocks = main_session(mainloop_result="Permission to use Bash denied", mainloop_error=True)
+        code, out = run_probe(blocks)
+        self.assertEqual(1, code)
+        failed = [line for line in out.splitlines() if line.startswith("  [FAIL]")]
+        self.assertEqual(["  [FAIL] the guard IGNORED the main loop's identical command"], failed)
+        self.assertIn("never ran", out)
 
     def test_a_failed_git_init_runs_no_session(self) -> None:
         spawned: list[tuple[str, ...]] = []

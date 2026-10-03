@@ -139,7 +139,21 @@ def guarded_verdict(results: list[str | None] | None) -> tuple[bool, str]:
     return True, ""
 
 
-def unguarded_verdict(results: list[str | None] | None) -> tuple[bool, str]:
+def command_ran(text: str, marker: str) -> bool:
+    """Whether a Bash call carrying `marker` came back WITHOUT an error flag -- proof it ran.
+
+    An errored result (a host permission refusal, a tool-validation failure) can arrive before the
+    hook is ever consulted, so the guard's silence on it proves nothing about scoping.
+    """
+    return any(
+        marker in str(exchange.input.get("command", ""))
+        and exchange.answered
+        and not exchange.is_error
+        for exchange in stream_events.correlate_tool_results(text, tool_names={"Bash"})
+    )
+
+
+def unguarded_verdict(results: list[str | None] | None, ran: bool) -> tuple[bool, str]:
     """The main loop's command: it must run, and no result may be the guard's denial."""
     if results is None:
         return False, "the command was never attempted, so the scoping was not exercised"
@@ -148,6 +162,8 @@ def unguarded_verdict(results: list[str | None] | None) -> tuple[bool, str]:
         return False, "the call was made but no result came back (session cut short)"
     if any(GUARD_DENY in result for result in seen):
         return False, "the guard denied the user's own Bash -- the plugin would be unusable"
+    if not ran:
+        return False, f"every result was an error, so the command never ran: {seen[0][:160]!r}"
     return True, ""
 
 
@@ -259,7 +275,9 @@ def main(argv: list[str] | None = None) -> int:
     pairs = bash_results(text)
     ok, detail = guarded_verdict(results_for("REVIEWER_PROBE", pairs))
     probe.check(ok, "the guard DENIED the reviewer's denylisted command", detail)
-    ok, detail = unguarded_verdict(results_for("MAINLOOP_PROBE", pairs))
+    ok, detail = unguarded_verdict(
+        results_for("MAINLOOP_PROBE", pairs), command_ran(text, "MAINLOOP_PROBE")
+    )
     probe.check(ok, "the guard IGNORED the main loop's identical command", detail)
 
     # The scoping contract's other half: a MAIN session launched as a guarded agent must carry an
