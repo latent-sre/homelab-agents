@@ -9,13 +9,6 @@ read with `git show 690f28f:<path>`.
 | [`fleet-roadmap.md`](fleet-roadmap.md) | Live | Every unfinished, blocked, deferred, and decision-needed item. Nothing else adds work |
 | [`engineering-program.md`](engineering-program.md) | Live | The durable map from each program strand — handoff, loop, graph, self-learning — to the mechanisms implementing it and the checks keeping it honest. Mechanism-anchored by rule: no live item IDs, counts, or episodes, and the validator resolves every path it names |
 | [`fleet-development.md`](fleet-development.md) | Live | The maintainer's page: which file owns which convention, the porting method, host-specific authority, the Codex lane in detail, how the hook is wired and why, workflows, the validation tiers, and the host probe |
-| [`superpowers/specs/lane-001-codex-onboarding-discoverability.md`](superpowers/specs/lane-001-codex-onboarding-discoverability.md) | Approved, round not active | LANE-001's Codex host-evidence prerequisites, discovery/recommendation boundary, acceptance conditions, and rollback; Phase 0 remains outstanding and no paired plan exists |
-| [`superpowers/specs/2026-08-18-multi-host-plugin-architecture-design.md`](superpowers/specs/2026-08-18-multi-host-plugin-architecture-design.md) | Implemented 2026-08-18 | The three retired host lanes, why the VS Code lane survives on workspace discovery from `.github/agents`, and the disproved "deliberately empty override" claim — the evidence that a manifest field naming an empty override does not keep a host away from the hooks |
-
-`superpowers/specs/` holds a spec only while its roadmap item is live, and `superpowers/plans/`
-holds a plan only while its round is active. A spec headed **drafted** awaits operator approval and
-starts no round; the roadmap item's status and next action, not the file's presence, say whether a
-round is running.
 
 ## Rules
 

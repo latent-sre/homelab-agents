@@ -221,28 +221,6 @@ authority.
 **Next action:** Open a bounded spec/plan, starting with the smallest read-only command surface
 and a threat review of every new verb/flag.
 
-#### LANE-001 — Codex-lane onboarding discoverability
-
-**Status:** `ready` — spec approved 2026-08-09; host-neutral packaging landed in PR #107, but no
-round is running and no Codex host evidence exists yet.
-
-**Outcome:** On a Codex session with the fleet installed, plain-language onboarding intent
-yields a model recommendation of the explicit workflow, never implicit execution, with the
-Claude lane's measured routing rates unaffected.
-
-**Source:**
-[LANE-001 spec](superpowers/specs/lane-001-codex-onboarding-discoverability.md)
-
-**Prerequisites:** The spec's Phase 0 (two SEC-01 one-liners), still blocking; waiving it takes
-an operator-approved spec amendment.
-
-**Acceptance:** The spec's list: Phase 0's one-liners (or amendment); the paired `homelab-ops`
-before/after capture at merge base `4fef0ce`; a recorded Codex smoke run against a released
-artifact, filed through the ledger's release/retest rule.
-
-**Next action:** Operator runs the two Phase-0 one-liners on the SEC-01 Linux host, then
-captures the paired routing run; the smoke run follows the next release.
-
 #### GATE-007 — bind a tier to each declared effect, or say one response carries one tier
 
 **Status:** `ready` — review-reported on PR #164; not fixed there because the fix is a

@@ -695,7 +695,7 @@ class PlatformAdapterTests(unittest.TestCase):
     def test_onboarding_map_stays_model_visible_and_keeps_pointing_at_both_workflows(
         self,
     ) -> None:
-        """The discovery half of the onboarding lane, whose loss is silent (LANE-001, issue #61).
+        """The discovery half of the onboarding lane, whose loss is silent (issue #61).
 
         `service-onboard` and `host-onboard` are deliberately explicit-only, which on Codex means
         the model cannot enumerate or recommend them at all -- plain-language onboarding intent had
