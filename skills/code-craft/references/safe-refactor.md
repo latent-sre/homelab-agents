@@ -27,30 +27,31 @@ regression in something that was fine before you arrived.
 - **Preserve the odd branch until you can explain it.** `git log -S` and `git blame` on the line
   usually turn up the incident that put it there. "This looks unnecessary" is a hypothesis; the
   commit message is evidence.
-- **A test you had to change is a behavior you changed.** That's the tripwire — either the change was
-  intended (say so, in the commit) or you just broke a contract. Rewriting a test to match new
-  output is the most common way a refactor ships a regression.
-- **Keep the public surface still** while you move things behind it. If callers must change, that's a
-  migration, not a refactor — see below.
+- **Preserve the behavior assertions.** Changed expected outputs can hide a regression; identify
+  any intentional behavior change separately. Imports, setup, or implementation-specific tests may
+  need updates during an internal rename, without changing the observable contract they prove.
+- **Keep externally consumed contracts stable** while changing internals. Consumers that cannot
+  change atomically need a compatibility migration — see below.
 - **Bound the scope.** A refactor that grows until it touches everything cannot be reviewed and will
   not be verified. Ship the small one; the rest is a follow-up.
 - Formatting-only changes get their own commit so the real diff is legible.
 
-## When callers have to change: expand → migrate → contract
+## When consumers cannot change atomically: expand → migrate → contract
 
-Add the new form, move callers over, remove the old — never a flag-day rename. This pattern is
+For independently deployed or published consumers, add the new form, move callers over, then remove
+the old. An internal rename may update all callers and tests atomically when external behavior stays
+fixed; it does not require a compatibility release. The multi-release pattern is
 **owned by `sde-agents:eng-ladder`'s principal-altitude reference**, which covers the sequencing,
 compatibility windows, and rollback shape at design altitude. On any conflict, that file wins; read
 it before planning a multi-step migration, and use this section only as the local reminder that the
 three phases each ship and each stay releasable.
 
-The mechanical minimum: the old and new forms coexist in at least one released state, no commit
+For that migration: old and new forms coexist in at least one released state, no commit
 leaves the tree unable to build or serve, and the contract phase is a separate change that verifies
 nothing still calls the old form (search, don't assume).
 
 ## Verify
 
-The same tests that passed before pass after, unchanged — that is the evidence, and "unchanged" is
-the load-bearing word. Paste the run from before and after. For anything with observable behavior,
-exercise the real path once (a request, a command, the actual flow), because a green suite proves the
-tests still pass, not that the feature still works.
+Run the relevant before/after checks and preserve their behavioral assertions. Explain any test
+setup changes. Exercise a real request, command, or flow when the refactor touches an integration
+boundary that the existing checks do not cover; name remaining verification gaps.

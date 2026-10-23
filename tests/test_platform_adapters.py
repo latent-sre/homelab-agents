@@ -21,7 +21,6 @@ from tests.support import (
 )
 
 COPILOT_TOOL_ALIASES = {"agent", "edit", "execute", "read", "search", "web"}
-WRITE_TOOLS = {"Edit", "NotebookEdit", "Write"}
 
 
 _create_directory_link = create_directory_link
@@ -46,6 +45,8 @@ RETIRED_CLAUDE_ONLY_FORMS = (
     "is **not** preloaded",
     "which preloads this skill",
     "its preloaded skills",
+    "Workers never see the parent conversation",
+    "You hold Write and Edit **to author tests**",
     "the variable is substituted",
     "use `CLAUDE.md` when that is the repository's established convention",
 )
@@ -496,19 +497,20 @@ class PlatformAdapterTests(unittest.TestCase):
                 self.assertNotIn("already in your context", text)
                 self.assertNotIn("already in your\ncontext", text)
 
-    def test_codex_sandbox_mode_tracks_canonical_write_authority(self) -> None:
+    def test_codex_profiles_inherit_permissions_and_disable_only_ungranted_shell(self) -> None:
+        # The host ignores per-role sandbox settings. Its supported feature switch removes
+        # shell, while inspectors that need Git must retain their inspection-only mandate.
+        no_shell = {"application-security-auditor", "researcher"}
         for source in sorted((REPO / "agents").glob("*.md")):
             with self.subTest(agent=source.stem):
-                fields = validate_fleet.parse_frontmatter(source)
-                tools = set(validate_fleet.split_tools(fields["tools"]))
-                expected = "workspace-write" if tools & WRITE_TOOLS else "read-only"
-                generated = tomllib.loads(
-                    (REPO / ".codex" / "agents" / f"{source.stem}.toml").read_text(
-                        encoding="utf-8"
-                    )
-                )
+                generated = tomllib.loads(generate_platform_adapters.render_codex_agent(source))
                 self.assertEqual(source.stem, generated["name"])
-                self.assertEqual(expected, generated["sandbox_mode"])
+                self.assertNotIn("sandbox_mode", tuple(generated))
+                self.assertNotIn("approval_policy", tuple(generated))
+                if source.stem in no_shell:
+                    self.assertEqual({"shell_tool": False}, generated.get("features"))
+                else:
+                    self.assertNotIn("features", generated)
 
     def test_builder_conditional_skills_have_resolvable_host_paths(self) -> None:
         source = REPO / "agents" / "sde-fullstack.md"
@@ -563,21 +565,23 @@ class PlatformAdapterTests(unittest.TestCase):
         self.assertIn("read/search view explicitly bound to the named revision", copilot_body)
         self.assertIn("label any current-file citations as working-tree evidence", copilot_body)
 
-    def test_codex_adapters_do_not_claim_overridable_defaults_are_controls(self) -> None:
+    def test_codex_adapters_distinguish_parent_permissions_from_capability_switches(self) -> None:
         for path in sorted((REPO / ".codex" / "agents").glob("*.toml")):
             with self.subTest(agent=path.stem):
                 generated = tomllib.loads(path.read_text(encoding="utf-8"))
                 instructions = generated["developer_instructions"]
                 normalized = " ".join(instructions.split())
                 self.assertIn(
-                    "Parent session permissions can override this requested sandbox",
+                    "inherits the parent session's permissions",
                     normalized,
                 )
                 self.assertIn(
-                    "Codex custom-agent TOML does not provide a per-agent tool allowlist",
+                    "Codex custom-agent TOML has no general per-agent tool allowlist",
                     normalized,
                 )
                 for false_control in (
+                    "requested sandbox",
+                    "cannot remove inherited shell authority",
                     "Filesystem mutation is enforced by",
                     "The read-only sandbox enforces filesystem immutability",
                     "this role has no subagent-spawn authority",

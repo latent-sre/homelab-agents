@@ -45,7 +45,7 @@ class InstallCodexAgentsTests(unittest.TestCase):
             "# generated\n"
             'name = "reviewer"\n'
             'description = "Reviews code"\n'
-            'sandbox_mode = "read-only"\n'
+            'features = { shell_tool = false }\n'
             "developer_instructions = '''\nReview carefully.\n'''\n",
             encoding="utf-8",
         )
@@ -53,8 +53,8 @@ class InstallCodexAgentsTests(unittest.TestCase):
         imported.write_text(
             'name = "reviewer"\n'
             "description = 'Reviews code'\n"
-            'sandbox_mode = "read-only"\n'
-            'developer_instructions = """Review carefully."""\n',
+            'developer_instructions = """Review carefully."""\n'
+            '[features]\nshell_tool = false\n',
             encoding="utf-8",
         )
 
@@ -74,7 +74,7 @@ class InstallCodexAgentsTests(unittest.TestCase):
         (self.source / "reviewer.toml").write_text(
             'name = "reviewer"\n'
             'description = "Reviews code"\n'
-            'sandbox_mode = "read-only"\n'
+            'features = { shell_tool = false }\n'
             'developer_instructions = "Review carefully."\n',
             encoding="utf-8",
         )
@@ -88,7 +88,7 @@ class InstallCodexAgentsTests(unittest.TestCase):
                 base = (
                     'name = "reviewer"\n'
                     'description = "Reviews code"\n'
-                    'sandbox_mode = "read-only"\n'
+                    'features = { shell_tool = false }\n'
                 )
                 target.write_text(
                     base
@@ -102,6 +102,20 @@ class InstallCodexAgentsTests(unittest.TestCase):
 
                 plan = install_codex_agents.build_sync_plan(self.source, self.target)
 
+                self.assertEqual((target,), plan.conflicts)
+                self.assertNotIn(target, dict(plan.writes))
+
+    def test_semantic_adoption_rejects_missing_or_enabled_shell_switch(self) -> None:
+        self.target.mkdir()
+        base = 'name = "reviewer"\ndeveloper_instructions = "Inspect only."\n'
+        (self.source / "reviewer.toml").write_text(
+            base + 'features = { shell_tool = false }\n', encoding="utf-8"
+        )
+        target = self.target / "reviewer.toml"
+        for feature in ("", 'features = { shell_tool = true }\n'):
+            with self.subTest(feature=feature):
+                target.write_text(base + feature, encoding="utf-8")
+                plan = install_codex_agents.build_sync_plan(self.source, self.target)
                 self.assertEqual((target,), plan.conflicts)
                 self.assertNotIn(target, dict(plan.writes))
 

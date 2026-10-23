@@ -7,11 +7,12 @@ universal method lives in the installed `prompt-craft` skill. On any conflict, S
 
 ## Parent permissions and inherited configuration are the mandate
 
-Codex custom-agent TOML does not use Claude or Copilot `tools:` frontmatter. Start investigative
-roles with a requested `sandbox_mode = "read-only"`, review inherited shell, MCP, skill, and
-subagent authority, and remember that parent permission changes can override the profile default.
-Prose can narrow a mandate cooperatively, but it cannot remove a capability that the runtime still
-exposes.
+Codex custom-agent TOML does not use Claude or Copilot `tools:` frontmatter and cannot change the
+parent's sandbox or approval policy. Disable unneeded direct shell with
+`features.shell_tool = false`; review the remaining filesystem, MCP, skill, and subagent
+capabilities. Supported feature switches can remove individual capabilities, but do not establish
+a general tool allowlist. Prose can narrow
+a mandate cooperatively; required isolation belongs in an actual host control.
 
 ## When to promote a shell invocation into a real tool
 

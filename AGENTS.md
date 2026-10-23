@@ -72,7 +72,8 @@ to the guard or other authority boundaries. `CONTRIBUTING.md` owns branch and co
 - **One parser per fact.** Read frontmatter, `tools:`, references, and the tree snapshot through
   `fleet/`, and use the kernel's copy of every other primitive; never write a second one.
 - **Authority is the host's own control, never prose:** Claude's guard, VS Code's omitted
-  `execute`, Codex's `sandbox_mode`.
+  `execute`, and Codex's parent-session permissions plus supported capability switches. A Codex
+  custom-agent `sandbox_mode` does not override its parent's permissions.
 - **Proportionality.** No check that re-proves an existing fact, no speed claim without a
   before/after on one machine, and no new mechanism without a task using it now — otherwise record
   it in `docs/fleet-roadmap.md`. Nothing enforces this.

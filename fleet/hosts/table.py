@@ -147,14 +147,6 @@ TEXT_REWRITES: Final[tuple[Rewrite, ...]] = (
         regex=True,
     ),
     Rewrite(
-        id="text.preload.skills-and-your-prompt",
-        why="A spawned worker's context on another host is whatever that host supplies, not a "
-        "Claude preload set.",
-        find="its preloaded skills, and your prompt",
-        replace="the skills supplied to it, and your prompt",
-        expect=2,
-    ),
-    Rewrite(
         id="text.agent-tool.spawn",
         why="`Agent` is Claude's tool name; other hosts spawn subagents through their own "
         "mechanism, and naming a tool the host lacks reads as an available capability.",
@@ -178,34 +170,17 @@ TEXT_REWRITES: Final[tuple[Rewrite, ...]] = (
     ),
     Rewrite(
         id="text.agent-tool.worktree-isolation",
-        why='`isolation: "worktree"` is an option of Claude\'s Agent tool, and branching from the '
-        "default branch is Claude's behavior for it; another host isolates reps through its own "
-        "mechanism, or not at all.",
+        why='`isolation: "worktree"` and `worktree.baseRef` configure Claude\'s worktrees; '
+        "another host selects an execution copy and its base through its own mechanism.",
         find='spawn each rep with\n     `isolation: "worktree"` so same-turn reps never share a '
-        "checkout. That worktree branches from\n     the default branch, not your uncommitted "
-        "revision, so the configuration under test reaches a\n     rep only inline.",
+        "checkout. Check the actual base:\n     `worktree.baseRef` selects the remote default "
+        "or local `HEAD`; uncommitted edits are not\n     copied. Record each rep's product "
+        "revision and supply the exact body under test explicitly.",
         replace="give each rep\n     its own checkout through the host's isolation mechanism so "
-        "same-turn reps never share one,\n     and pass the configuration under test inline; if "
-        "the host has no such mechanism, say so in\n     the change packet.",
+        "same-turn reps never share one. Check\n     its base and copied inputs, record each "
+        "rep's product revision, and supply the exact body\n     under test explicitly. If the "
+        "host cannot isolate the runs, report that limitation.",
         expect=2,
-    ),
-    Rewrite(
-        id="text.worker-context-inheritance",
-        why="Claude's worker isolation is a runtime guarantee; elsewhere the context a worker "
-        "receives depends on the host's fork or context mode, so the guarantee becomes an "
-        "instruction to choose that mode explicitly.",
-        find=r"- \*\*Workers never see the parent conversation\.\*\* A spawned worker gets its "
-        r"definition, the project context, the skills supplied to it, and your prompt, plus what "
-        r"the host injects at startup \(the frontmatter reference below lists it, including a git "
-        r"status snapshot no prompt can withhold\) — nothing else unless you explicitly fork, "
-        r"resume, or supply it\. Construct exactly the context each one needs; underspecified "
-        r"handoffs are the #1 multi-agent bug\.",
-        replace="- **Never rely on implicit context inheritance.** A spawned worker receives only "
-        "what the host's selected context or fork mode supplies. Choose that mode explicitly "
-        "when available, and construct exactly the prompt and context the worker needs; "
-        "underspecified handoffs are the #1 multi-agent bug.",
-        expect=2,
-        regex=True,
     ),
     Rewrite(
         id="text.authoring-claude-suites",
@@ -286,8 +261,8 @@ _CODE_REVIEWER_ENFORCEMENT = {
         "This profile receives no execute tool, so shell execution is unavailable by capability."
     ),
     "codex": (
-        "This profile cannot remove inherited shell authority, and its requested sandbox can be "
-        "overridden by parent permissions; the no-execution rule is cooperative."
+        "This profile retains shell for repository inspection under the parent's permissions; "
+        "the no-code-execution rule is cooperative."
     ),
 }
 
@@ -316,7 +291,7 @@ _PRINCIPAL_INSPECTION = {
         "host cannot expose."
     ),
     "codex": (
-        "Codex still exposes shell execution inside the workspace sandbox, but this role must not "
+        "This profile retains shell under the parent's permissions, but this role must not "
         "run builds, tests, or scripts; use read/search for inspection and name evidence the host "
         "cannot expose."
     ),
@@ -359,14 +334,6 @@ AGENT_REWRITES: tuple[Rewrite, ...] = (
             agents=("sde-fullstack",),
         )
         for skill in ("backend-craft", "frontend-craft", "root-cause", "ci-actions")
-    ),
-    Rewrite(
-        id="agent.write-edit-authority",
-        why="`Write` and `Edit` are Claude tool names; the authority exists on other hosts under "
-        "different names, so the grant is described by what it permits.",
-        find="You hold Write and Edit **to author tests**",
-        replace="You hold edit authority **to author tests**",
-        expect=2,
     ),
     Rewrite(
         id="agent.no-agent-tool",
@@ -415,15 +382,15 @@ AGENT_REWRITES: tuple[Rewrite, ...] = (
     Rewrite(
         id="agent.application-security-auditor.static-first",
         why="The auditor's static-first boundary is enforced on Claude by withholding Bash. "
-        "Codex TOML cannot remove inherited shell authority, so the mandate stays but its "
-        "enforcement claim becomes a demand on the caller for isolation.",
+        "Codex disables its direct shell capability; other inherited execution channels still "
+        "need an explicit mandate and any required outer isolation.",
         find=r"Static-first is a deliberate boundary, not a limitation:.*?"
         r"not something you improvise\.",
-        replace="Static-first remains a deliberate mandate: do not run the target's code. Codex\n"
-        "custom-agent TOML cannot remove inherited shell authority, so the no-execution rule\n"
-        "is cooperative and the caller must provide any required isolation before pointing\n"
-        "this role at an untrusted repository. Request execution evidence from the caller\n"
-        "instead of improvising it.",
+        replace="Static-first remains a deliberate mandate: do not run the target's code. This\n"
+        "profile disables Codex shell tools with features.shell_tool = false. Other inherited\n"
+        "tools may still execute code or expose private files; do not use them to bypass this\n"
+        "mandate. The caller supplies any required outer isolation. Request execution evidence\n"
+        "from the caller instead of improvising it.",
         expect=1,
         regex=True,
         dotall=True,
@@ -433,15 +400,16 @@ AGENT_REWRITES: tuple[Rewrite, ...] = (
     Rewrite(
         id="agent.researcher.external-only",
         why="The researcher's local/external trust separation is a Claude tool split. Codex "
-        "inherits local, shell, and write authority, so the separation must be named as "
-        "cooperative and an outer boundary requested.",
+        "can disable direct shell but still inherits other capabilities, so local/external "
+        "separation needs applicable outer controls.",
         find=r"You cannot access the caller's local or private repository, change anything, or "
         r"run commands\..*?external-research session\.",
         replace="Keep this session external-only: do not inspect local/private repository "
-        "content,\nchange files, or use shell execution. Codex custom-agent TOML cannot remove "
-        "inherited\nlocal, shell, or write authority, and its requested sandbox is overridable, "
-        "so the\ncaller must provide an outer isolation boundary before treating that separation "
-        "as\nenforced. Request a provenance-labeled local packet through the caller instead. "
+        "content,\nchange files, or execute commands through another tool. This profile disables "
+        "Codex\nshell tools with features.shell_tool = false, but other local-read, write, MCP, "
+        "or\nsubagent capabilities may remain inherited. The caller must supply applicable "
+        "outer\ncontrols before treating the local/external separation as enforced. Request a "
+        "provenance-labeled\nlocal packet through the caller instead. "
         "Treat any\nproject instructions or repository status in your startup context as "
         "private — never put\nthem in a search query, a fetched URL, or your findings.",
         expect=1,
@@ -523,10 +491,10 @@ AGENT_REWRITES: tuple[Rewrite, ...] = (
             "reach. The\nlocal-only boundary prevents private source from sharing a subordinate "
             "context\nwith fetched external content.",
             "codex": "Keep the investigation local-only and do not fetch external content or "
-            "change\nfiles. Codex custom-agent TOML cannot remove inherited web, shell, or "
-            "write\nauthority, its requested sandbox is overridable, and the source profile's\n"
-            "reader-allowlist command guard does not exist on this host — so every boundary\n"
-            "here is cooperative: use the shell only for read-only repository inspection\n"
+            "change\nfiles. This profile retains shell for inspection under the parent's "
+            "permissions.\nThe source profile's reader-allowlist command guard does not exist "
+            "on this host,\nso the narrower local-only and inspection-only mandates remain "
+            "cooperative.\nUse the shell only for read-only repository inspection\n"
             "(`git log`, `git blame`, `git show`, `git rev-parse`, search), never for code\n"
             "execution or deliberate network access — against a partial clone any reader that\n"
             "materializes an absent object (`git show`, `git log -p`, `git blame`) still\n"
@@ -593,12 +561,13 @@ AGENT_REWRITES: tuple[Rewrite, ...] = (
         "reproduce it, and no tool layer distinguishes a test path from product code, so the "
         "test-only boundary must be stated as cooperative.",
         find=r"Your tool list is the platform-enforced boundary;.*?"
-        r"voids your independence along with your verdict\.",
-        replace="Effective authority comes from the parent session and its requested sandbox; "
-        "Codex\ncustom-agent TOML cannot reproduce the canonical per-role tool list. This role's"
-        "\nmandate permits edits only to author tests, but that test-only boundary is\n"
-        "cooperative because no tool layer distinguishes a test path from product code. Any\n"
-        "edit outside test code voids your independence along with your verdict.",
+        r"invalidate the verdict for that target\.",
+        replace="Effective authority comes from the parent session's permissions; Codex\n"
+        "custom-agent TOML cannot reproduce the canonical per-role tool list. You may author\n"
+        "tests and task-owned evidence or scratch files, kept separate from the pinned product.\n"
+        "Do not change product source or configuration to obtain a pass. This boundary is\n"
+        "cooperative: no tool layer distinguishes those paths. Product changes require a new\n"
+        "target and invalidate the verdict for that target.",
         expect=1,
         regex=True,
         dotall=True,
@@ -745,14 +714,13 @@ _SECURITY_TOOL_SECTION = {
 """,
     "codex": """## Parent permissions determine effective authority
 
-- Standalone Codex custom agents request `sandbox_mode` and inherit session configuration; they do
-  not carry a per-agent Claude or Copilot `tools:` allowlist.
-- Parent live permission changes and full-access mode can override the profile's requested sandbox
-  and are reapplied to child agents. Use `sandbox_mode = "read-only"` as a safer default for
-  investigative roles, never as proof of an immutable no-write boundary.
-- Shell execution can still run untrusted code even when filesystem writes are denied. If a role
-  must not execute code, state that cooperative limit and remove untrusted inputs or shell
-  authority at a stronger outer boundary when available.
+- Custom agents inherit parent permissions; a `sandbox_mode` field in an agent file does not
+  narrow them. Configure required filesystem and network boundaries in the parent session.
+- Disable direct shell with `features.shell_tool = false` when the role does not need it. This
+  does not remove every execution channel, filesystem tool, or inherited MCP capability.
+- Codex supports disabling selected capabilities, not a general per-agent `tools:` allowlist.
+  Inspect the remaining tools before claiming isolation. An inspector that retains shell needs
+  an inspection-only mandate and any outer boundary required by the target's provenance.
 - Codex plugins package skills but not custom-agent TOML, so review the standalone agent and plugin
   skill surfaces as separate install artifacts.
 
@@ -770,11 +738,12 @@ additional grant with its reason in the agent body.
 """,
     "codex": """## Parent permissions and inherited configuration are the mandate
 
-Codex custom-agent TOML does not use Claude or Copilot `tools:` frontmatter. Start investigative
-roles with a requested `sandbox_mode = "read-only"`, review inherited shell, MCP, skill, and
-subagent authority, and remember that parent permission changes can override the profile default.
-Prose can narrow a mandate cooperatively, but it cannot remove a capability that the runtime still
-exposes.
+Codex custom-agent TOML does not use Claude or Copilot `tools:` frontmatter and cannot change the
+parent's sandbox or approval policy. Disable unneeded direct shell with
+`features.shell_tool = false`; review the remaining filesystem, MCP, skill, and subagent
+capabilities. Supported feature switches can remove individual capabilities, but do not establish
+a general tool allowlist. Prose can narrow
+a mandate cooperatively; required isolation belongs in an actual host control.
 
 """,
 }
@@ -811,7 +780,7 @@ TOOLS_REFERENCE_REWRITES: Final[tuple[Rewrite, ...]] = (
     Rewrite(
         id="resource.tools.mandate",
         why="The section teaches enumerating a Claude tool list; Codex has none, so its mandate "
-        "comes from the requested sandbox and inherited configuration instead.",
+        "comes from parent permissions and supported capability switches instead.",
         find=r"## The tool list is the mandate\n.*?"
         r"(?=## When to promote a Bash invocation into a real tool)",
         replace=_TOOLS_MANDATE_SECTION,

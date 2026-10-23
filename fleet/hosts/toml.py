@@ -74,27 +74,41 @@ def multiline_literal(value: str) -> str:
     return f"'''\n{value}'''"
 
 
+def _check_key(key: str) -> None:
+    if not key.replace("_", "").replace("-", "").isalnum():
+        # The fleet needs only bare keys, including inside a capability table.
+        raise TomlEmitError(f"key {key!r} is not a bare TOML key")
+
+
 def render_document(
-    entries: Sequence[tuple[str, str | Multiline]], *, comment: str | None = None
+    entries: Sequence[tuple[str, str | Multiline | Mapping[str, bool]]],
+    *,
+    comment: str | None = None,
 ) -> str:
-    """Render a flat table of string values, then prove it reads back as what was asked for."""
+    """Render strings and boolean capability tables, verifying the complete parsed value."""
 
     lines: list[str] = []
     if comment is not None:
         if "\n" in comment:
             raise TomlEmitError("a document comment must be one line")
         lines.append(f"# {comment}")
-    intended: dict[str, str] = {}
+    intended: dict[str, object] = {}
     for key, value in entries:
         if key in intended:
             raise TomlEmitError(f"duplicate key {key!r}")
-        if not key.replace("_", "").replace("-", "").isalnum():
-            # A bare key outside this set would need quoting; nothing in the fleet needs one, so
-            # refusing is better than emitting a form no test covers.
-            raise TomlEmitError(f"key {key!r} is not a bare TOML key")
+        _check_key(key)
         if isinstance(value, Multiline):
             lines.append(f"{key} = {multiline_literal(value.value)}")
             intended[key] = value.value
+        elif isinstance(value, Mapping):
+            switches = []
+            for feature, enabled in value.items():
+                _check_key(feature)
+                if not isinstance(enabled, bool):
+                    raise TomlEmitError(f"capability {feature!r} must be a boolean")
+                switches.append(f"{feature} = {'true' if enabled else 'false'}")
+            lines.append(f"{key} = {{ {', '.join(switches)} }}")
+            intended[key] = dict(value)
         else:
             lines.append(f"{key} = {basic_string(value)}")
             intended[key] = value

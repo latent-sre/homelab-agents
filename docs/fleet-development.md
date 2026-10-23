@@ -132,14 +132,20 @@ control, and the hosts do not expose equivalent hook payloads:
 |---|---|---|---|
 | Claude Code | Canonical `agents/` and `skills/` | Session hook allowlists Bash for the guarded roles | Namespaced component references and `${CLAUDE_PLUGIN_ROOT}` are canonical-plugin-only |
 | VS Code | Generated `.github/agents/` and `.github/skills/`, discovered from an open workspace folder | Guarded roles receive no `execute` tool | Its `PreToolUse` payload does not identify the active agent, so the Claude guard is not reused |
-| Codex | Standalone `.codex/agents/*.toml`; generated skills in `plugins/sde-agents/` | Roles without canonical write tools request `sandbox_mode = "read-only"` | Parent permissions can override agent sandbox defaults, and custom-agent TOML has no per-agent tool allowlist |
+| Codex | Standalone `.codex/agents/*.toml`; generated skills in `plugins/sde-agents/` | Parent permissions are inherited; roles without canonical Bash set `features.shell_tool = false` | No general per-agent tool allowlist; a custom-agent `sandbox_mode` cannot narrow parent permissions |
 
 Claude-specific MCP tool identifiers are not promised on other hosts. Generated agents direct the
 host to use an equivalent connected evidence tool only when one is actually available and to label
 the evidence gap otherwise. Document-only and live-effect boundaries that are narrower than a
-host's write sandbox remain cooperative and are described as such. On Codex, no-write, no-shell,
-and no-spawn claims are also cooperative whenever the parent session grants the corresponding
-authority.
+host's write sandbox remain cooperative and are described as such. On Codex, the auditor and
+researcher disable direct shell; other inherited filesystem, MCP, or subagent capabilities can
+remain. Inspection-only shell, no-write, and no-spawn mandates require cooperation wherever an
+actual parent control does not enforce them. Disabling shell alone is not complete isolation.
+
+This mapping follows the [Codex custom-agent contract](https://learn.chatgpt.com/docs/agent-configuration/subagents#custom-agents)
+and upstream `openai/codex` revision `65b82cdf`, inspected 2026-10-23: role configuration projects
+supported disabled features while preserving parent permissions. Parsed adapter tests establish
+the emitted contract; they do not prove that an installed host has loaded it or enforces it.
 
 Claude `skills:` preloads are translated into explicit required-skill instructions. The generator
 also rewrites Claude-only claims about hooks, tool names, context inheritance, and frontmatter;

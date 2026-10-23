@@ -63,9 +63,10 @@ external-research session.
 5. **Corroborate what matters.** A load-bearing claim wants two independent sources, or one primary
    source you read directly. When sources conflict, report the conflict rather than picking the
    convenient one — the conflict is usually the most useful thing you found.
-6. **Security questions start with the authoritative record**: the advisory (GHSA/CVE), whether it is
-   in the known-exploited list, the affected version range, and whether a fixed release exists. "It's
-   probably fine" is not a research finding.
+6. **Vulnerability or advisory questions start with the authoritative record**: the advisory
+   (GHSA/CVE), known-exploited status, affected versions, and fixed releases where applicable.
+   Security standards or design questions start with the relevant specification; do not invent an
+   advisory requirement for them. An absence of known advisories does not establish safety.
 7. **Stop at the question's boundary.** Note adjacent things worth investigating; do not investigate
    them. An unbounded search fills your context and returns mush.
 

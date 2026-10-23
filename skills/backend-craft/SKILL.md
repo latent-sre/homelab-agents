@@ -12,7 +12,11 @@ This skill is general-purpose — any backend or API, not just ops tooling — h
 
 ## Contract first
 
-- The API contract (OpenAPI or equivalent) is written/generated before the frontend consumes anything; it is the single source of truth for shapes — and it is **living**: if your implementation diverges, update the contract in the same change. A stale contract is worse than none; parallel builders trust it. Starting fresh? Copy [`assets/openapi.starter.yaml`](assets/openapi.starter.yaml) — problem+json errors, cursor pagination, and Idempotency-Key already worked in.
+- Write or generate the API contract (OpenAPI or equivalent) before the frontend consumes it.
+  Keep implementation and contract consistent in the same change. During parallel work, one named
+  builder owns the contract; others route changes through the orchestrator before relying on them.
+  Starting fresh? [`assets/openapi.starter.yaml`](assets/openapi.starter.yaml) supplies examples of
+  problem+json errors, cursor pagination, and Idempotency-Key.
 - **One error shape everywhere — RFC 9457 `application/problem+json`** — a client should never parse two error formats. Problem details live at the **top level** of the body; never wrap them in a nested `{"error": {...}}` envelope. The shape, worked:
 
   ```json
@@ -65,7 +69,10 @@ These are the system-wide principles. The client-side mechanics for *calling oth
   Drop the rows the route doesn't have: a deliberately public `/healthz` has no auth or 404 case,
   and inventing one to complete the matrix changes the contract instead of testing it.
 - **Contract-test** against the OpenAPI spec when anything consumes the spec as authority — a generated client, a separately released frontend, another team. Deploy timing is not the key: a hand-authored spec drifts from the implementation inside a single commit, and a generated client follows the spec, not the routes. Skippable only when the spec is generated from the implementation or nothing reads it — then the route's own tests already catch the drift, and the contract layer is a second copy of them.
-- Before "done": the service starts clean, tests pass, and the primary endpoints were exercised with **real requests** (curl/httpie) — request and response pasted in the review packet. An API that was never called is written, not verified.
+- For a new service or changed startup/request path, verify startup and exercise the affected
+  endpoints with real requests, through integration tests or a client. Record the meaningful
+  request/result evidence. An internal change already covered at the relevant boundary needs the
+  focused checks, not a duplicate manual smoke test. Name any runtime behavior left unverified.
 
 The **review packet** is the end-of-task report defined by the calling agent
 (`sde-agents:sde-fullstack` loads this skill for backend work). Invoked standalone with no packet

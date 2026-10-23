@@ -34,13 +34,15 @@ the trace cannot distinguish them; route a tool, access, or runtime defect to it
    - New artifacts and behavior-shaping rewrites get multiple reps; record variation across reps.
      When a snapshot exists, spawn old-config and new-config reps in the same turn, never
      sequentially, using the same tasks and return schema. One registered agent type runs one
-     definition, so a paired comparison runs both configs as general workers given the old and
-     the revised artifact text inline; measure a description's routing in a fresh session that
-     loads the revised file.
+     definition, so compare body instructions using general workers given the old and revised
+     text inline. Label these **inline-worker body simulations**: they do not instantiate the
+     artifact's frontmatter, tool grants, preloads, hooks, or registration. Claims about routing,
+     activation, or host authority require a fresh session that actually loads the target profile
+     or skill; otherwise report those behaviors as unverified.
    - When the artifact under test can write files or run commands, spawn each rep with
-     `isolation: "worktree"` so same-turn reps never share a checkout. That worktree branches from
-     the default branch, not your uncommitted revision, so the configuration under test reaches a
-     rep only inline.
+     `isolation: "worktree"` so same-turn reps never share a checkout. Check the actual base:
+     `worktree.baseRef` selects the remote default or local `HEAD`; uncommitted edits are not
+     copied. Record each rep's product revision and supply the exact body under test explicitly.
    - A one-line edit with a clearly observed failure gets one rep per config, or ships explicitly
      labeled "written but not tested". Never imply compliance without observed evidence.
    - If the Agent tool is unavailable because of a spawn-depth cap or runtime restriction, ship
@@ -110,7 +112,10 @@ into that skill's `scripts/` and point to it — a bundled script executes witho
 context. Agents and tool descriptions have no bundle directory, so keep their behavior in the
 authored prompt unless an existing owned implementation already supplies it.
 
-**Token budget and progressive disclosure.** Frontmatter descriptions load every session — keep them lean. Put core instructions in the body and long reference material in separate files loaded on demand. Working numbers: description ~100 words; body under ~500 lines; references unbounded, with a table of contents once they pass ~300 lines.
+**Context cost and progressive disclosure.** Keep discovery text sufficient for routing and core
+instructions available when needed. Put substantial conditional material behind a clear loading
+predicate. Assess the full loaded bundle, including references and tool schemas; moving text to
+another file does not by itself reduce context or improve behavior.
 
 **Tools are authority.** When authoring agents, scope the tool list to the mandate instead of writing "do not edit files" in prose. Runtime constraints hold; instructions bend.
 
@@ -142,7 +147,10 @@ start a retro.
 - **Changed**: file(s) and the specific sections.
 - **Reason for change**: draft requirements, the established defect, or the tuning hypothesis;
   include baseline evidence when available and identify a new artifact without inventing a failure.
-- **Tested**: fresh-context runs performed and their results — for edits to an existing artifact, the paired delta (old-config x/N → new-config y/N); if none, say "written but not tested" — never imply compliance you didn't observe.
+- **Tested**: runs performed, their configurations, and results; separate inline-worker body
+  simulations from native routing, activation, and authority checks. For paired runs, report
+  old-config x/N → new-config y/N. Name untested behaviors; if no runs occurred, say "written but
+  not tested".
 - **Watch for**: the most plausible regression this change could cause (e.g., a trigger narrowed too far now misses real phrasings).
 - **Repair budget** (iterative repairs, successful or unresolved): agreed round limit, cumulative
   rounds used across callers and delegates, and rounds remaining. Include any caller-authorized

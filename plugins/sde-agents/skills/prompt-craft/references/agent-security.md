@@ -48,14 +48,13 @@ Returned content can carry an injected instruction into the parent. Two conseque
 
 ## Parent permissions determine effective authority
 
-- Standalone Codex custom agents request `sandbox_mode` and inherit session configuration; they do
-  not carry a per-agent Claude or Copilot `tools:` allowlist.
-- Parent live permission changes and full-access mode can override the profile's requested sandbox
-  and are reapplied to child agents. Use `sandbox_mode = "read-only"` as a safer default for
-  investigative roles, never as proof of an immutable no-write boundary.
-- Shell execution can still run untrusted code even when filesystem writes are denied. If a role
-  must not execute code, state that cooperative limit and remove untrusted inputs or shell
-  authority at a stronger outer boundary when available.
+- Custom agents inherit parent permissions; a `sandbox_mode` field in an agent file does not
+  narrow them. Configure required filesystem and network boundaries in the parent session.
+- Disable direct shell with `features.shell_tool = false` when the role does not need it. This
+  does not remove every execution channel, filesystem tool, or inherited MCP capability.
+- Codex supports disabling selected capabilities, not a general per-agent `tools:` allowlist.
+  Inspect the remaining tools before claiming isolation. An inspector that retains shell needs
+  an inspection-only mandate and any outer boundary required by the target's provenance.
 - Codex plugins package skills but not custom-agent TOML, so review the standalone agent and plugin
   skill surfaces as separate install artifacts.
 
