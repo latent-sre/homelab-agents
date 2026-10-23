@@ -389,8 +389,12 @@ AGENT_REWRITES: tuple[Rewrite, ...] = (
         replace="Static-first remains a deliberate mandate: do not run the target's code. This\n"
         "profile disables Codex shell tools with features.shell_tool = false. Other inherited\n"
         "tools may still execute code or expose private files; do not use them to bypass this\n"
-        "mandate. The caller supplies any required outer isolation. Request execution evidence\n"
-        "from the caller instead of improvising it.",
+        "mandate. Source inspection requires a nonexecuting reader supplied by the host;\n"
+        "disabling shell does not create one. If none is available, request a revision-bound\n"
+        "source packet with paths, line ranges, scope, and relevant callers from the caller.\n"
+        "Limit findings to supplied evidence; leave missing paths or preconditions inconclusive.\n"
+        "Do not claim repository coverage. The caller supplies any required outer isolation and\n"
+        "execution evidence.",
         expect=1,
         regex=True,
         dotall=True,
@@ -424,10 +428,10 @@ AGENT_REWRITES: tuple[Rewrite, ...] = (
         "the missing alias. Codex custom-agent TOML has no per-agent allowlist, so a web or MCP "
         "tool the parent exposes stays reachable for a role that reads secret-bearing files.",
         find="You hold no web tool by design:",
-        replace="No web tool is granted to you here, but Codex custom-agent TOML carries no "
-        "per-agent tool allowlist, so a web or MCP tool the parent session exposes stays "
-        "reachable and only an outer host control (sandbox or exec policy) can remove it "
-        "— treat any such tool as authority you must not use:",
+        replace="This role must not use inherited web, app, or external MCP tools for research. "
+        "Disable or restrict those capabilities through the relevant parent or managed "
+        "configuration when enforcement is required; shell sandboxing and command rules alone "
+        "do not remove them. Treat external research as a caller-mediated handoff:",
         expect=1,
         hosts=("codex",),
         agents=("homelab-engineer",),

@@ -25,8 +25,12 @@ directions without changing the target.
 Static-first remains a deliberate mandate: do not run the target's code. This
 profile disables Codex shell tools with features.shell_tool = false. Other inherited
 tools may still execute code or expose private files; do not use them to bypass this
-mandate. The caller supplies any required outer isolation. Request execution evidence
-from the caller instead of improvising it.
+mandate. Source inspection requires a nonexecuting reader supplied by the host;
+disabling shell does not create one. If none is available, request a revision-bound
+source packet with paths, line ranges, scope, and relevant callers from the caller.
+Limit findings to supplied evidence; leave missing paths or preconditions inconclusive.
+Do not claim repository coverage. The caller supplies any required outer isolation and
+execution evidence.
 
 ## Method
 

@@ -32,8 +32,11 @@ the trace cannot distinguish them; route a tool, access, or runtime defect to it
    - Specify the subagent type (a general worker, or the agent under test), exact task input, and
      return schema per rep: did it trigger, did it comply, and the supporting evidence line.
    - New artifacts and behavior-shaping rewrites get multiple reps; record variation across reps.
-     When a snapshot exists, spawn old-config and new-config reps in the same turn, never
-     sequentially, using the same tasks and return schema. One registered agent type runs one
+     When a snapshot exists, pair old-config and new-config reps with the same model, tools,
+     inputs, context policy, and grading. Run concurrently when capacity and independent resources
+     permit; otherwise use fresh-context sequential pairs and reset shared state between runs.
+     Worktrees do not isolate ports or external accounts: serialize or isolate those resources,
+     and record the schedule and any differences in conditions. One registered agent type runs one
      definition, so compare body instructions using general workers given the old and revised
      text inline. Label these **inline-worker body simulations**: they do not instantiate the
      artifact's frontmatter, tool grants, preloads, hooks, or registration. Claims about routing,

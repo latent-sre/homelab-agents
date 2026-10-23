@@ -142,6 +142,11 @@ researcher disable direct shell; other inherited filesystem, MCP, or subagent ca
 remain. Inspection-only shell, no-write, and no-spawn mandates require cooperation wherever an
 actual parent control does not enforce them. Disabling shell alone is not complete isolation.
 
+The Codex security auditor also needs an available nonexecuting source reader; the shell switch
+does not supply one. Without such a reader, use a caller-supplied revision-bound source packet and
+report its coverage limits. Hosted web, apps, and MCP capabilities need their own configuration
+controls; a shell sandbox or command rule does not disable them.
+
 This mapping follows the [Codex custom-agent contract](https://learn.chatgpt.com/docs/agent-configuration/subagents#custom-agents)
 and upstream `openai/codex` revision `65b82cdf`, inspected 2026-10-23: role configuration projects
 supported disabled features while preserving parent permissions. Parsed adapter tests establish

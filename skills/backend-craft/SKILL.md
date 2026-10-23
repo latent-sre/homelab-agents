@@ -27,7 +27,9 @@ This skill is general-purpose — any backend or API, not just ops tooling — h
   ```
 
   `type`/`title`/`status`/`detail`/`instance` are the standard members (`type` names the problem *class* as a URI, `about:blank` when the status code already says it all; `detail` explains this *occurrence*); anything more rides as top-level **extension members** — `request_id` in every one so a user-reported error is greppable in the logs, and validation issues as an `errors` array on a 422 (`"errors": [{"field": "email", "detail": "not a valid email address"}]`). Same shape for 404s and 500s. Serve it as `Content-Type: application/problem+json`, and prefer the framework's native support (Spring `ProblemDetail`, ASP.NET `ProblemDetails`, FastAPI/Starlette problem middleware) over hand-rolling.
-- **Serialize through explicit response models** — never return ORM objects or internal dicts directly. A response model is an allowlist: anything not declared in it (password hash, internal flag) *cannot* leak.
+- **Serialize through explicit output models** to exclude internal fields. Confirm that the actual
+  response passes through that serializer: raw responses, custom handlers, or permissive model
+  settings can bypass the allowlist. Test that sensitive fields are absent from served output.
 - `/v1` in the path from day one; on a **published** surface — one with a consumer you cannot coordinate with, a boundary `references/api-design.md` owns — breaking changes mean a new version, not a mutation. Breaking = removing or renaming a field, changing a type, or changing auth; adding fields or optional params is not. Run at most two live versions: announce the sunset (`Sunset` header with a date), then `410 Gone` after it — an undated deprecation never completes. A surface whose only consumer deploys atomically with it changes both sides in one commit instead — with the one caveat that decides borderline cases: an already-loaded client (yesterday's bundle in an open tab) is a consumer you cannot coordinate with, which is acceptable when the break heals on reload and published-surface rules when a stale response would corrupt data. And *choosing* to break a published surface is design work at `sde-agents:principal-engineer` altitude, not a call a builder makes mid-implementation.
 - Every list endpoint paginates from the start — cursor-based by default (offset is fine for small, bounded admin lists); retrofitting pagination is a breaking change.
 
@@ -68,7 +70,11 @@ These are the system-wide principles. The client-side mechanics for *calling oth
   not a second effect. Uploads verify magic bytes, never the extension or declared Content-Type.
   Drop the rows the route doesn't have: a deliberately public `/healthz` has no auth or 404 case,
   and inventing one to complete the matrix changes the contract instead of testing it.
-- **Contract-test** against the OpenAPI spec when anything consumes the spec as authority — a generated client, a separately released frontend, another team. Deploy timing is not the key: a hand-authored spec drifts from the implementation inside a single commit, and a generated client follows the spec, not the routes. Skippable only when the spec is generated from the implementation or nothing reads it — then the route's own tests already catch the drift, and the contract layer is a second copy of them.
+- **Check served responses against the contract** when a generated client, frontend, or other
+  consumer treats the spec as authority. A generated spec alone does not prove conformance: direct
+  responses and custom error handlers can bypass its serialization or validation path. Reuse route
+  tests when they already assert the relevant status, media type, and body contract; add missing
+  assertions for bypass paths. Do not add a duplicate suite where that behavior is already covered.
 - For a new service or changed startup/request path, verify startup and exercise the affected
   endpoints with real requests, through integration tests or a client. Record the meaningful
   request/result evidence. An internal change already covered at the relevant boundary needs the

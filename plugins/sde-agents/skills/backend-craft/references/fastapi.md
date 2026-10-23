@@ -22,9 +22,13 @@ The universal backend rules live in the installed `backend-craft` skill. On any 
 
 ## Pydantic v2 schemas are the response-model allowlist
 
-- Separate input and output models per resource (`UserCreate` / `UserUpdate` / `UserResponse`);
-  the response model with `model_config = {"from_attributes": True}` is what makes "never return
-  ORM objects" enforceable — declare `response_model=` on **every** route.
+- Separate input and output models per resource (`UserCreate` / `UserUpdate` / `UserResponse`).
+  Use an explicit output model for JSON data routes; `from_attributes` supports reading ORM
+  attributes but is not itself an output filter. A directly returned `Response` bypasses FastAPI's
+  response-model serialization and filtering. Handle those paths explicitly, including file or
+  streaming responses, and test that private fields do not leak.
+  [FastAPI's direct-response contract](https://fastapi.tiangolo.com/advanced/response-cookies/)
+  describes the bypass.
 - Cross-field rules live in `@model_validator(mode="after")`; update models make every field
   optional and apply with `model_dump(exclude_unset=True)` so PATCH means patch.
 
@@ -46,6 +50,10 @@ The universal backend rules live in the installed `backend-craft` skill. On any 
   index must exist in the model.
 - Domain errors are FastAPI-free; routers (or a global `@app.exception_handler`) translate them
   into the one problem+json response.
+- Declare custom error responses' media types and schemas in OpenAPI and test their actual output.
+  Installing a problem+json exception handler does not replace FastAPI's generated default
+  validation-error schema. Use the [additional responses declarations](https://fastapi.tiangolo.com/advanced/additional-responses/)
+  for the status codes whose behavior differs.
 - **Async all the way down**: async SQLAlchemy, `await db.execute(select(...))` — one sync driver
   call in an async route blocks the event loop for every request. Paginated queries always carry
   `.order_by(...)` on a unique key.

@@ -39,9 +39,12 @@ drift in both directions: delivered but not asked for, and asked for but not del
 
 Before reading the diff, settle four inputs:
 
-- **Mission block.** When the repository's project context (`AGENTS.md`, `CLAUDE.md`, or the current host's project-instruction equivalent) carries a mission block — a section naming the tool's purpose, its mission transaction, its threat model, and what the verification pipeline can see — read it. A core capability stubbed, disabled, or TODO'd on the tool's main path is a P0/P1 regardless of diff correctness: "asked for but not delivered" applies to the product, not just the task.
+- **Mission block.** When the repository's project context (`AGENTS.md`, `CLAUDE.md`, or the current host's project-instruction equivalent) carries the tool's purpose, mission transaction, threat model, and verification limits, read them. Assess missing or disabled capabilities against the current checkpoint or release acceptance criteria. Planned later work remains a named gap; it blocks this boundary when required here or made worse by this change. Rate the reachable consequence, not the presence of a stub or TODO alone.
 - **Threat model** — what a P0 means here. Take it from the mission block when one exists; otherwise ask your caller or derive it from the system's purpose. Weight every severity against it.
-- **Focus and churn.** Spend your depth on any focus files the caller names. If the tree is under concurrent modification, skip findings on mid-edit files and name them in your output so your caller can queue them for follow-up.
+- **Focus and churn.** Prioritize the caller's focus files. For an immutable target, read the named
+  revision's bytes even when its working-tree copy is being edited. Exclude mid-edit files only
+  when reviewing mutable working-tree bytes that cannot be captured consistently; name the omitted
+  coverage for follow-up.
 - **Conventions.** The same project-context files carry conventions: audit the diff against explicit rules stated there. Authoring guidance isn't all review-applicable, and a rule the code explicitly silences (a lint-ignore with a rationale) is settled, not a finding.
 
 ## Evidence gate
@@ -52,8 +55,8 @@ Before reporting any finding, read enough surrounding code to confirm it — the
 
 **Every finding clears the false-positive gate before it's written**: not pre-existing (present
 before this diff — tag it `pre-existing` and keep it out of the merge verdict unless the diff makes
-it worse; the mission-block rule above outranks this), not an intentional change tied to the stated
-purpose, and not a nitpick a senior engineer wouldn't raise. Suppress redundant automated
+it worse or the current acceptance boundary independently requires it), not an intentional change
+tied to the stated purpose, and not a nitpick a senior engineer wouldn't raise. Suppress redundant automated
 formatting/style comments, not unresolved material failures: a required regression or security
 check failing on the reviewed target remains in the verdict with its revision and evidence source.
 Apply the pre-existing rule to the defect, while naming any independently required failing merge
@@ -149,8 +152,8 @@ start a retro.
 ### Worked example (the shape, compressed)
 
 > **Target** — `example/api`, base `fedcba987654`, candidate `0123456789ab`, scope: the auth
-> token path, against the caller's four named checks. This verdict applies only to that candidate
-> commit.
+> token and sync paths, against the caller's four named checks. This verdict applies only to that
+> candidate commit.
 >
 > `[P1]` (confidence: high) `[caller-flagged]` `src/sync/worker.py:53` — the retry loop has no cap, so
 > a permanently-failing upstream spins forever and the job never dead-letters. You asked about this
@@ -173,7 +176,7 @@ start a retro.
 > **Independently-found P0/P1s: 0.** The retry cap was yours. I made a deliberate pass beyond
 > your named questions; that pass produced the two P2 findings.
 >
-> **Not reviewed**: `src/ui/` — under concurrent modification when I read it; queue for follow-up.
+> **Not reviewed**: `src/ui/` — outside the agreed auth and sync scope.
 >
 > **Test evidence**: I did not run the suite (read-only mandate). The builder's packet reports
 > `pytest -q` → `41 passed`, and CI run #182 is green on this SHA. That evidence covers the sync path
