@@ -22,8 +22,24 @@ function Get-Thing {
 - Approved verbs (`Get-Verb`), `[CmdletBinding()]`, and typed, validated params
   (`[ValidateSet()]`, `[ValidateNotNullOrEmpty()]`) — validation at the boundary beats checks
   scattered through the body.
-- State-changing functions declare `SupportsShouldProcess`, which buys `-WhatIf`/`-Confirm` from
-  the runtime instead of a hand-rolled dry-run flag.
+- State-changing functions declare `SupportsShouldProcess` and gate each effect on
+  `$PSCmdlet.ShouldProcess(target, action)`. The attribute exposes `-WhatIf`/`-Confirm`; it does not
+  suppress native commands or .NET writes by itself. Keep preparation free of those effects.
+  [Microsoft's ShouldProcess guidance](https://learn.microsoft.com/en-us/powershell/scripting/learn/deep-dives/everything-about-shouldprocess)
+  owns the contract. For example:
+
+```powershell
+function Set-FileText {
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [Parameter(Mandatory)][string]$LiteralPath,
+        [Parameter(Mandatory)][string]$Value
+    )
+    if ($PSCmdlet.ShouldProcess($LiteralPath, 'Write file text')) {
+        [IO.File]::WriteAllText($LiteralPath, $Value)
+    }
+}
+```
 
 ## Error handling
 
@@ -81,9 +97,12 @@ function Get-Thing {
 - Secrets come from a vault at run time — SecretManagement + SecretStore (`Get-Secret`), or
   whatever store the repository already uses — never baked into scripts, parameters, or
   transcripts; pass credential objects, not plaintext.
-- Where an execution policy or Constrained Language Mode is enforced, sign
-  (`Set-AuthenticodeSignature`) — unsigned automation on a locked-down host fails at the worst
-  time.
+- Check the effective execution and application-control policies. Sign with an authorized trusted
+  signer when the policy requires it; signing does not make scripts runnable under `Restricted`.
+  Constrained Language Mode is a separate restriction: keep the script compatible with it or
+  return the required allowance to the policy owner. A signature alone does not grant FullLanguage.
+  [PowerShell's application-control documentation](https://learn.microsoft.com/en-us/powershell/scripting/security/app-control/how-app-control-works)
+  explains how policy decides whether a file runs and in which language mode.
 
 ## Quality gate and tests
 
@@ -91,6 +110,9 @@ function Get-Thing {
   `PSUseApprovedVerbs`, `PSAvoidUsingCmdletAliases`, `PSUseShouldProcessForStateChangingFunctions`,
   `PSAvoidUsingInvokeExpression`, `PSAvoidUsingPlainTextForPassword`,
   `PSAvoidUsingConvertToSecureStringWithPlainText`.
+- Check `PSUseShouldProcessCorrectly` as well; it is a Warning, so an Error-only gate does not
+  establish correct dry-run handling. Test that `-WhatIf` leaves effects uncalled and that normal
+  execution still performs the intended action.
 - Test with Pester 5, which runs **Discovery, then Run** as separate phases: bare code inside
   `Describe` executes during Discovery. Generate test data in `BeforeDiscovery` and pass it through
   `-ForEach`/`-TestCases`; put execution setup in `BeforeAll`/`BeforeEach`. Use `$script:` only when

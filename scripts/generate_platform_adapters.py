@@ -9,8 +9,8 @@ differences explicit:
 * Copilot/VS Code agents use native tool aliases. Agents protected by Claude's session-wide Bash
   hook receive no ``execute`` tool because neither host exposes the active agent identity on
   ``PreToolUse``.
-* Codex agents use standalone TOML and request ``read-only`` or ``workspace-write`` sandbox mode
-  from the canonical write-tool authority, while naming that parent permissions can override it.
+* Codex agents inherit parent permissions. Standalone TOML disables the shell capability for
+  canonical roles without Bash; narrower write and tool mandates remain explicit in prose.
 * Each host gets a skill copy with valid YAML, no Claude plugin namespace, and no direct
   plugin-root paths. Copilot retains its explicit-invocation frontmatter; Codex expresses the
   same rule through ``agents/openai.yaml``.
@@ -279,13 +279,12 @@ def render_copilot_agent(
 
 def _codex_agent_parts(
     source: Path, *, ledger: Ledger | None = None
-) -> tuple[dict[str, str], str, str, str, str]:
+) -> tuple[dict[str, str], str, str, str]:
     """Return source metadata plus one shared Codex authority contract."""
 
     fields, body, _ = _definition_parts(source)
     name = fields["name"]
     tools = set(_frontmatter.split_tools(fields.get("tools", "")))
-    sandbox_mode = "workspace-write" if tools & WRITE_TOOLS else "read-only"
     description = adapt_agent_text(
         fields["description"], name=name, host="codex", ledger=ledger
     )
@@ -298,27 +297,32 @@ def _codex_agent_parts(
         "- This generated profile is both a source-host project agent and an official Codex",
         "  import source. Fleet component names are bare; in Codex, select skills with the",
         "  skill picker or `$name` syntax.",
-        "- Parent session permissions can override this requested sandbox; live permission changes",
-        "  and full-access mode are reapplied to child agents.",
-        "- The Markdown staging source carries a source-host tool list. Codex custom-agent TOML",
-        "  does not provide a per-agent tool allowlist: shell, MCP, skill, and subagent tools may",
-        "  remain inherited, so narrower no-shell or no-spawn rules are cooperative unless an",
-        "  outer boundary disables those capabilities.",
+        "- This agent inherits the parent session's permissions; a custom-agent sandbox_mode",
+        "  setting cannot narrow them. Live permission changes also apply to child agents.",
+        "- Codex custom-agent TOML has no general per-agent tool allowlist. It can disable",
+        "  supported capabilities; other inherited tools and narrower mandates still require",
+        "  the parent's controls or cooperative compliance.",
     ]
-    if sandbox_mode == "read-only":
+    if "Bash" not in tools:
         adapter_lines.extend(
             [
-                "- This profile requests `sandbox_mode = \"read-only\"` to match the canonical",
-                "  no-write mandate. If the parent grants write authority, that mandate becomes",
-                "  cooperative rather than enforced by this profile.",
+                "- This profile sets features.shell_tool = false to disable Codex shell tools.",
+                "  This does not remove every filesystem, MCP, or subagent capability.",
+            ]
+        )
+    if not tools & WRITE_TOOLS:
+        adapter_lines.extend(
+            [
+                "- The canonical no-write mandate remains cooperative wherever the parent",
+                "  grants a write capability. Use an outer boundary when enforcement is required.",
             ]
         )
     else:
         adapter_lines.extend(
             [
-                "- This profile requests `sandbox_mode = \"workspace-write\"` for ordinary local",
-                "  workspace changes. Any narrower document-only, test-only, approval, or",
-                "  live-effect boundary remains cooperative and must be stated honestly.",
+                "- Workspace changes must stay within the parent's permissions. Narrower",
+                "  document-only, test-only, approval, and live-effect boundaries remain",
+                "  cooperative unless an actual host control enforces them.",
             ]
         )
     if _has_external_evidence_tools(fields):
@@ -341,23 +345,24 @@ def _codex_agent_parts(
         )
 
     full_instructions = "\n".join(adapter_lines) + "\n\n" + instructions
-    return fields, name, sandbox_mode, description, full_instructions
+    return fields, name, description, full_instructions
 
 
 def render_codex_agent(source: Path, *, ledger: Ledger | None = None) -> str:
-    _, name, sandbox_mode, description, full_instructions = _codex_agent_parts(
+    fields, name, description, full_instructions = _codex_agent_parts(
         source, ledger=ledger
     )
+    entries: list[tuple[str, str | Multiline | dict[str, bool]]] = [
+        ("name", name),
+        ("description", description),
+        # TOML trims the newline after the opening delimiter; retain the body's final one.
+        ("developer_instructions", Multiline(full_instructions + "\n")),
+    ]
+    if "Bash" not in _frontmatter.split_tools(fields.get("tools", "")):
+        entries.append(("features", {"shell_tool": False}))
     try:
         return render_document(
-            [
-                ("name", name),
-                ("description", description),
-                ("sandbox_mode", sandbox_mode),
-                # The trailing newline is part of the value: TOML trims the one that follows the
-                # opening delimiter, so this is what keeps the body's final line break.
-                ("developer_instructions", Multiline(full_instructions + "\n")),
-            ],
+            entries,
             comment=GENERATED_MARKER,
         )
     except TomlEmitError as exc:
@@ -1066,8 +1071,8 @@ def validate_platform_contracts(root: Path) -> list[str]:
     if "hooks" in codex:
         issues.append(
             f"{codex_path}: Codex must not load the Claude hook through a manifest override. Keep "
-            f"its nested plugin root hook-free and express requested agent sandbox defaults only "
-            f"in standalone TOML."
+            f"its nested plugin root hook-free; use supported capability switches in standalone "
+            f"TOML and configure permissions in the parent session."
         )
 
     codex_default_hook = root / CODEX_PLUGIN_ROOT / "hooks" / "hooks.json"

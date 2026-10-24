@@ -17,10 +17,11 @@ machines, anything with edge cases you can enumerate. It gets in the way while e
 API or a UI's shape — there, spike first, then write the tests that pin what you learned before you
 call it done. Either order is fine; shipping untested logic is not.
 
-**For a bug, the failing test comes first, always.** It reproduces the report, it fails for the right
-reason, and it is the thing that proves the fix. That test is also the regression guard — the reason
-this bug can't come back is that this test exists. (The diagnosis that precedes it belongs to
-`root-cause`.)
+**For a bug, reproduce it with a failing test before fixing it when safe and feasible.** Confirm
+that it fails for the reported mechanism, then use it as the regression guard. If reproduction is
+unsafe or the codebase cannot support it, use the traces or simulation established by
+`root-cause`, state the limitation, and verify the changed behavior as directly as the
+environment permits. Do not claim a regression was reproduced when it was only inferred.
 
 ## What deserves a test
 

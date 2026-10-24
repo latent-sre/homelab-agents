@@ -9,4 +9,9 @@ The universal backend rules live in the installed `backend-craft` skill. On any 
 - **In-process** (FastAPI BackgroundTasks / a goroutine) only for short, fire-and-forget, loss-tolerant work. Anything that must not be lost goes to a **real queue** — ARQ or TaskIQ for async-native FastAPI, Celery when you need its ecosystem/scale.
 - **Scheduled jobs** (polling an upstream, a nightly sync) via a scheduler (APScheduler / cron) with one owner — not a `sleep` loop; make each run **idempotent** so an overlap or replay is safe.
 - **At-least-once is the norm**: jobs retry with backoff and land failures in a **dead-letter** path rather than vanishing; log job start/end with a correlation ID.
-- **Receiving webhooks**: verify the signature, respond fast (202) and process async, and dedupe by event ID — deliveries repeat.
+- **Receiving webhooks**: verify authenticity according to the provider's protocol, deduplicate
+  repeated events, and meet its acknowledgement status, body, and deadline. Subscription challenges
+  may require a synchronous response; for example, [Slack URL verification](https://docs.slack.dev/reference/events/url_verification/)
+  requires `200` with the challenge. Queue ordinary processing after durable acceptance when the
+  protocol permits it; do not substitute a universal `202` or acknowledge an event before accepting
+  responsibility for it.

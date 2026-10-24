@@ -23,14 +23,21 @@ A single agent with good tools beats a committee for most tasks. Reach for multi
   single-item processing chain gives a lower bound on batch completion time.
 - **Fan-out with barrier** — only when a stage genuinely needs ALL prior results at once (dedup, cross-comparison, early-exit on zero). Barriers waste the fast workers' time; justify each one.
 - **Judge panel** — N independent attempts from different angles, scored by parallel judges, synthesized from the winner. For wide solution spaces.
-- **Adversarial verification** — findings survive only if independent skeptics prompted to *refute* them fail to. Kills plausible-but-wrong output.
+- **Adversarial verification** — ask independent skeptics to refute findings, then require
+  affirmative evidence for each surviving claim and its preconditions. Failure to refute is not
+  validation; unsupported candidates remain inconclusive.
 - **Loop-until-dry** — for unknown-size discovery, iterate until K consecutive rounds find nothing new; fixed counts miss the tail.
 - **Completeness critic** — a final agent that asks "what's missing?"; its findings become the next round of work.
 
 ## Design principles
 
-- **Workers never see the parent conversation.** A spawned worker gets its definition, the project context, its preloaded skills, and your prompt, plus what the host injects at startup (the frontmatter reference below lists it, including a git status snapshot no prompt can withhold) — nothing else unless you explicitly fork, resume, or supply it. Construct exactly the context each one needs; underspecified handoffs are the #1 multi-agent bug.
-- **The final message is the interface.** Specify the return schema for every agent; free-text handoffs lose constraints at every hop.
+- **Check context inheritance.** A worker receives what the host's selected context or fork mode
+  supplies, including any startup context the caller cannot withhold. State the goal, constraints,
+  paths, acceptance criteria, and exclusions explicitly. For independent evaluations, keep prior
+  attempts and expected answers out of the tested worker's context.
+- **The final message is the interface.** Specify the findings, evidence, constraints, and unresolved
+  work the receiver needs. Use a schema when a consumer checks the shape; a valid shape does not
+  establish correct or complete content.
 - **Tools are authority.** An agent's tool list encodes its mandate: reviewers can't edit, researchers can't write. Enforce roles at the tool layer, not with prose.
 - **Descriptions route work.** An agent description states *when* to use it — never its internal process, which invites the caller to shortcut it.
 - **Budget explicitly.** Tokens, latency, and agent count per task. A design that works but costs 50x is not a working design. Escalate a worker's model tier only when the lower tier fails with a clear reasoning gap — never as the first response to a miss.

@@ -235,7 +235,7 @@ class FleetRewriteCountTests(unittest.TestCase):
         # The same defect as the skill description, on the agent side: descriptions ran only the
         # shared text rewrites while AGENT_REWRITES reached the body alone, so an authority
         # sentence in a description shipped to both hosts with the ledger satisfied by bodies.
-        claim = "You hold Write and Edit **to author tests**"
+        claim = "you hold no `Agent` tool, so"
         with repo_copy() as dst:
             target = dst / "agents" / "verification-engineer.md"
             lines = target.read_text(encoding="utf-8").split("\n")
@@ -249,7 +249,7 @@ class FleetRewriteCountTests(unittest.TestCase):
             target.write_text("\n".join(lines), encoding="utf-8")
             with self.assertRaises(RewriteError) as caught:
                 generator.expected_outputs(dst)
-        self.assertIn("agent.write-edit-authority", str(caught.exception))
+        self.assertIn("agent.no-agent-tool", str(caught.exception))
 
     def test_every_prose_surface_goes_through_one_entry_point(self) -> None:
         """`adapt_text` is reachable only through the two per-definition-kind adapters.
@@ -283,6 +283,21 @@ class FleetRewriteCountTests(unittest.TestCase):
 
 
 class TomlEmitterTests(unittest.TestCase):
+    def test_capability_switches_round_trip_as_booleans(self) -> None:
+        text = fleet_toml.render_document([
+            ("features", {"shell_tool": False, "apps": True}),
+            ("developer_instructions", fleet_toml.Multiline("[features]\nshell_tool = true\n")),
+        ])
+        parsed = tomllib.loads(text)
+        self.assertIs(parsed["features"]["shell_tool"], False)
+        self.assertIs(parsed["features"]["apps"], True)
+        self.assertEqual("[features]\nshell_tool = true\n", parsed["developer_instructions"])
+
+    def test_capability_tables_reject_non_boolean_values_and_invalid_keys(self) -> None:
+        for table in ({"shell_tool": "false"}, {"shell_tool": 0}, {"bad.key": False}):
+            with self.subTest(table=table), self.assertRaises(fleet_toml.TomlEmitError):
+                fleet_toml.render_document([("features", table)])
+
     def test_a_document_reads_back_as_written(self) -> None:
         text = fleet_toml.render_document(
             [
