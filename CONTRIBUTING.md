@@ -6,8 +6,8 @@ Most contributors here are agent sessions, so this file states the procedure a s
 from the diff. The binding rules — what a PR must not do — stay in `AGENTS.md` under "Opening a pull
 request"; read both before opening or updating one.
 
-Validation tiers, change playbooks, and the hard rules are owned by `AGENTS.md`. Where this file and
-`AGENTS.md` disagree, `AGENTS.md` wins.
+Validation tiers and the hard rules are owned by `AGENTS.md`; change playbooks by
+`docs/fleet-development.md`. Where this file and either owner disagree, the owner wins.
 
 ## Branches
 

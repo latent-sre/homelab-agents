@@ -148,11 +148,11 @@ neither removes a host gate nor supplies a missing tool.
 ## Working on the fleet
 
 `AGENTS.md` is the rulebook every editing session loads: what to validate before pushing, the
-change playbooks, and the hard rules. `CONTRIBUTING.md` owns the pull-request procedure: branch
+pull-request rules, and the hard rules. `CONTRIBUTING.md` owns the pull-request procedure: branch
 naming, the template, and supported reviewer triggers, with operator handoff when the host cannot
-request a pass. `docs/fleet-development.md` holds the long-form material: which file owns which
-convention, how the hooks are wired and why, how the fleet is validated and probed, and how to
-import from another fleet. `docs/fleet-roadmap.md` is the only task tracker. After any agent or
+request a pass. `docs/fleet-development.md` holds the change playbooks and the long-form material:
+which file owns which convention, how the hooks are wired and why, how the fleet is validated and
+probed, and how to import from another fleet. `docs/fleet-roadmap.md` is the only task tracker. After any agent or
 skill edit, regenerate the host adapters; after adding, renaming, or removing a component, refresh
 the inventory above:
 
