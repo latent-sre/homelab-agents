@@ -3,7 +3,8 @@
 `agents/` and `skills/` are the only authored source; Codex and VS Code load adapters generated
 from them. Edit the canonical file and regenerate — never a generated copy, and never a fleet file
 under `~/.claude`. Read a script's docstring before you change or run it. Before you edit a
-description, a hook, or the validator, or add an agent or skill, read the matching playbook in
+description, a hook, or the validator; add a guard or check to any fleet script; add an agent or
+skill; change a validated record shape; or retire a tripwire, read the matching playbook in
 `docs/fleet-development.md` under "Change playbooks".
 
 ## Validate before you push
