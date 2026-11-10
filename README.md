@@ -78,11 +78,15 @@ Use the target repository's existing project-instruction file and do not create 
 For a new cross-host repository, prefer a portable root `AGENTS.md`.
 
 Claude Code natively loads `CLAUDE.md` (project, user, and managed levels) and passes it to
-subagents automatically; it does **not** read a bare `AGENTS.md`
-([memory docs](https://code.claude.com/docs/en/memory): "Claude Code reads `CLAUDE.md`, not
-`AGENTS.md`"). A repository using portable `AGENTS.md` therefore needs a root `CLAUDE.md` containing
-a single `@AGENTS.md` import — on Windows the docs recommend the import over a symlink — or Claude
-Code never sees it. Codex consumes `AGENTS.md` directly. GitHub's
+subagents automatically. Since v2.1.277 it also reads a bare `AGENTS.md`, but only when no
+`CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` exists in the working directory or above
+it, and not in sessions where that support is unavailable: older versions, the built-in plugin
+that reads `AGENTS.md` disabled, or some first sessions after an upgrade
+([memory docs](https://code.claude.com/docs/en/memory#agents-md), checked 2026-11-10). A repository
+using portable `AGENTS.md` therefore still commits a root `CLAUDE.md` containing a single
+`@AGENTS.md` import, which loads it in every case, including for a contributor who adds a
+`CLAUDE.local.md` — on Windows the docs recommend the import over a symlink. Codex consumes
+`AGENTS.md` directly. GitHub's
 [support matrix](https://docs.github.com/en/copilot/reference/custom-instructions-support)
 (checked 2026-09-10) distinguishes Copilot surfaces:
 
