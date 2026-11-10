@@ -5,7 +5,8 @@ from them. Edit the canonical file and regenerate — never a generated copy, an
 under `~/.claude`. Read a script's docstring before you change or run it. Before you edit a
 description, a hook, or the validator; add a guard or check to any fleet script; add an agent or
 skill; change a validated record shape; or retire a tripwire, read the matching playbook in
-`docs/fleet-development.md` under "Change playbooks".
+`docs/fleet-development.md` under "Change playbooks". Why the fleet's disciplines exist is in
+`docs/engineering-program.md`.
 
 ## Validate before you push
 
@@ -32,7 +33,7 @@ naming, the template, and requesting review.
 
 ## Hard rules
 
-- **Hooks stay standard-library.** The hook runs `python -I -S`; a non-stdlib import makes the
+- **Keep isolated hooks dependency-free.** The hook runs `python -I -S`; a non-stdlib import makes the
   guard deny every scoped Bash call. `fleet/` stays standard-library too.
 - **The read-only guard's allowlist grows only by readers**, never by anything that can execute a
   program. Never port the hook to Codex or VS Code.

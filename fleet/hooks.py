@@ -50,8 +50,8 @@ IDENTITY = "@@IDENTITY@@"
 
 # Rendered from the committed hook file with the two roster expansions replaced by placeholders.
 # Changing the shell semantics is a hook change and owes the probe, not only the tests
-# (`AGENTS.md`, "Touching a Claude hook"). Each is ONE line and stays that way: the hook
-# file holds the command as a single JSON string, and a wrapped source line would render
+# (`docs/fleet-development.md`, "Touching a Claude hook"). Each is ONE line and stays that way:
+# the hook file holds the command as a single JSON string, and a wrapped source line would render
 # bytes the committed file does not have. Hence the width waiver rather than a reflow.
 GUARD_TEMPLATE = 'IN=$(cat); SQ=$(printf %s "$IN" | tr -d " \\t\\n\\r"); case "$IN" in @@FAST_PATH@@) ;; *) exit 0 ;; esac; G="${CLAUDE_PLUGIN_ROOT}/scripts/readonly-guard.py"; for C in python3 python py; do command -v "$C" >/dev/null 2>&1 || continue; OUT=$(printf \'%s\' "$IN" | "$C" -I -S "$G" 2>/dev/null); RC=$?; if [ "$RC" -eq 42 ]; then exit 0; fi; if [ "$RC" -eq 43 ]; then printf \'%s\' "$OUT"; exit 0; fi; done; case "$SQ" in @@IDENTITY@@) printf \'%s\' \'{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Read-only guard unavailable or failed: no interpreter answered with the guard\'"\'"\'s own exit code (tried python3, python, py), so the guard is missing, broken, or not really Python. Bash is denied for this read-only agent by default. Install Python 3, or reinstall the sde-agents plugin."}}\' ;; esac; exit 0'  # noqa: E501
 
