@@ -57,9 +57,10 @@ select = ["E", "F", "W", "I", "B", "UP"]
 #   rewrapped without changing what the probe measures and breaking comparability with the
 #   recorded probe evidence. Reflowing a measurement to satisfy a formatter is the wrong trade.
 # * The hook script's long lines ARE reflowable -- they are comments and code, not output
-#   bytes -- but editing it is a hook change under AGENTS.md's hook playbook and owes a
-#   `probe_plugin.py` run. Spending a live probe to rewrap comments in the fleet's security
-#   boundary is the wrong trade, for the same reason `[tool.ruff.format]` below excludes them.
+#   bytes -- but editing it is a hook change under the hook playbook in
+#   `docs/fleet-development.md` and owes a `probe_plugin.py` run. Spending a live probe to
+#   rewrap comments in the fleet's security boundary is the wrong trade, for the same reason
+#   `[tool.ruff.format]` below excludes them.
 #
 # The exemptions are permanent; adding another entry requires the same stated reason.
 [tool.ruff.lint.per-file-ignores]
